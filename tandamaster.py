@@ -1,9 +1,11 @@
 #!/usr/bin/python3
 
-from IPython import embed
-
 import sys
 import os, os.path
+
+from IPython import embed
+#from IPython.core import ultratb
+#sys.excepthook = ultratb.FormattedTB(mode='Verbose',color_scheme='Linux', call_pdb=1)
 
 from PyQt5.Qt import *   # todo: import only what you need
 
@@ -43,7 +45,6 @@ class TandaMasterWindow(QMainWindow):
 
         self._createMenuBar()
 
-        self.destroyed.connect(self.playtreemodel.save)
 
     def _createMenuBar(self):
         menubar = QMenuBar()
@@ -82,6 +83,10 @@ class TandaMasterWindow(QMainWindow):
             self.current = playtree_index.internalPointer()
             tm.player.setMedia(QMediaContent(QUrl.fromLocalFile(self.current.filename)))
         self.player.play()
+
+    def closeEvent(self, event):
+        self.playtreemodel.save()
+        event.accept()
 
     
 app = QApplication(sys.argv)

@@ -3,6 +3,10 @@ from IPython import embed
 from lxml import etree
 from PyQt5.Qt import *   # todo: import only what you need
 
+import os, datetime
+
+tandamaster_namespace = "http://milonguero.si/tandamaster"
+
 class PlayTreeItem:
     pass
 
@@ -20,7 +24,10 @@ class PlayTreeList_XML(PlayTreeItem_XML):
     def childCount(self):
         return len(self)
     def child(self, row):
-        return self[row]
+        try:
+            return self[row]
+        except IndexError:
+            return None
     def data(self, column_name, role):
         if column_name:
             return None
@@ -108,7 +115,7 @@ class PlayTreeBrowsedFile(PlayTreeFile):
 
 
 _lookup = etree.ElementNamespaceClassLookup()
-_playtree_namespace = _lookup.get_namespace("http://milonguero.si/tandamaster")
+_playtree_namespace = _lookup.get_namespace(tandamaster_namespace)
 _playtree_namespace.update({
     'list': PlayTreeList_XML,
     'file': PlayTreeFile_XML,
@@ -117,8 +124,6 @@ _playtree_namespace.update({
 })
 playtree_parser = etree.XMLParser(remove_blank_text=True)
 playtree_parser.set_element_class_lookup(_lookup)
-PlayTreeElement = playtree_parser.makeelement
-
 
 class PlayTreeModel(QAbstractItemModel):
     def __init__(self, playtree_xml_filename, parent = None):
@@ -128,14 +133,20 @@ class PlayTreeModel(QAbstractItemModel):
         try:
             self.playtree_xml_document = etree.parse(playtree_xml_filename, playtree_parser)
         except:
-            self.playtree_xml_document = etree.ElementTree(PlayTreeElement('list', id = 'root'))
+            self.playtree_xml_document = etree.ElementTree(
+                etree.XML('<list xmlns="{}" id="root"/>'.format(tandamaster_namespace), playtree_parser)
+            )
         self.rootItem = self.playtree_xml_document.getroot()
 
     def save(self):
+        print("Saving!")
         with open(self.playtree_xml_filename + '.tmp', 'wb') as outfile:
-            playtree_xml_document.write(outfile, pretty_print = True, encoding='UTF-8')
-            os.rename(args.xml_file, args.xml_file + '.' + timestamp('_') + '.bak')
-            os.rename(args.xml_file + '.tmp', args.xml_file)
+            self.playtree_xml_document.write(outfile, pretty_print = True, encoding='UTF-8')
+            try:
+                os.rename(self.playtree_xml_filename, self.playtree_xml_filename + '.' + _timestamp('_') + '.bak')
+            except:
+                pass
+            os.rename(self.playtree_xml_filename + '.tmp', self.playtree_xml_filename)
         
     # column "" provides browsing info (folder name, file name, ...)
     _columns = ('', 'ARTIST', 'ALBUM', 'TITLE')
@@ -150,7 +161,7 @@ class PlayTreeModel(QAbstractItemModel):
             parentItem = parent.internalPointer()
 
         childItem = parentItem.child(row)
-        if childItem:
+        if childItem is not None:
             return self.createIndex(row, column, childItem)
         else:
             return QModelIndex()
@@ -188,6 +199,10 @@ class PlayTreeModel(QAbstractItemModel):
         if orientation == Qt.Horizontal and role == Qt.DisplayRole:
             return self._columns[section].title()
         return None
+
+def _timestamp(sep = ' '):
+    ts = datetime.datetime.now().isoformat(sep)
+    return ts[0:ts.index('.')]
 
 from library import Librarian
 librarian = Librarian()

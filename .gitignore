@@ -1,0 +1,7 @@
+*~
+*.bak
+test*
+#*#
+.#*
+*_rc.py
+__pycache__

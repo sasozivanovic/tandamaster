@@ -236,12 +236,14 @@ class PlayTreeModel(QAbstractItemModel):
         return len(self._columns)
     
     def data(self, index, role = Qt.DisplayRole):
-        if role == Qt.ForegroundRole and index == self.current_index:
-            return QBrush(QColor(Qt.red))
-        elif role == Qt.FontRole and index == self.current_index:
-            font = QFont()
-            font.setWeight(QFont.Bold)
-            return font
+        if role in (Qt.ForegroundRole, Qt.FontRole):
+            if index == self.current_index:
+                if role == Qt.ForegroundRole:
+                    return QBrush(QColor(Qt.red))
+                elif role == Qt.FontRole:
+                    font = QFont()
+                    font.setWeight(QFont.Bold)
+                    return font
         else:
             return index.internalPointer().data(self._columns[index.column()], role)
 
@@ -326,6 +328,13 @@ There references were created to keep the objects alive.  See lxml's
 
     def isPlayable(self, index):
         return isinstance(index.internalPointer(), PlayTreeFile) if index.isValid() else False
+
+    def ancestors(self, index):
+        ancestors = []
+        while index.isValid():
+            ancestors.append(index)
+            index = self.parent(index)
+        return ancestors
 
 def _timestamp(sep = ' '):
     ts = datetime.datetime.now().isoformat(sep)

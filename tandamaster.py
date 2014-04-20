@@ -111,7 +111,9 @@ class PlayTreeView(QTreeView):
         super().__init__(parent)
         self.setExpandsOnDoubleClick(False)
         self.expanded.connect(self._expanded)
+        self.collapsed.connect(self._collapsed)
         self._autoexpanded = None
+        self._autoexpand_on = True
 
     def isFirstColumnSpanned(row, parent):
         return True
@@ -119,24 +121,31 @@ class PlayTreeView(QTreeView):
         return not parent.isPlayable(index)
 
     def _expanded(self, index):
+        if index in self.model().ancestors(self.model().current_index):
+            self._autoexpand_on = True
         if not self.model().isPlayable(index):
             self.resizeColumnToContents(0)
+
+    def _collapsed(self, index):
+        if index in self.model().ancestors(self.model().current_index):
+            self._autoexpand_on = False
 
     def setModel(self, model):
         super().setModel(model)
         model.current_changed.connect(self.autoexpand)
 
     def autoexpand(self, old_index, index):
-        if self._autoexpanded:
-            while old_index.isValid():
-                self.collapse(old_index)
-                if old_index == self._autoexpanded:
-                    break
-                old_index = self.model().parent(old_index)
-        while index.isValid() and not self.isExpanded(index):
-            self.expand(index)
-            self._autoexpanded = index
-            index = self.model().parent(index)
+        if self._autoexpand_on:
+            if self._autoexpanded:
+                while old_index.isValid():
+                    self.collapse(old_index)
+                    if old_index == self._autoexpanded:
+                        break
+                    old_index = self.model().parent(old_index)
+            while index.isValid() and not self.isExpanded(index):
+                self.expand(index)
+                self._autoexpanded = index
+                index = self.model().parent(index)
 
 from globals import *
 import tandamaster_rc

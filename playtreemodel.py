@@ -22,6 +22,8 @@ class PlayTreeList_XML(PlayTreeItem_XML):
     @property
     def name(self):
         return self.get('name')
+    def __str__(self):
+        return self.name
     def childCount(self):
         return len(self)
     def child(self, row):
@@ -44,6 +46,8 @@ class PlayTreeFile(PlayTreeItem):
     def __init__(self, parent, filename):
         self.parent = parent
         self.filename = filename
+    def __str__(self):
+        return self.filename    
     def childCount(self):
         return 0
     def child(self, row):
@@ -57,7 +61,6 @@ class PlayTreeFile(PlayTreeItem):
             return tmSongIcon
     @property
     def tags(self):
-        print(self.filename)
         return librarian.tags(filename = self.filename)
     def childs_row(self, child):
         return None
@@ -72,6 +75,9 @@ class PlayTreeFolder(PlayTreeItem):
         self.parent = parent
         self.filename = filename
         self._children = None
+
+    def __str__(self):
+        return self.filename
 
     def childCount(self):
         if self._children is None:
@@ -157,6 +163,31 @@ class PlayTreeModel(QAbstractItemModel):
                 etree.XML('<list xmlns="{}" id="root"/>'.format(tandamaster_namespace), playtree_parser)
             )
         self.rootItem = self.playtree_xml_document.getroot()
+        self._current_index = QModelIndex()
+
+    @property
+    def current(self):
+        return self.current_index.internalPointer() if self.isPlayable(self.current_index) else None
+
+    @property
+    def current_index(self):
+        return self._current_index
+    @current_index.setter
+    def current_index(self, index):
+        if self._current_index != index:
+            old_index = self._current_index
+            self._current_index = index
+            self.dataChanged.emit(self.sibling_column_index(old_index, 0),
+                                  self.sibling_column_index(old_index, -1),
+                                  [Qt.ForegroundRole, Qt.FontRole])
+            self.dataChanged.emit(self.sibling_column_index(index, 0),
+                                  self.sibling_column_index(index, -1),
+                                  [Qt.ForegroundRole, Qt.FontRole])
+            
+    def sibling_column_index(self, index, column):
+        if column == -1:
+            column = self.columnCount(index)
+        return self.index(index.row(), column, index.parent())
 
     # column "" provides browsing info (folder name, file name, ...)
     _columns = ('', 'ARTIST', 'ALBUM', 'TITLE')
@@ -178,7 +209,7 @@ class PlayTreeModel(QAbstractItemModel):
 
     def parent(self, index):
         if not index.isValid():
-            return QModelIndex()
+            return index
 
         parentItem = index.internalPointer().parent
 
@@ -203,7 +234,14 @@ class PlayTreeModel(QAbstractItemModel):
         return len(self._columns)
     
     def data(self, index, role = Qt.DisplayRole):
-        return index.internalPointer().data(self._columns[index.column()], role)
+        if role == Qt.ForegroundRole and index == self.current_index:
+            return QBrush(QColor(Qt.red))
+        elif role == Qt.FontRole and index == self.current_index:
+            font = QFont()
+            font.setWeight(QFont.Bold)
+            return font
+        else:
+            return index.internalPointer().data(self._columns[index.column()], role)
 
     def headerData(self, section, orientation, role):
         if orientation == Qt.Horizontal and role == Qt.DisplayRole:
@@ -226,12 +264,75 @@ There references were created to keep the objects alive.  See lxml's
 "Using custom Element class in lxml, Element initialization".
 """
         self.rootItem._clean()
-        
+
+    def row(self, index):
+        return index.internalPointer().my_row()
+
+    def next(self, index = None):
+        if index is None:
+            index = self.current_index
+        descend  = True
+        if not index.isValid():
+            index = self.index(0,0,index)
+        while index.isValid():
+            if descend:
+                next_index = self.index(0, 0, index)
+            else:
+                parent = self.parent(index)
+                next_index = self.index(self.row(index)+1, 0, parent)
+            if next_index.isValid():
+                return next_index
+            else:
+                if not descend:
+                    index = parent
+                descend = False
+        return index
+
+    def next_song(self, index = None):
+        print('ns1', index)
+        if index is None:
+            index = self.current_index
+        print('ns2', index.internalPointer())
+        index = self.next(index)
+        while index.isValid() and not self.isPlayable(index):
+            index = self.next(index)
+        print('ns3', index.internalPointer())
+        return index
+
+    def previous(self, index = None):
+        if index is None:
+            index = self.current_index
+        if index.isValid():
+            row = self.row(index)
+            if row == 0:
+                return self.parent(index)
+            previous_index = self.index(row-1, 0, self.parent(index))
+        else:
+            previous_index = index
+        rows = self.rowCount(previous_index)
+        while rows:
+            previous_index = self.index(rows-1, 0, previous_index)
+            if not previous_index.isValid():
+                break
+            rows = self.rowCount(previous_index)
+        return previous_index
+
+    def previous_song(self, index = None):
+        if index is None:
+            index = self.current_index
+        index = self.previous(index)
+        while index.isValid() and not self.isPlayable(index):
+            index = self.previous(index)
+        return index
+
+    def isPlayable(self, index):
+        return isinstance(index.internalPointer(), PlayTreeFile) if index.isValid() else False
+
 def _timestamp(sep = ' '):
     ts = datetime.datetime.now().isoformat(sep)
     return ts[0:ts.index('.')]
 
-from globals import app, tmSongIcon
+from globals import *
 
 from library import Librarian
 librarian = Librarian()

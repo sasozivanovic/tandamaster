@@ -19,24 +19,28 @@ class TandaMasterWindow(QMainWindow):
         self.setWindowTitle('TandaMaster')        
         self.player.currentMediaChanged.connect(
             lambda: self.setWindowTitle(
-                "{ARTIST} - {TITLE} | TandaMaster".format(**self.current.tags)
-                if self.current else TandaMaster
+                "{ARTIST} - {TITLE} | TandaMaster".format(**ptm.current.tags)
+                if ptm.current else TandaMaster
             ))
 
-        self.playAction = QAction(self.style().standardIcon(QStyle.SP_MediaPlay), self.tr('&Play'), 
-                                  self, triggered = self.player.play)
-        self.pauseAction = QAction(self.style().standardIcon(QStyle.SP_MediaPause), 
-                                   self.tr('&Pause'), self, triggered = self.player.pause)
-        self.stopAction = QAction(self.style().standardIcon(QStyle.SP_MediaStop), 
-                                  self.tr('&Stop'), self, triggered = self.player.stop)
+        self.playcontrols_actions = [
+            QAction(self.style().standardIcon(QStyle.SP_MediaSkipBackward), 
+                    self.tr('P&revious'), self, triggered = self.play_previous),
+            QAction(self.style().standardIcon(QStyle.SP_MediaPlay), 
+                    self.tr('&Play'), self, triggered = self.play),
+            QAction(self.style().standardIcon(QStyle.SP_MediaPause), 
+                    self.tr('&Pause'), self, triggered = self.player.pause),
+            QAction(self.style().standardIcon(QStyle.SP_MediaStop), 
+                    self.tr('&Stop'), self, triggered = self.stop),
+            QAction(self.style().standardIcon(QStyle.SP_MediaSkipForward), 
+                    self.tr('&Next'), self, triggered = self.play_next),
+        ]
         self._createPlayerControls()
 
-        self.playtreemodel = PlayTreeModel('playtree.xml')
-
-        self.playtreeview = QTreeView()
-        self.playtreeview.setModel(self.playtreemodel)
-        self.playtreeview.activated.connect(self.play)
+        self.playtreeview = PlayTreeView()
+        self.playtreeview.setModel(ptm)
         self.setCentralWidget(self.playtreeview)
+        self.playtreeview.activated.connect(self.play_index)
 
         self._createMenuBar()
 
@@ -57,33 +61,67 @@ class TandaMasterWindow(QMainWindow):
         toolbar.setAllowedAreas(Qt.TopToolBarArea | Qt.BottomToolBarArea)
         toolbar.setFloatable(False)
         toolbar.setIconSize(2*toolbar.iconSize())
-        for action in (self.playAction, self.pauseAction, self.stopAction):
+        for action in self.playcontrols_actions:
             button = QToolButton()
             button.setDefaultAction(action)
             button.setIconSize(2*button.iconSize())
             toolbar.addWidget(button)
         self.song_info = QLabel()
         self.player.currentMediaChanged.connect(self.update_song_info)
+        toolbar.addWidget(QWidget())
         toolbar.addWidget(self.song_info)
         self.addToolBar(toolbar)
 
     def update_song_info(self):
-        self.song_info.setText("{ARTIST}<br><b>{TITLE}</b>".format(**self.current.tags))
+        self.song_info.setText("{ARTIST}<br><b>{TITLE}</b>".format(**ptm.current.tags))
 
     def sizeHint(self):
         return QSize(600, 800)
 
-    def play(self, playtree_index = None):
-        if playtree_index:
-            self.current = playtree_index.internalPointer()
-            tm.player.setMedia(QMediaContent(QUrl.fromLocalFile(self.current.filename)))
+    def play_index(self, playtree_index):
+        if playtree_index.isValid():
+            if not ptm.isPlayable(playtree_index):
+                playtree_index = ptm.next_song(playtree_index)
+            ptm.current_index = playtree_index
+            tm.player.setMedia(QMediaContent(QUrl.fromLocalFile(ptm.current.filename)))
         self.player.play()
 
-    def closeEvent(self, event):
-        self.playtreemodel.save()
-        event.accept()
+    def play_next(self):
+        n = ptm.next_song()
+        if n.isValid():
+            self.play_index(n)
 
-from globals import app
+    def play_previous(self):
+        n = ptm.previous_song()
+        if n.isValid():
+            self.play_index(n)
+
+    def stop(self):
+        self.player.stop()
+        ptm.current_index = QModelIndex()
+
+    def play(self):
+        if not ptm.current_index.isValid():
+            self.play_index(ptm.next_song())
+        else:
+            self.player.play()
+
+class PlayTreeView(QTreeView):
+    def __init__(self, parent = None):
+        super().__init__(parent)
+        self.expanded.connect(self._expanded)
+
+    def isFirstColumnSpanned(row, parent):
+        return True
+        index = parent.index(row, 0, parent)
+        return not parent.isPlayable(index)
+
+    def _expanded(self, index):
+        if not self.model().isPlayable(index):
+            self.resizeColumnToContents(0)
+
+
+from globals import *
 import tandamaster_rc
 
 from library import Librarian

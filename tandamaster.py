@@ -9,11 +9,6 @@ from IPython import embed
 
 from PyQt5.Qt import *   # todo: import only what you need
 
-import tandamaster_rc
-
-from library import Librarian
-from playtreemodel import PlayTreeModel
-
 class TandaMasterWindow(QMainWindow):
     def __init__(self, parent = None):
         super().__init__(parent)
@@ -88,13 +83,15 @@ class TandaMasterWindow(QMainWindow):
         self.playtreemodel.save()
         event.accept()
 
-    
-app = QApplication(sys.argv)
+from globals import app
+import tandamaster_rc
 
-tmSongIcon = QIcon(':images/song.png')
+from library import Librarian
+from playtreemodel import PlayTreeModel
+
 tm = TandaMasterWindow()
-
 tm.show()
 
 #embed()
 sys.exit(app.exec())
+#embed()

@@ -8,14 +8,15 @@ import os, datetime
 tandamaster_namespace = "http://milonguero.si/tandamaster"
 
 class PlayTreeItem:
-    pass
+    def my_row(self):
+        return self.parent.childs_row(self) if self.parent is not None else None
 
 class PlayTreeItem_XML(etree.ElementBase, PlayTreeItem):
     @property
     def parent(self):
         return self.getparent()
-    def row(self):
-        return self.parent.index(self) if self.parent else None
+    def _clean(self):
+        pass
 
 class PlayTreeList_XML(PlayTreeItem_XML):
     @property
@@ -28,11 +29,16 @@ class PlayTreeList_XML(PlayTreeItem_XML):
             return self[row]
         except IndexError:
             return None
+    def childs_row(self, child):
+        return self.index(child)
     def data(self, column_name, role):
         if column_name:
             return None
         if role == Qt.DisplayRole:
             return self.name
+    def _clean(self):
+        for child in element:
+            self._clean()
 
 class PlayTreeFile(PlayTreeItem):
     def __init__(self, parent, filename):
@@ -49,6 +55,12 @@ class PlayTreeFile(PlayTreeItem):
             return os.path.basename(self.filename)
         elif not column_name and role == Qt.DecorationRole:
             return tmSongIcon
+    @property
+    def tags(self):
+        print(self.filename)
+        return librarian.tags(filename = self.filename)
+    def childs_row(self, child):
+        return None
 
 class PlayTreeFile_XML(PlayTreeItem_XML, PlayTreeFile):
     @property
@@ -74,8 +86,11 @@ class PlayTreeFolder(PlayTreeItem):
             self._populate()
         return self._children[row]
 
-    def index(self, child):
-        return self._children.index(child)
+    def childs_row(self, child):
+        try:
+            return self._children.index(child)
+        except IndexError:
+            return None
 
     def data(self, column_name, role):
         if column_name:
@@ -83,26 +98,31 @@ class PlayTreeFolder(PlayTreeItem):
         if role == Qt.DisplayRole:
             return os.path.basename(self.filename)
         elif role == Qt.DecorationRole:
-            return tm.style().standardIcon(QStyle.SP_DirIcon)
+            return app.style().standardIcon(QStyle.SP_DirIcon)
 
     def _populate(self):
         folders = []
         files = []
-        for fn in os.listdir(self.folder):
-            fullfn = os.path.join(self.folder, fn)
-            if ospath.isdir(fullfn):
-                folders.append(fn, fullfn)
+        for fn in os.listdir(self.filename):
+            fullfn = os.path.join(self.filename, fn)
+            if os.path.isdir(fullfn):
+                folders.append((fn, fullfn))
             else:
-                files.append(fn, fullfn)
+                files.append((fn, fullfn))
         folders.sort()
         files.sort()
-        self._children = [ PlayTreeFolder(self, fn, fullfn) for fn,fullfn in folders ]
-        self._children.extend(PlayTreeFile(self, fn, fullfn) for fn,fullfn in files)
+        self._children = [ PlayTreeFolder(self, fullfn) for fn,fullfn in folders ]
+        self._children.extend(PlayTreeFile(self, fullfn) for fn,fullfn in files)
         
 class PlayTreeFolder_XML(PlayTreeItem_XML, PlayTreeFolder):
     @property
     def filename(self):
         return self.get('filename')
+    def _init(self):
+        self._children = None
+        self.keepalive = self
+    def _clean(self):
+        self.keepalive = None
 
 class PlayTreeBrowse(PlayTreeItem):
     pass
@@ -138,16 +158,6 @@ class PlayTreeModel(QAbstractItemModel):
             )
         self.rootItem = self.playtree_xml_document.getroot()
 
-    def save(self):
-        print("Saving!")
-        with open(self.playtree_xml_filename + '.tmp', 'wb') as outfile:
-            self.playtree_xml_document.write(outfile, pretty_print = True, encoding='UTF-8')
-            try:
-                os.rename(self.playtree_xml_filename, self.playtree_xml_filename + '.' + _timestamp('_') + '.bak')
-            except:
-                pass
-            os.rename(self.playtree_xml_filename + '.tmp', self.playtree_xml_filename)
-        
     # column "" provides browsing info (folder name, file name, ...)
     _columns = ('', 'ARTIST', 'ALBUM', 'TITLE')
 
@@ -175,7 +185,7 @@ class PlayTreeModel(QAbstractItemModel):
         if parentItem == self.rootItem:
             return QModelIndex()
 
-        return self.createIndex(parentItem.row(), 0, parentItem)
+        return self.createIndex(parentItem.my_row(), 0, parentItem)
 
     def rowCount(self, parent):
         # why oh why?
@@ -200,9 +210,28 @@ class PlayTreeModel(QAbstractItemModel):
             return self._columns[section].title()
         return None
 
+    def save(self):
+        with open(self.playtree_xml_filename + '.tmp', 'wb') as outfile:
+            self.playtree_xml_document.write(outfile, pretty_print = True, encoding='UTF-8')
+            try:
+                os.rename(self.playtree_xml_filename, self.playtree_xml_filename + '.' + _timestamp('_') + '.bak')
+            except:
+                pass
+            os.rename(self.playtree_xml_filename + '.tmp', self.playtree_xml_filename)
+
+    def _clean(self):
+        """Removes the references to _XML objects with children.
+
+There references were created to keep the objects alive.  See lxml's
+"Using custom Element class in lxml, Element initialization".
+"""
+        self.rootItem._clean()
+        
 def _timestamp(sep = ' '):
     ts = datetime.datetime.now().isoformat(sep)
     return ts[0:ts.index('.')]
+
+from globals import app, tmSongIcon
 
 from library import Librarian
 librarian = Librarian()

@@ -183,7 +183,9 @@ class PlayTreeModel(QAbstractItemModel):
             self.dataChanged.emit(self.sibling_column_index(index, 0),
                                   self.sibling_column_index(index, -1),
                                   [Qt.ForegroundRole, Qt.FontRole])
-            
+            self.current_changed.emit(old_index, index)
+    current_changed = pyqtSignal(QModelIndex, QModelIndex)
+
     def sibling_column_index(self, index, column):
         if column == -1:
             column = self.columnCount(index)
@@ -289,14 +291,11 @@ There references were created to keep the objects alive.  See lxml's
         return index
 
     def next_song(self, index = None):
-        print('ns1', index)
         if index is None:
             index = self.current_index
-        print('ns2', index.internalPointer())
         index = self.next(index)
         while index.isValid() and not self.isPlayable(index):
             index = self.next(index)
-        print('ns3', index.internalPointer())
         return index
 
     def previous(self, index = None):

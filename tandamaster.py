@@ -83,7 +83,7 @@ class TandaMasterWindow(QMainWindow):
             if not ptm.isPlayable(playtree_index):
                 playtree_index = ptm.next_song(playtree_index)
             ptm.current_index = playtree_index
-            tm.player.setMedia(QMediaContent(QUrl.fromLocalFile(ptm.current.filename)))
+            self.player.setMedia(QMediaContent(QUrl.fromLocalFile(ptm.current.filename)))
         self.player.play()
 
     def play_next(self):
@@ -109,7 +109,9 @@ class TandaMasterWindow(QMainWindow):
 class PlayTreeView(QTreeView):
     def __init__(self, parent = None):
         super().__init__(parent)
+        self.setExpandsOnDoubleClick(False)
         self.expanded.connect(self._expanded)
+        self._autoexpanded = None
 
     def isFirstColumnSpanned(row, parent):
         return True
@@ -120,6 +122,21 @@ class PlayTreeView(QTreeView):
         if not self.model().isPlayable(index):
             self.resizeColumnToContents(0)
 
+    def setModel(self, model):
+        super().setModel(model)
+        model.current_changed.connect(self.autoexpand)
+
+    def autoexpand(self, old_index, index):
+        if self._autoexpanded:
+            while old_index.isValid():
+                self.collapse(old_index)
+                if old_index == self._autoexpanded:
+                    break
+                old_index = self.model().parent(old_index)
+        while index.isValid() and not self.isExpanded(index):
+            self.expand(index)
+            self._autoexpanded = index
+            index = self.model().parent(index)
 
 from globals import *
 import tandamaster_rc

@@ -14,12 +14,10 @@ class TandaMasterWindow(QMainWindow):
         self.player = TandaMasterPlayer()
         #self.player2 = TandaMasterPlayer() # pre-listening
 
-        hbox = QWidget()
-        layout = QHBoxLayout()
-        hbox.setLayout(layout)
-        layout.addWidget(PlayTreeWidget('root', self.player))
-        layout.addWidget(PlayTreeWidget('root', self.player))
-        self.setCentralWidget(hbox)
+        splitter = QSplitter()
+        splitter.addWidget(PlayTreeWidget('root', self.player))
+        splitter.addWidget(PlayTreeWidget('root', self.player))
+        self.setCentralWidget(splitter)
         
         menubar = QMenuBar()
         self.musicmenu = QMenu(self.tr('&Music'))
@@ -67,9 +65,16 @@ class TandaMasterWindow(QMainWindow):
         create_playcontrol_button(self.action_stop)
         create_playcontrol_button(action_forward)
         self.song_info = QLabel()
+        self.song_info.setContentsMargins(8,0,0,0)
         toolbar.addWidget(QWidget())
         toolbar.addWidget(self.song_info)
         self.addToolBar(toolbar)
+        
+        self.addToolBarBreak()
+        toolbar2 = QToolBar('Test', self)
+        pb = TMProgressBar(self.player)
+        toolbar2.addWidget(pb)
+        self.addToolBar(toolbar2)
 
         self.player.current_changed.connect(self.update_song_info)
         self.player.stateChanged.connect(self.on_player_state_changed)
@@ -77,7 +82,7 @@ class TandaMasterWindow(QMainWindow):
 
 
     def sizeHint(self):
-        return QSize(600, 800)
+        return QSize(1800, 800)
 
     def update_song_info(self, old_model, old_index, model, index):
         if index.isValid():
@@ -168,3 +173,36 @@ class PlayTreeView(QTreeView):
         columns = self.model().columnCount(QModelIndex())
         for i in range(columns):
             self.resizeColumnToContents(i)
+
+class TMProgressBar(QProgressBar):
+    def __init__(self, player, parent = None):
+        super().__init__(parent)
+        self.setMinimum(0)
+        self.setValue(-1)
+        self.player = player
+        player.durationChanged.connect(self.on_durationChanged)
+        player.positionChanged.connect(self.on_positionChanged)
+        player.stateChanged.connect(self.on_stateChanged)
+        self.hours, self.minutes, self.seconds, self.milliseconds = 0,0,0,0
+        self.on_stateChanged(QMediaPlayer.StoppedState)
+        self.update()
+
+    def on_durationChanged(self, duration):
+        self.setMaximum(duration)
+        self.update()
+        
+    def on_positionChanged(self, position):
+        self.setValue(position)
+        position, self.milliseconds = divmod(position, 1000)
+        position, self.seconds = divmod(position, 60)
+        self.hours, self.minutes = divmod(position, 60)
+        self.update()
+
+    def text(self):
+        return str(self.hours) + ":" if self.hours else '' + \
+            ('{:02d}:{:02d}' if self.hours else '{:2d}:{:02d}').format(self.minutes, self.seconds) + \
+            (':' + self.milliseconds if self.player.state == QMediaPlayer.PausedState else '')
+        
+    def on_stateChanged(self, state):
+        self.setTextVisible(state != QMediaPlayer.StoppedState)
+        self.update()

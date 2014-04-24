@@ -9,6 +9,7 @@ class TandaMasterPlayer(QMediaPlayer):
         self._current_model = None
         self._current_item = None
         self._playback_start = None
+        #self.setNotifyInterval(200)
 
     @property
     def current_model(self):
@@ -63,6 +64,7 @@ class TandaMasterPlayer(QMediaPlayer):
             self.play_index(self.current_model.next_song(self.current_index))
         else:
             super().play()
+            self.setNotifyInterval(100)
 
     def play_index(self, playtree_index):
         assert playtree_index.isValid() and playtree_index.model() == self.current_model

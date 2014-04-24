@@ -121,16 +121,11 @@ class PlayTreeView(QTreeView):
         self._autoexpand_on = True
         player.current_changed.connect(self.on_current_changed)
 
-    def isFirstColumnSpanned(row, parent):
-        return False
-        index = parent.index(row, 0, parent)
-        return not parent.isPlayable(index)
-
     def on_expanded(self, index):
         if self.model() == self.player.current_model and \
            index in self.model().ancestors(self.player.current_index):
             self._autoexpand_on = True
-        self.resizeColumnToContents(0)
+        self.autosize_columns()
 
     def on_collapsed(self, index):
         if self.model() == self.player.current_model and \
@@ -151,3 +146,8 @@ class PlayTreeView(QTreeView):
                     self.expand(index)
                     self._autoexpanded = index
                     index = model.parent(index)
+
+    def autosize_columns(self):
+        columns = self.model().columnCount(QModelIndex())
+        for i in range(columns):
+            self.resizeColumnToContents(i)

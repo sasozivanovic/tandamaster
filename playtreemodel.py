@@ -80,7 +80,7 @@ class PlayTreeFile(PlayTreeItem):
 
     def data(self, column_name, role):
         if column_name and role == Qt.DisplayRole:
-            return librarian.tag(column_name, self.filename)
+            return librarian.tag_by_filename(column_name, self.filename)
         elif role == Qt.DisplayRole:
             return os.path.basename(self.filename)
         elif not column_name and role == Qt.DecorationRole:
@@ -88,7 +88,7 @@ class PlayTreeFile(PlayTreeItem):
 
     @property
     def tags(self):
-        return librarian.tags(filename = self.filename)
+        return librarian.tags_by_filename(self.filename)
 
     def childs_row(self, child):
         return None
@@ -134,9 +134,9 @@ class PlayTreeFolder(PlayTreeItem):
     def data(self, column_name, role):
         if column_name:
             return None
-        if role == Qt.DisplayRole:
+        elif role == Qt.DisplayRole:
             return os.path.basename(self.filename)
-        elif role == Qt.DecorationRole:
+        elif column_name == '' and role == Qt.DecorationRole:
             return app.style().standardIcon(QStyle.SP_DirIcon)
 
     def _populate(self, force = False):
@@ -156,9 +156,10 @@ class PlayTreeFolder(PlayTreeItem):
             self._children = [
                 make_playtree_element(self, 'folder', filename=fullfn) for fn,fullfn in folders
             ]
-            self._children.extend(
+            fileelements = [
                 make_playtree_element(self, 'file', filename=fullfn) for fn,fullfn in files
-            )
+            ]
+            self._children.extend(filter(lambda f: f.tags is not None, fileelements))
         
 class PlayTreeBrowse(PlayTreeItem):
     pass

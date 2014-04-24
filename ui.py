@@ -14,9 +14,12 @@ class TandaMasterWindow(QMainWindow):
         self.player = TandaMasterPlayer()
         #self.player2 = TandaMasterPlayer() # pre-listening
 
-        ptv = PlayTreeView('root', self.player)
-        self.setCentralWidget(ptv)
-        self.player.set_current(model = ptv.model(), silent = True)
+        hbox = QWidget()
+        layout = QHBoxLayout()
+        hbox.setLayout(layout)
+        layout.addWidget(PlayTreeWidget('root', self.player))
+        layout.addWidget(PlayTreeWidget('root', self.player))
+        self.setCentralWidget(hbox)
         
         menubar = QMenuBar()
         self.musicmenu = QMenu(self.tr('&Music'))
@@ -72,6 +75,7 @@ class TandaMasterWindow(QMainWindow):
         self.player.stateChanged.connect(self.on_player_state_changed)
         self.on_player_state_changed(QMediaPlayer.StoppedState)
 
+
     def sizeHint(self):
         return QSize(600, 800)
 
@@ -102,6 +106,18 @@ class TandaMasterWindow(QMainWindow):
                 self.action_stop.setEnabled(True)
                 
 
+class PlayTreeWidget(QWidget):
+
+    def __init__(self, root_xml_id, player, parent = None):
+        super().__init__(parent)
+        layout = QVBoxLayout()
+        self.setLayout(layout)
+        search = QLineEdit()
+        ptv = PlayTreeView(root_xml_id, player, self)
+        layout.addWidget(search)
+        layout.addWidget(ptv)
+        search.textChanged.connect(ptv.model().refilter)
+        
 class PlayTreeView(QTreeView):
 
     def __init__(self, root_xml_id, player, parent = None):
@@ -120,6 +136,7 @@ class PlayTreeView(QTreeView):
         self._autoexpanded = None
         self._autoexpand_on = True
         player.current_changed.connect(self.on_current_changed)
+        self.player.set_current(model = self.model(), silent = True) # temporary
 
     def on_expanded(self, index):
         if self.model() == self.player.current_model and \

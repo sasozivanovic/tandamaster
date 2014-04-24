@@ -30,6 +30,9 @@ class PlayTreeItem(etree.ElementBase):
     def isPlayable(self):
         return False
 
+    def filter(self):
+        return True
+
 class PlayTreeList(PlayTreeItem):
 
     @property
@@ -39,20 +42,24 @@ class PlayTreeList(PlayTreeItem):
     def __str__(self):
         return self.name
 
+    @property
+    def _filtered_children(self):
+        return [ c for c in self if c.filter() ]
+
     def rowCount(self): # todo: filtering
-        return len(self)
+        return len(self._filtered_children)
 
     def hasChildren(self):
-        return bool(len(self)) # todo: filtering
+        return bool(self._filtered_children) # todo: filtering
 
     def child(self, row): # todo: filtering
         try:
-            return self[row]
+            return self._filtered_children[row]
         except IndexError:
             return None
 
     def childs_row(self, child): # todo: filtering
-        return self.index(child)
+        return self._filtered_children.index(child)
 
     def data(self, column_name, role):
         if column_name:
@@ -97,6 +104,10 @@ class PlayTreeFile(PlayTreeItem):
     def isPlayable(self):
         return True
 
+    def filter(self):
+        for value in self.tags.values():
+            if PlayTreeModel.current.filter_string in value:
+                return True
 
 class PlayTreeFolder(PlayTreeItem):
 
@@ -111,23 +122,27 @@ class PlayTreeFolder(PlayTreeItem):
     def __str__(self):
         return self.get('filename', '')
 
+    @property
+    def _filtered_children(self):
+        return [ c for c in self._children if c.filter() ]
+
     def rowCount(self): # todo: filtering
         self._populate()
-        return len(self._children)
+        return len(self._filtered_children)
 
     def hasChildren(self): # todo: filtering & hasChildren in the model
         if self._children is None:
             return True
         else:
-            return bool(len(self._children))
+            return bool(len(self._filtered_children))
 
     def child(self, row): # todo: filtering
         self._populate()
-        return self._children[row]
+        return self._filtered_children[row]
 
     def childs_row(self, child): # todo: filtering
         try:
-            return self._children.index(child)
+            return self._filtered_children.index(child)
         except IndexError:
             return None
 
@@ -215,11 +230,13 @@ def playtree_xml_save():
 
 
 class PlayTreeModel(QAbstractItemModel):
+    current = None
 
     def __init__(self, root_xml_id = None, parent = None):
         super().__init__(parent)
         self.rootItem = playtree_xml_document.xpath('//*[@id="{}"]'.format(root_xml_id))[0] \
                         if root_xml_id is not None else playtree_xml_document.getroot()
+        self.filter_string = ''
 
     def item(self, index):
         return index.internalPointer() if index.isValid() else self.rootItem
@@ -228,6 +245,7 @@ class PlayTreeModel(QAbstractItemModel):
     _columns = ('', 'ARTIST', 'ALBUM', 'TITLE')
 
     def index(self, row, column, parent):
+        self.__class__.current = self
         if not self.hasIndex(row, column, parent):
             return QModelIndex()
         parentItem = self.item(parent)
@@ -235,6 +253,7 @@ class PlayTreeModel(QAbstractItemModel):
         return self.createIndex(row, column, childItem) if childItem is not None else QModelIndex()
 
     def parent(self, index):
+        self.__class__.current = self
         if not index.isValid():
             return index
         parentItem = self.item(index).parent
@@ -242,6 +261,7 @@ class PlayTreeModel(QAbstractItemModel):
             self.createIndex(parentItem.row, 0, parentItem)
 
     def rowCount(self, parent):
+        self.__class__.current = self
         # why oh why?
         if parent.column() > 0:
             return 0
@@ -249,12 +269,15 @@ class PlayTreeModel(QAbstractItemModel):
         return parentItem.rowCount()
 
     def hasChildren(self, index):
+        self.__class__.current = self
         return self.item(index).hasChildren()
 
     def columnCount(self, parent):
+        self.__class__.current = self
         return len(self._columns)
 
     def data(self, index, role = Qt.DisplayRole):
+        self.__class__.current = self
         if role in (Qt.ForegroundRole, Qt.FontRole):
             if index == self.view.player.current_index:
                 if role == Qt.ForegroundRole:
@@ -271,6 +294,7 @@ class PlayTreeModel(QAbstractItemModel):
             return self._columns[section].title()
 
     def sibling(self, row, column, index):
+        self.__class__.current = self
         return super().sibling(
             index.row() if row is None else row,
             index.column() if column is None else column,
@@ -329,6 +353,11 @@ class PlayTreeModel(QAbstractItemModel):
             ancestors.append(index)
             index = self.parent(index)
         return ancestors
+
+    def refilter(self, string):
+        self.filter_string = string
+        self.beginResetModel()
+        self.endResetModel()
 
 from app import app
 #app.aboutToQuit.connect(playtree_xml_save)

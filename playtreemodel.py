@@ -4,7 +4,7 @@ import sys, filecmp
 from lxml import etree
 from PyQt5.Qt import *   # todo: import only what you need
 
-import os, datetime
+import os, datetime, copy
 
 class PlayTreeItem(etree.ElementBase):
 
@@ -18,6 +18,9 @@ class PlayTreeItem(etree.ElementBase):
     @property
     def parent(self):
         return self._parent if '_parent' in self.__dict__ else self.getparent()
+    @parent.setter
+    def parent(self, parent):
+        self._parent = parent
 
     @property
     def row(self):
@@ -71,10 +74,14 @@ class PlayTreeFile(PlayTreeItem):
 
     @property
     def filename(self):
-        return self.get('filename')
+        return self.get('filename') if self.get('filename') else Library(self.get('library')).filename_by_id(self.get('id'))
+
+    @property
+    def Id(self):
+        return self.get('id')
 
     def __str__(self):
-        return self.get('filename', '')
+        return app.tr('Folder') + ' ' + self.get('filename', '')
 
     def rowCount(self):
         return 0
@@ -87,15 +94,21 @@ class PlayTreeFile(PlayTreeItem):
 
     def data(self, column_name, role):
         if column_name and role == Qt.DisplayRole:
-            return librarian.tag_by_filename(column_name, self.filename)
+            if self.get('library') and self.get('id'):
+                Library(self.get('library')).tag_by_id(column_name, self.get('id'))
+            else:
+                return library.tag_by_filename(column_name, self.filename)
         elif role == Qt.DisplayRole:
-            return os.path.basename(self.filename)
+            if self.get('library') and self.get('id'):
+                return Library(self.get('library')).tag_by_id('TITLE', self.get('id'))
+            else:
+                return os.path.basename(self.filename)
         elif not column_name and role == Qt.DecorationRole:
             return tmSongIcon
 
     @property
     def tags(self):
-        return librarian.tags_by_filename(self.filename)
+        return library.tags_by_filename(self.filename)
 
     def childs_row(self, child):
         return None
@@ -177,7 +190,105 @@ class PlayTreeFolder(PlayTreeItem):
             self._children.extend(filter(lambda f: f.tags is not None, fileelements))
         
 class PlayTreeBrowse(PlayTreeItem):
-    pass
+    @property
+    def library_name(self):
+        return self.get('library', '')
+
+    def _init(self):
+        super()._init()
+        self._children = None
+   
+    def __str__(self):
+        last_fixed_value = self.last_fixed_value()
+        return last_fixed_value if last_fixed_value is not None else \
+            app.tr('Browse') + ' ' + self.library_name + ' ' + app.tr('by') + ' ' + ", ".join(
+                by.get('tag').lower() for by in self.iterchildren('by'))
+
+    @property
+    def _filtered_children(self):
+        return self._children
+        return [ c for c in self._children if c.filter() ]
+
+    def rowCount(self): # todo: filtering
+        self._populate()
+        return len(self._filtered_children)
+
+    def hasChildren(self): # todo: filtering & hasChildren in the model
+        if self._children is None:
+            return True
+        else:
+            return bool(len(self._filtered_children))
+
+    def child(self, row): # todo: filtering
+        self._populate()
+        return self._filtered_children[row]
+
+    def childs_row(self, child): # todo: filtering
+        try:
+            return self._filtered_children.index(child)
+        except IndexError:
+            return None
+
+    def data(self, column_name, role):
+        if column_name:
+            return None
+        elif role == Qt.DisplayRole:
+            return str(self)
+        elif column_name == '' and role == Qt.DecorationRole:
+            return app.style().standardIcon(QStyle.SP_DriveCDIcon)
+
+
+    def last_fixed_value(self):
+        value = None
+        for by in self.iterchildren('by'):
+            v = by.get('value')
+            if v is not None:
+                value = v
+        return value
+
+    def _populate(self, force = False):
+        if force:
+            self._children = None
+        if self._children is None:
+            fixed_tags = {}
+            fixed_tags_flat = []
+            tag = None
+            for by in self.iterchildren('by'):
+                if by.get('value') is None:
+                    tag = by.get('tag')
+                    break
+                else:
+                    fixed_tags_flat.extend((by.get('tag'),by.get('value')))
+                    fixed_tags[by.get('tag')]=by.get('value')
+            join = " ".join(
+                "INNER JOIN tags_{library} AS tags_{n} USING (id)".format(library=self.library_name, n=n)
+                for n in range(len(fixed_tags))
+            )
+            where = " AND ".join(
+                "tags_{n}.tag=? AND tags_{n}.value=?".format(n=n)
+                for n in range(len(fixed_tags))
+            )
+            if tag is not None:
+                fixed_tags_flat.insert(0,tag)
+                if where:
+                    where = ' AND ' + where
+                statement = 'SELECT DISTINCT tags.value FROM tags_{} AS tags {} WHERE tags.tag=? {}'.format(self.library_name, join, where)
+                cursor = Library(self.library_name).connection.execute(statement, fixed_tags_flat)
+                self._children = []
+                for row in cursor.fetchall():
+                    child = copy.deepcopy(self)
+                    child[len(fixed_tags)].set('value', row[0])
+                    child.parent = self
+                    self._children.append(child)
+            else:
+                if where:
+                    where = ' WHERE ' + where
+                cursor = Library(self.library_name).connection.execute(
+                    'SELECT DISTINCT files.id, files.filename FROM files_{} AS files {}{}'
+                    .format(self.library_name, join, where),
+                    fixed_tags_flat
+                )
+                self._children = [make_playtree_element(self, 'file', library=self.library_name, id = str(row[0])) for row in cursor.fetchall()]
 
 class PlayTreeLink(PlayTreeItem):
     pass
@@ -242,7 +353,8 @@ class PlayTreeModel(QAbstractItemModel):
         return index.internalPointer() if index.isValid() else self.rootItem
 
     # column "" provides browsing info (folder name, file name, ...)
-    _columns = ('', 'ARTIST', 'ALBUM', 'TITLE')
+    #_columns = ('', 'ARTIST', 'ALBUM', 'TITLE')
+    _columns = ('',)
 
     def index(self, row, column, parent):
         self.__class__.current = self
@@ -276,9 +388,11 @@ class PlayTreeModel(QAbstractItemModel):
         self.__class__.current = self
         return len(self._columns)
 
+    currentindexroles = (Qt.ForegroundRole, Qt.FontRole)
     def data(self, index, role = Qt.DisplayRole):
         self.__class__.current = self
-        if role in (Qt.ForegroundRole, Qt.FontRole):
+        #if role in (Qt.ForegroundRole, Qt.FontRole):
+        if role in self.currentindexroles:
             if index == self.view.player.current_index:
                 if role == Qt.ForegroundRole:
                     return QBrush(QColor(Qt.red))
@@ -286,6 +400,8 @@ class PlayTreeModel(QAbstractItemModel):
                     font = QFont()
                     font.setWeight(QFont.Bold)
                     return font
+        #elif role == Qt.DisplayRole:
+        #    return 'data'
         else:
             return self.item(index).data(self._columns[index.column()], role)
 
@@ -365,5 +481,5 @@ from app import app
 tmSongIcon = QIcon(':images/song.png')
 import tandamaster_rc
 
-from library import Librarian
-librarian = Librarian()
+from library import Library
+library = Library()

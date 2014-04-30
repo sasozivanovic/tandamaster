@@ -1,5 +1,8 @@
 #!/usr/bin/python3
 
+#import pyximport; pyximport.install(pyimport = True)
+
+
 import sys
 import os, os.path
 
@@ -16,4 +19,6 @@ from ui import TandaMasterWindow
 tm = TandaMasterWindow()
 tm.show()
 
-app.exec()
+import cProfile
+cProfile.run('app.exec()', sort="tottime")
+#app.exec()

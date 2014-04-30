@@ -127,6 +127,7 @@ class PlayTreeView(QTreeView):
 
     def __init__(self, root_xml_id, player, parent = None):
         super().__init__(parent)
+        self.setUniformRowHeights(True)
 
         model = PlayTreeModel(root_xml_id, self)
         self.setModel(model)
@@ -170,6 +171,7 @@ class PlayTreeView(QTreeView):
                     index = model.parent(index)
 
     def autosize_columns(self):
+        return
         columns = self.model().columnCount(QModelIndex())
         for i in range(columns):
             self.resizeColumnToContents(i)

@@ -148,68 +148,94 @@ class Library:
             (Id,)
         ).fetchone()
         return row[0] if row else None
-        
-    def _query_distinct_tags(self, tag, fixed_tags):
-        """Get all distinct values of "tag" of songs having the given fixed tags.
+
+    def _build_join(self, table_alias_list):
+        return "{} AS {} {}".format(
+            table_alias_list[0][0], table_alias_list[0][1],
+            " ".join("INNER JOIN {} AS {} USING(id)".format(t,a) for t,a in table_alias_list[1:])
+        )
+
+    def _build_query_statement(self, fixed_tags, filter_string):
+        def tables():
+            if not (fixed_tags or filter_string):
+                yield 'files_' + self.name, 'files'
+            #for i,tv in enumerate(fixed_tags):
+            #    if tv[1] is not None:
+            for i in range(len(fixed_tags)):
+                yield 'tags_' + self.name, 'tags_' + str(i)
+            if filter_string:
+                yield 'tags_' + self.name, 'tags_filter'
+        join = self._build_join(list(tables()))
+        where = " AND ".join(filter(None,(
+            " AND ".join(
+                "tags_{n}.tag=? AND tags_{n}.value=?".format(n=n)
+                if tv[1] is not None else
+                'NOT EXISTS (SELECT id FROM tags_{} WHERE id=tags_{}.id AND tag=?)'.format(self.name, n)
+                for n,tv in enumerate(fixed_tags)
+            ),
+            "tags_filter.value LIKE ?" if filter_string else ""
+        )))
+        statement = 'SELECT DISTINCT {} FROM {} {} {}' \
+            .format(
+                'tags_0.id' if fixed_tags else ('tags_filter.id' if filter_string else 'files.id'),
+                join, 
+                'WHERE' if where else '', 
+                where)
+        return statement
+
+    def _query_tags(self, tag, fixed_tags, filter_string):
+        """Get all values of "tag" of songs having the given fixed tags, and the number of songs for each value.
 
         "fixed_tags" should be a list of pairs."""
-        N = len(fixed_tags)
-        join = " ".join(
-            "INNER JOIN tags_{} AS tags_{} USING (id)".format(self.name, n)
-            for n in range(N)
-        )
-        where = " ".join(
-            "AND tags_{n}.tag=? AND tags_{n}.value=?".format(n=n)
-            for n in range(N)
-        )
-        def it():
+        statement = "SELECT tags.value, COUNT(*) FROM ({}) AS songs " \
+                    "LEFT JOIN tags_{} AS tags ON songs.id=tags.id AND tags.tag=? " \
+                    "GROUP BY tags.value" \
+                        .format(
+                            self._build_query_statement(fixed_tags, filter_string),
+                            self.name
+                        )
+        def params():
+            for t,v in fixed_tags:
+                yield t
+                if v is not None:
+                    yield v
+            if filter_string:
+                yield '%' + filter_string + '%'
             yield tag
-            for x in itertools.chain.from_iterable(fixed_tags):
-                yield x
-        return self.connection.execute(
-            'SELECT DISTINCT tags.value FROM tags_{} AS tags {} WHERE tags.tag=? {}'
-            .format(self.name, join, where), 
-            list(itertools.chain((tag,),itertools.chain.from_iterable(fixed_tags)))
-        )
-        
+        return self.connection.execute(statement, list(params()))
 
-    def query_distinct_tags_iter(self, tag, fixed_tags):
-        cursor = self._query_distinct_tags(tag, fixed_tags)
+    def query_tags_iter(self, tag, fixed_tags, filter_string):
+        cursor = self._query_tags(tag, fixed_tags, filter_string)
         row = cursor.fetchone()
         while row:
-            yield row[0]
+            yield row
             row = cursor.fetchone()
 
-    def query_distinct_tags_all(self, tag, fixed_tags):
-        cursor = self._query_distinct_tags(tag, fixed_tags)
+    def query_tags_all(self, tag, fixed_tags, filter_string):
+        cursor = self._query_tags(tag, fixed_tags, filter_string)
         return cursor.fetchall()
 
-    def _query_songs(self, fixed_tags):
+    def _query_songs(self, fixed_tags, filter_string):
         """Get ids of songs having the given fixed tags.
 
         "fixed_tags" should be a list of pairs."""
-        N = len(fixed_tags)
-        join = " ".join(
-            "INNER JOIN tags_{} AS tags_{} USING (id)".format(self.name, n)
-            for n in range(N)
-        )
-        where = "WHERE " + " AND ".join(
-            "tags_{n}.tag=? AND tags_{n}.value=?".format(n=n)
-            for n in range(N)
-        ) if N else ""
-        return self.connection.execute(
-            'SELECT DISTINCT files.id FROM files_{} AS files {} {}'
-            .format(self.name, join, where), 
-            list(itertools.chain.from_iterable(fixed_tags))
-        )
+        def params():
+            for t,v in fixed_tags:
+                yield t
+                if v is not None:
+                    yield v
+            if filter_string:
+                yield '%' + filter_string + '%'
+        statement = self._build_query_statement(fixed_tags, filter_string)
+        return self.connection.execute(statement, list(params()))
 
-    def query_songs_iter(self, fixed_tags):
-        cursor = self._query_songs(fixed_tags)
+    def query_songs_iter(self, fixed_tags, filter_string):
+        cursor = self._query_songs(fixed_tags, filter_string)
         row = cursor.fetchone()
         while row:
             yield row[0]
             row = cursor.fetchone()
 
-    def query_songs_all(self, fixed_tags):
-        cursor = self._query_songs(fixed_tags)
+    def query_songs_all(self, fixed_tags, filter_string):
+        cursor = self._query_songs(fixed_tags, filter_string)
         return cursor.fetchall()

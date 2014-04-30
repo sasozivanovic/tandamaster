@@ -19,6 +19,5 @@ from ui import TandaMasterWindow
 tm = TandaMasterWindow()
 tm.show()
 
-import cProfile
-cProfile.run('app.exec()', sort="tottime")
-#app.exec()
+#import cProfile; cProfile.run('app.exec()', sort="tottime")
+app.exec()

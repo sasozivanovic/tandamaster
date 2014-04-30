@@ -4,6 +4,7 @@ from PyQt5.Qt import *   # todo: import only what you need
 
 from player import TandaMasterPlayer
 from playtreemodel import PlayTreeModel
+from library import Library
 
 class TandaMasterWindow(QMainWindow):
 
@@ -19,34 +20,43 @@ class TandaMasterWindow(QMainWindow):
         splitter.addWidget(PlayTreeWidget('root', self.player))
         self.setCentralWidget(splitter)
         
+
         menubar = QMenuBar()
+
         self.musicmenu = QMenu(self.tr('&Music'))
-        action_back = QAction(
-            self.style().standardIcon(QStyle.SP_MediaSkipBackward), 
-            self.tr('P&revious'), self, triggered = self.player.play_previous)
-        self.musicmenu.addAction(action_back)        
-        self.action_play = QAction(
-            self.style().standardIcon(QStyle.SP_MediaPlay), 
-            self.tr('&Play'), self, triggered = self.player.play)
-        self.musicmenu.addAction(self.action_play)        
-        self.action_pause =  QAction(
-            self.style().standardIcon(QStyle.SP_MediaPause), 
-            self.tr('&Pause'), self, triggered = self.player.pause)
-        self.musicmenu.addAction(self.action_pause)        
-        self.action_stop = QAction(
-            self.style().standardIcon(QStyle.SP_MediaStop), 
-            self.tr('&Stop'), self, triggered = self.player.stop)
-        self.musicmenu.addAction(self.action_stop)        
-        action_forward = QAction(
-            self.style().standardIcon(QStyle.SP_MediaSkipForward), 
-            self.tr('&Next'), self, triggered = self.player.play_next)
-        self.musicmenu.addAction(action_forward)        
-        self.musicmenu.addSeparator()
+        action_update_library = QAction(
+            self.tr("&Update library"), self,
+            triggered = self.update_library)
+        self.musicmenu.addAction(action_update_library)
         action_quit = QAction(
             self.tr("&Quit"), self, shortcut=QKeySequence.Quit,
             statusTip="Quit the program", triggered=self.close)
         self.musicmenu.addAction(action_quit)
         menubar.addMenu(self.musicmenu)
+
+        self.playbackmenu = QMenu(self.tr('&Playback'))
+        action_back = QAction(
+            self.style().standardIcon(QStyle.SP_MediaSkipBackward), 
+            self.tr('P&revious'), self, triggered = self.player.play_previous)
+        self.playbackmenu.addAction(action_back)        
+        self.action_play = QAction(
+            self.style().standardIcon(QStyle.SP_MediaPlay), 
+            self.tr('&Play'), self, triggered = self.player.play)
+        self.playbackmenu.addAction(self.action_play)        
+        self.action_pause =  QAction(
+            self.style().standardIcon(QStyle.SP_MediaPause), 
+            self.tr('&Pause'), self, triggered = self.player.pause)
+        self.playbackmenu.addAction(self.action_pause)        
+        self.action_stop = QAction(
+            self.style().standardIcon(QStyle.SP_MediaStop), 
+            self.tr('&Stop'), self, triggered = self.player.stop)
+        self.playbackmenu.addAction(self.action_stop)        
+        action_forward = QAction(
+            self.style().standardIcon(QStyle.SP_MediaSkipForward), 
+            self.tr('&Next'), self, triggered = self.player.play_next)
+        self.playbackmenu.addAction(action_forward)        
+        menubar.addMenu(self.playbackmenu)
+
         self.setMenuBar(menubar)
 
         toolbar = QToolBar('Play controls', self)
@@ -87,8 +97,8 @@ class TandaMasterWindow(QMainWindow):
     def update_song_info(self, old_model, old_index, model, index):
         if index.isValid():
             item = model.item(index)
-            self.setWindowTitle("{ARTIST} - {TITLE} | TandaMaster".format(**item.tags))
-            self.song_info.setText("{ARTIST}<br><b>{TITLE}</b>".format(**item.tags))
+            self.setWindowTitle("{ARTIST} - {TITLE} | TandaMaster".format(**item.get_tags()))
+            self.song_info.setText("{ARTIST}<br><b>{TITLE}</b>".format(**item.get_tags()))
         else:
             self.setWindowTitle("TandaMaster")
             self.song_info.setText("")
@@ -110,6 +120,9 @@ class TandaMasterWindow(QMainWindow):
             else:
                 self.action_stop.setEnabled(True)
                 
+    def update_library(self):
+        Library('tango').refresh(['/home/saso/tango'])
+
 
 class PlayTreeWidget(QWidget):
 

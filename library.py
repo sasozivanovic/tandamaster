@@ -1,10 +1,10 @@
-#from IPython import embed
+from IPython import embed; from PyQt5.QtCore import pyqtRemoveInputHook
 
 import taglib
 import sqlite3
 import os, os.path
 from warnings import warn
-import functools
+import functools, itertools
 
 def _strip(tags):
     """Pulls single list items out of lists."""
@@ -67,6 +67,7 @@ class Library:
                         assert(audiofile)
                     except:
                         warn("Cannot read {}. Probably not an audio file".format(filename), RuntimeWarning)
+                        continue
                     print(filename)
                     cursor.execute(
                         'SELECT id FROM files_{name} WHERE filename=?'
@@ -148,3 +149,67 @@ class Library:
         ).fetchone()
         return row[0] if row else None
         
+    def _query_distinct_tags(self, tag, fixed_tags):
+        """Get all distinct values of "tag" of songs having the given fixed tags.
+
+        "fixed_tags" should be a list of pairs."""
+        N = len(fixed_tags)
+        join = " ".join(
+            "INNER JOIN tags_{} AS tags_{} USING (id)".format(self.name, n)
+            for n in range(N)
+        )
+        where = " ".join(
+            "AND tags_{n}.tag=? AND tags_{n}.value=?".format(n=n)
+            for n in range(N)
+        )
+        def it():
+            yield tag
+            for x in itertools.chain.from_iterable(fixed_tags):
+                yield x
+        return self.connection.execute(
+            'SELECT DISTINCT tags.value FROM tags_{} AS tags {} WHERE tags.tag=? {}'
+            .format(self.name, join, where), 
+            list(itertools.chain((tag,),itertools.chain.from_iterable(fixed_tags)))
+        )
+        
+
+    def query_distinct_tags_iter(self, tag, fixed_tags):
+        cursor = self._query_distinct_tags(tag, fixed_tags)
+        row = cursor.fetchone()
+        while row:
+            yield row[0]
+            row = cursor.fetchone()
+
+    def query_distinct_tags_all(self, tag, fixed_tags):
+        cursor = self._query_distinct_tags(tag, fixed_tags)
+        return cursor.fetchall()
+
+    def _query_songs(self, fixed_tags):
+        """Get ids of songs having the given fixed tags.
+
+        "fixed_tags" should be a list of pairs."""
+        N = len(fixed_tags)
+        join = " ".join(
+            "INNER JOIN tags_{} AS tags_{} USING (id)".format(self.name, n)
+            for n in range(N)
+        )
+        where = "WHERE " + " AND ".join(
+            "tags_{n}.tag=? AND tags_{n}.value=?".format(n=n)
+            for n in range(N)
+        ) if N else ""
+        return self.connection.execute(
+            'SELECT DISTINCT files.id FROM files_{} AS files {} {}'
+            .format(self.name, join, where), 
+            list(itertools.chain.from_iterable(fixed_tags))
+        )
+
+    def query_songs_iter(self, fixed_tags):
+        cursor = self._query_songs(fixed_tags)
+        row = cursor.fetchone()
+        while row:
+            yield row[0]
+            row = cursor.fetchone()
+
+    def query_songs_all(self, fixed_tags):
+        cursor = self._query_songs(fixed_tags)
+        return cursor.fetchall()

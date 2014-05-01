@@ -90,7 +90,6 @@ class TandaMasterWindow(QMainWindow):
         self.player.stateChanged.connect(self.on_player_state_changed)
         self.on_player_state_changed(QMediaPlayer.StoppedState)
 
-
     def sizeHint(self):
         return QSize(1800, 800)
 
@@ -130,11 +129,15 @@ class PlayTreeWidget(QWidget):
         super().__init__(parent)
         layout = QVBoxLayout()
         self.setLayout(layout)
-        search = QLineEdit()
-        ptv = PlayTreeView(root_xml_id, player, self)
-        layout.addWidget(search)
-        layout.addWidget(ptv)
-        search.textChanged.connect(ptv.model().refilter)
+        self.search = QLineEdit()
+        self.ptv = PlayTreeView(root_xml_id, player, self)
+        layout.addWidget(self.search)
+        layout.addWidget(self.ptv)
+        self.search.textChanged.connect(lambda: QTimer.singleShot(50, self.refilter))
+
+    def refilter(self):
+        print("refilter")
+        self.ptv.model().refilter(self.search.text())
         
 class PlayTreeView(QTreeView):
 
@@ -156,6 +159,8 @@ class PlayTreeView(QTreeView):
         self._autoexpand_on = True
         player.current_changed.connect(self.on_current_changed)
         self.player.set_current(model = self.model(), silent = True) # temporary
+        model.modelAboutToBeReset.connect(self.on_begin_reset_model)
+        model.modelReset.connect(self.on_end_reset_model)
 
     def on_expanded(self, index):
         if self.model() == self.player.current_model and \
@@ -188,6 +193,17 @@ class PlayTreeView(QTreeView):
         columns = self.model().columnCount(QModelIndex())
         for i in range(columns):
             self.resizeColumnToContents(i)
+
+    def on_begin_reset_model(self):
+        model = self.model()
+        for item in model.rootItem.iter('list', 'browse', 'folder'):
+            item.was_expanded = self.isExpanded(item.modelindex(model))
+
+    def on_end_reset_model(self):
+        model = self.model()
+        for item in model.rootItem.iter('list', 'browse', 'folder'):
+            self.setExpanded(item.modelindex(model), item.was_expanded)
+
 
 class TMProgressBar(QProgressBar):
     def __init__(self, player, parent = None):

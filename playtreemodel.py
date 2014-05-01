@@ -16,6 +16,7 @@ class PlayTreeItem(etree.ElementBase):
     def _init(self):
         if self._keepalive_on:
             self._keepalive.add(self)
+        self.was_expanded = False
 
     @property
     def parent(self):
@@ -37,6 +38,9 @@ class PlayTreeItem(etree.ElementBase):
 
     def filter(self):
         return True
+
+    def expand_small_children(self, model):
+        return 
 
 class PlayTreeList(PlayTreeItem):
 
@@ -201,7 +205,15 @@ class PlayTreeFolder(PlayTreeItem):
                 make_playtree_element(self, 'file', filename=fullfn) for fn,fullfn in files
             ]
             self._children.extend(filter(lambda f: f.get_tags() is not None, fileelements))
+
+    def expand_small_children(self, model):
+        if model.view.isExpanded(self.modelindex(model)):
+            for child in self.children:
+                if isinstance(child, PlayTreeFolder) and child._children is not None and child.rowCount() < 5:
+                    model.view.setExpanded(child.modelindex(model), True)
+                    child.expand_small_children(model)
         
+
 class PlayTreeBrowse(PlayTreeItem):
     @property
     def library_name(self):
@@ -214,11 +226,11 @@ class PlayTreeBrowse(PlayTreeItem):
         assert library_name
         self.library = Library(library_name)
         self.value = None
-        self.row_count = None
+        self.song_count = None
    
     def __str__(self):
-        if self.row_count is not None:
-            return (self.value if self.value is not None else '') + ' (' + str(self.row_count) + ')'
+        if self.song_count is not None:
+            return (self.value if self.value is not None else '') + ' (' + str(self.song_count) + ')'
         else:
             return app.tr('Browse') + ' ' + self.library.name + ' ' + app.tr('by') + ' ' + \
                 ", ".join(by.get('tag').lower() for by in self.iterchildren('by'))
@@ -277,7 +289,7 @@ class PlayTreeBrowse(PlayTreeItem):
                     if value is not None:
                         child[N].set('value', value)
                     child.value = value
-                    child.row_count = count
+                    child.song_count = count
                     child.parent = self
                     self._children.append(child)
             else:
@@ -285,6 +297,14 @@ class PlayTreeBrowse(PlayTreeItem):
                     make_playtree_element(self, 'file', library=self.library.name, id = str(Id))
                     for Id in self.library.query_songs_iter(fixed_tags, PlayTreeModel.current.filter_string)
                 ]
+
+    def expand_small_children(self, model):
+        if isinstance(self.child(0), PlayTreeFile):
+            return
+        for child in self.children:
+            if child.rowCount() == 1:
+                model.view.setExpanded(child.modelindex(model), True)
+                child.expand_small_children(model)
 
 class PlayTreeLink(PlayTreeItem):
     pass
@@ -472,13 +492,9 @@ class PlayTreeModel(QAbstractItemModel):
         for browse in self.rootItem.iter('browse'):
             browse._children = None
         self.endResetModel()
-
-    def iter(self, index, condition = None):
-        if condition is None or condition(index):
-            yield index
-            if self.hasChildren(index):
-                for row in range(self.rowCount(index)):
-                    self.iter(self.index(row, 0, index))
+        if string:
+            for item in self.rootItem.iter('browse', 'folder'):
+                item.expand_small_children(self)
         
 
 from app import app

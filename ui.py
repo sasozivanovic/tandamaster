@@ -136,7 +136,6 @@ class PlayTreeWidget(QWidget):
         self.search.textChanged.connect(lambda: QTimer.singleShot(50, self.refilter))
 
     def refilter(self):
-        print("refilter")
         self.ptv.model().refilter(self.search.text())
         
 class PlayTreeView(QTreeView):

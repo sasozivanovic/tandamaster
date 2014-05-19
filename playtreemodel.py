@@ -236,8 +236,11 @@ class PlayTreeBrowse(PlayTreeItem):
         return self._children
 
     def rowCount(self):
-        self._populate()
-        return len(self.children)
+        if self.song_count is None:
+            self._populate()
+            return len(self.children)
+        else:
+            return self.song_count
 
     def hasChildren(self):
         if self._children is None:
@@ -263,44 +266,77 @@ class PlayTreeBrowse(PlayTreeItem):
         elif column_name == '' and role == Qt.DecorationRole:
             return app.style().standardIcon(QStyle.SP_DriveCDIcon)
 
+    def get_specs(self):
+        fixed_tags = []
+        tag = None
+        for by in self.iterchildren('by'):
+            if by.get('fixed'):
+                fixed_tags.append((by.get('tag'),by.get('value')))
+            else:
+                tag = by.get('tag')
+                break
+        return tag, fixed_tags
+
+    def _populate_tags(self, N, rows):
+        self._children = []
+        for value, count in rows:
+            child = copy.deepcopy(self)
+            child[N].set('fixed', "yes")
+            if value is not None:
+                child[N].set('value', value)
+            child.value = value
+            child.song_count = count
+            child.parent = self
+            self._children.append(child)
+        
+    def _populate_songs(self, rows):
+        self._children = [
+            make_playtree_element(self, 'file', library=self.library_name, id = str(Id))
+            for Id in rows
+        ]
+
     def _populate(self, force = False):
         if force:
             self._children = None
         if self._children is None:
-            fixed_tags = []
-            tag = None
-            for by in self.iterchildren('by'):
-                if by.get('fixed'):
-                    fixed_tags.append((by.get('tag'),by.get('value')))
-                else:
-                    tag = by.get('tag')
-                    break
+            tag, fixed_tags = self.get_specs()
             if tag is not None:
-                self._children = []
-                N = len(fixed_tags)
-                for value, count in library.query_tags_iter(self.library_name,
-                        tag, fixed_tags, PlayTreeModel.current.filter_string):
-                    child = copy.deepcopy(self)
-                    child[N].set('fixed', "yes")
-                    if value is not None:
-                        child[N].set('value', value)
-                    child.value = value
-                    child.song_count = count
-                    child.parent = self
-                    self._children.append(child)
+                self._populate_tags(
+                    len(fixed_tags),
+                    library.query_tags_iter(
+                        self.library_name, tag, fixed_tags,
+                        PlayTreeModel.current.filter_string))
             else:
-                self._children = [
-                    make_playtree_element(self, 'file', library=self.library_name, id = str(Id))
-                    for Id in library.query_songs_iter(self.library_name, fixed_tags, PlayTreeModel.current.filter_string)
-                ]
+                self._populate_songs(library.query_songs_iter(
+                    self.library_name, 
+                    fixed_tags, PlayTreeModel.current.filter_string))
 
     def expand_small_children(self, model):
-        if isinstance(self.child(0), PlayTreeFile):
+        if self.rowCount() == 0 or isinstance(self.child(0), PlayTreeFile):
             return
+        filter_string = model.filter_string
+        queries = BgQueries([], self.expand_small_children_callback, 
+                               lambda: model.filter_string == filter_string)
         for child in self.children:
             if child.rowCount() == 1:
-                model.view.setExpanded(child.modelindex(model), True)
-                child.expand_small_children(model)
+                tag, fixed_tags = child.get_specs()
+                query = BgQuery(Library.query_tags_all,
+                                (child.library_name, tag, fixed_tags, filter_string)
+                            ) if tag else \
+                    BgQuery(Library.query_songs_all,
+                            (child.library_name, fixed_tags, filter_string)
+                        )
+                query.browse = child
+                queries.append(query)
+        queries.model = model
+        librarian.bg_queries(queries)
+
+    def expand_small_children_callback(self, queries):
+        for query in queries:
+            if query.browse in query.browse.parent.children:
+                queries.model.view.setExpanded(query.browse.modelindex(queries.model), True)
+                query.browse.expand_small_children(queries.model)
+        
 
 class PlayTreeLink(PlayTreeItem):
     pass
@@ -482,7 +518,7 @@ class PlayTreeModel(QAbstractItemModel):
             index = self.parent(index)
         return ancestors
 
-    def refilter(self, string):
+    def oldrefilter(self, string):
         self.beginResetModel()
         self.filter_string = string.lower()
         for browse in self.rootItem.iter('browse'):
@@ -493,10 +529,43 @@ class PlayTreeModel(QAbstractItemModel):
                 item.expand_small_children(self)
         
 
+    def refilter(self, string):
+        filter_string = string.lower()
+        self.filter_string = filter_string
+        queries = BgQueries([],
+            self.refilter_update_model, 
+            lambda: self.filter_string == filter_string
+        )
+        for browse in self.rootItem.iter('browse'):
+            tag, fixed_tags = browse.get_specs()
+            query = BgQuery(Library.query_tags_all,
+                            (browse.library_name, tag, fixed_tags, filter_string)
+                        ) if tag else \
+                 BgQuery(Library.query_songs_all,
+                         (browse.library_name, fixed_tags, filter_string)
+                     )
+            query.browse = browse
+            queries.append(query)
+        librarian.bg_queries(queries)
+
+    def refilter_update_model(self, queries):
+        self.beginResetModel()
+        for query in queries:
+            if query.method == Library.query_tags_all:
+                query.browse._populate_tags(len(query.args[2]), query.result)
+            else: # query.method == Library.query_songs_all:
+                query.browse._populate_songs(query.result)
+        self.endResetModel()
+        if self.filter_string:
+            for item in self.rootItem.iter('browse', 'folder'):
+                item.expand_small_children(self)
+
+
 from app import app
 #app.aboutToQuit.connect(playtree_xml_save)
 
 tmSongIcon = QIcon(':images/song.png')
 import tandamaster_rc
 
-from library import library
+from library import *
+

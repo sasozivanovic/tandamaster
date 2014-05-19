@@ -11,13 +11,29 @@ def _strip(tags):
     """Pulls single list items out of lists."""
     return dict((t,v[0] if isinstance(v,list) and len(v)==1 else v) for t,v in tags.items())
 
-class Library:
+class BgQuery:
+    def __init__(self, method, args):
+        self.method = method
+        self.args = args
+
+class BgQueries(list):
+    def __init__(self, iterable, callback, relevant = lambda: True):
+        super().__init__(iterable)
+        assert not [query for query in iterable if not isinstance(query, ByQuery)]
+        self.callback = callback
+        self.relevant = relevant
+    
+class Library(QObject):
     _cache = {}
 
-    def __init__(self, filename = 'tandamaster.db'):
+    def __init__(self, filename = 'tandamaster.db', connect = True):
         super().__init__()
         self.filename = filename
-        self.connection = sqlite3.connect(filename)
+        if connect:
+            self.connect()
+
+    def connect(self):
+        self.connection = sqlite3.connect(self.filename)
 
     def create_library_table(self, name):
         self.connection.execute(
@@ -211,7 +227,7 @@ class Library:
             row = cursor.fetchone()
 
     def query_tags_all(self, name, tag, fixed_tags, filter_string):
-        cursor = self._query_tags(tag, fixed_tags, filter_string)
+        cursor = self._query_tags(name, tag, fixed_tags, filter_string)
         return cursor.fetchall()
 
     def _query_songs(self, name, fixed_tags, filter_string):
@@ -236,45 +252,50 @@ class Library:
             row = cursor.fetchone()
 
     def query_songs_all(self, name, fixed_tags, filter_string):
-        cursor = self._query_songs(fixed_tags, filter_string)
+        cursor = self._query_songs(name, fixed_tags, filter_string)
         return cursor.fetchall()
 
-    bg_result = pyqtSignal(types.MethodType, tuple, tuple)
-    def bg_query(self, f, args):
-        result = (f.__get__(self)(*args),)
-        bg_result.emit(f, args, result)
+    bg_queries_done = pyqtSignal(BgQueries)
+    def bg_queries(self, queries):
+        for query in queries:
+            query.result = query.method.__get__(self)(*query.args)
+        self.bg_queries_done.emit(queries)
 
 library = Library()
 
-class Librarian:
+class Librarian(QObject):
     def __init__(self):
+        super().__init__()        
         self.bg_thread = QThread()
-        self.bg_library = Library()
+        self.bg_library = Library(connect = False)
         self.bg_library.moveToThread(self.bg_thread)
-        self._bg_query.connect(self.bg_library.bg_query)
-        self.bg_library.bg_result.connect(self.bg_process_result)
+        self.bg_thread.started.connect(self.bg_library.connect)
+        self.bg_queries_start.connect(self.bg_library.bg_queries)
+        self.bg_library.bg_queries_done.connect(self.bg_process_result)
         self.bg_thread.start()
         self.queue = []
         self.processing = False
-        self.current = None
 
-    def bg_query(self, f, args, relevant, callback):
-        self.queue.append((f, args, relevant, callback))
-        self.do()
-
-    def do(self):
-        while self.queue and not self.processing:
-            self.current = self.queue.pop(0)
-            f, args, relevant, callback = self.current
-            if relevant():
-                self._bg_query.emit(f, args)
-        
-    _bg_query = pyqtSignal(types.MethodType, tuple)
-        
-    def bg_process_result(self, f, args, result):
-        current_f, current_args, relevant, callback = self.current
-        assert current_f == f and current_args == args
-        if relevant():
-            callback(result[0])
+    def bg_queries(self, queries):
+        if queries:
+            self.queue.append(queries)
             self.do()
 
+    bg_queries_start = pyqtSignal(BgQueries)
+    def do(self):
+        if not self.processing:
+            while self.queue:
+                queries = self.queue.pop(0)
+                if queries.relevant():
+                    self.processing = True
+                    self.bg_queries_start.emit(queries)
+                    break
+        
+    def bg_process_result(self, queries):
+        self.processing = False
+        if queries.relevant():
+            print("callback: ", [q.args for q in queries])
+            queries.callback(queries)
+        self.do()
+
+librarian = Librarian()

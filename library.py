@@ -1,4 +1,5 @@
 from IPython import embed; from PyQt5.QtCore import pyqtRemoveInputHook
+from PyQt5.Qt import *   # todo: import only what you need
 
 import taglib
 import sqlite3
@@ -10,47 +11,47 @@ def _strip(tags):
     """Pulls single list items out of lists."""
     return dict((t,v[0] if isinstance(v,list) and len(v)==1 else v) for t,v in tags.items())
 
-@functools.lru_cache(maxsize = None)
 class Library:
-    filename = 'tandamaster.db'
     _cache = {}
 
-    def __init__(self, name = None):
+    def __init__(self, filename = 'tandamaster.db'):
         super().__init__()
-        self.name = name
-        self.connection = sqlite3.connect(self.filename)
+        self.filename = filename
+        self.connection = sqlite3.connect(filename)
+
+    def create_library_table(self, name):
         self.connection.execute(
             'CREATE TABLE IF NOT EXISTS files_{name}'
             '(id INTEGER PRIMARY KEY, filename BLOB, mtime INTEGER, filesize INTEGER)'
-            .format(name=self.name)
+            .format(name=name)
         )
         self.connection.execute(
             'CREATE INDEX IF NOT EXISTS files_{name}_filename ON files_{name} (filename)'
-            .format(name=self.name)
+            .format(name=name)
         )
         self.connection.execute(
             'CREATE TABLE IF NOT EXISTS tags_{name}'
             '(id INTEGER, tag TEXT, value TEXT)'
-            .format(name=self.name)
+            .format(name=name)
         )
         self.connection.execute(
             'CREATE INDEX IF NOT EXISTS tags_{name}_id_tag ON tags_{name}'
             '(id, tag)'
-            .format(name=self.name)
+            .format(name=name)
         )
         self.connection.execute(
             'CREATE INDEX IF NOT EXISTS tags_{name}_tag_value ON tags_{name}'
             '(tag, value)'
-            .format(name=self.name)
+            .format(name=name)
         )
         self.connection.execute(
             'CREATE INDEX IF NOT EXISTS tags_{name}_value ON tags_{name}'
             '(value)'
-            .format(name=self.name)
+            .format(name=name)
         )
         self.connection.commit()
 
-    def refresh(self, folders):
+    def refresh(self, name, folders):
         cursor = self.connection.cursor()
         for folder in folders:
             for dirpath, dirnames, filenames in os.walk(folder):
@@ -71,7 +72,7 @@ class Library:
                     print(filename)
                     cursor.execute(
                         'SELECT id FROM files_{name} WHERE filename=?'
-                        .format(name=self.name),
+                        .format(name=name),
                         (filename,)
                     )
                     song = cursor.fetchone()
@@ -79,20 +80,20 @@ class Library:
                         song_id = song[0]
                         cursor.execute(
                             'DELETE FROM tags_{name} WHERE id=?'
-                            .format(name = self.name),
+                            .format(name = name),
                             (song_id,)
                         )
                     else:
                         cursor.execute(
                             'INSERT INTO files_{name} (filename) VALUES(?)'
-                            .format(name = self.name),
+                            .format(name = name),
                             (filename,)
                         )
                         song_id = cursor.lastrowid
                     
                     cursor.executemany(
                         'INSERT INTO tags_{name} (id, tag, value) VALUES (?,?,?)'
-                        .format(name = self.name),
+                        .format(name = name),
                         ( (song_id, tag, value) 
                           for tag, values in audiofile.tags.items() 
                           for value in values )
@@ -108,22 +109,20 @@ class Library:
             except OSError:
                 self._cache[filename] = None
 
-    def tags_by_id(self, Id):
-        assert self.name
+    def tags_by_id(self, name, Id):
         cursor = self.connection.execute(
             'SELECT tag, value FROM tags_{} WHERE id=?'
-            .format(self.name),
+            .format(name),
             (Id,)
         )
         # todo: multiple values
         tags = dict( (row[0], row[1]) for row in cursor.fetchall() )
         return tags
 
-    def tag_by_id(self, key, Id):
-        assert self.name
+    def tag_by_id(self, name, key, Id):
         cursor = self.connection.execute(
             'SELECT value FROM tags_{} WHERE id=? AND tag=?'
-            .format(self.name),
+            .format(name),
             (Id, key)
         )
         values = list(row[0] for row in cursor.fetchall() )
@@ -141,10 +140,10 @@ class Library:
         except KeyError:
             return None
         
-    def filename_by_id(self, Id):
+    def filename_by_id(self, name, Id):
         row = self.connection.execute(
             'SELECT filename FROM files_{} WHERE id=?'
-            .format(self.name),
+            .format(name),
             (Id,)
         ).fetchone()
         return row[0] if row else None
@@ -155,22 +154,22 @@ class Library:
             " ".join("INNER JOIN {} AS {} USING(id)".format(t,a) for t,a in table_alias_list[1:])
         )
 
-    def _build_query_statement(self, fixed_tags, filter_string):
+    def _build_query_statement(self, name, fixed_tags, filter_string):
         def tables():
             if not (fixed_tags or filter_string):
-                yield 'files_' + self.name, 'files'
+                yield 'files_' + name, 'files'
             #for i,tv in enumerate(fixed_tags):
             #    if tv[1] is not None:
             for i in range(len(fixed_tags)):
-                yield 'tags_' + self.name, 'tags_' + str(i)
+                yield 'tags_' + name, 'tags_' + str(i)
             if filter_string:
-                yield 'tags_' + self.name, 'tags_filter'
+                yield 'tags_' + name, 'tags_filter'
         join = self._build_join(list(tables()))
         where = " AND ".join(filter(None,(
             " AND ".join(
                 "tags_{n}.tag=? AND tags_{n}.value=?".format(n=n)
                 if tv[1] is not None else
-                'NOT EXISTS (SELECT id FROM tags_{} WHERE id=tags_{}.id AND tag=?)'.format(self.name, n)
+                'NOT EXISTS (SELECT id FROM tags_{} WHERE id=tags_{}.id AND tag=?)'.format(name, n)
                 for n,tv in enumerate(fixed_tags)
             ),
             "tags_filter.value LIKE ?" if filter_string else ""
@@ -183,7 +182,7 @@ class Library:
                 where)
         return statement
 
-    def _query_tags(self, tag, fixed_tags, filter_string):
+    def _query_tags(self, name, tag, fixed_tags, filter_string):
         """Get all values of "tag" of songs having the given fixed tags, and the number of songs for each value.
 
         "fixed_tags" should be a list of pairs."""
@@ -191,8 +190,8 @@ class Library:
                     "LEFT JOIN tags_{} AS tags ON songs.id=tags.id AND tags.tag=? " \
                     "GROUP BY tags.value" \
                         .format(
-                            self._build_query_statement(fixed_tags, filter_string),
-                            self.name
+                            self._build_query_statement(name, fixed_tags, filter_string),
+                            name
                         )
         def params():
             for t,v in fixed_tags:
@@ -204,18 +203,18 @@ class Library:
             yield tag
         return self.connection.execute(statement, list(params()))
 
-    def query_tags_iter(self, tag, fixed_tags, filter_string):
-        cursor = self._query_tags(tag, fixed_tags, filter_string)
+    def query_tags_iter(self, name, tag, fixed_tags, filter_string):
+        cursor = self._query_tags(name, tag, fixed_tags, filter_string)
         row = cursor.fetchone()
         while row:
             yield row
             row = cursor.fetchone()
 
-    def query_tags_all(self, tag, fixed_tags, filter_string):
+    def query_tags_all(self, name, tag, fixed_tags, filter_string):
         cursor = self._query_tags(tag, fixed_tags, filter_string)
         return cursor.fetchall()
 
-    def _query_songs(self, fixed_tags, filter_string):
+    def _query_songs(self, name, fixed_tags, filter_string):
         """Get ids of songs having the given fixed tags.
 
         "fixed_tags" should be a list of pairs."""
@@ -226,16 +225,56 @@ class Library:
                     yield v
             if filter_string:
                 yield '%' + filter_string + '%'
-        statement = self._build_query_statement(fixed_tags, filter_string)
+        statement = self._build_query_statement(name, fixed_tags, filter_string)
         return self.connection.execute(statement, list(params()))
 
-    def query_songs_iter(self, fixed_tags, filter_string):
-        cursor = self._query_songs(fixed_tags, filter_string)
+    def query_songs_iter(self, name, fixed_tags, filter_string):
+        cursor = self._query_songs(name, fixed_tags, filter_string)
         row = cursor.fetchone()
         while row:
             yield row[0]
             row = cursor.fetchone()
 
-    def query_songs_all(self, fixed_tags, filter_string):
+    def query_songs_all(self, name, fixed_tags, filter_string):
         cursor = self._query_songs(fixed_tags, filter_string)
         return cursor.fetchall()
+
+    bg_result = pyqtSignal(types.MethodType, tuple, tuple)
+    def bg_query(self, f, args):
+        result = (f.__get__(self)(*args),)
+        bg_result.emit(f, args, result)
+
+library = Library()
+
+class Librarian:
+    def __init__(self):
+        self.bg_thread = QThread()
+        self.bg_library = Library()
+        self.bg_library.moveToThread(self.bg_thread)
+        self._bg_query.connect(self.bg_library.bg_query)
+        self.bg_library.bg_result.connect(self.bg_process_result)
+        self.bg_thread.start()
+        self.queue = []
+        self.processing = False
+        self.current = None
+
+    def bg_query(self, f, args, relevant, callback):
+        self.queue.append((f, args, relevant, callback))
+        self.do()
+
+    def do(self):
+        while self.queue and not self.processing:
+            self.current = self.queue.pop(0)
+            f, args, relevant, callback = self.current
+            if relevant():
+                self._bg_query.emit(f, args)
+        
+    _bg_query = pyqtSignal(types.MethodType, tuple)
+        
+    def bg_process_result(self, f, args, result):
+        current_f, current_args, relevant, callback = self.current
+        assert current_f == f and current_args == args
+        if relevant():
+            callback(result[0])
+            self.do()
+

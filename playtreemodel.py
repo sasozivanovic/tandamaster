@@ -81,7 +81,6 @@ class PlayTreeFile(PlayTreeItem):
     def _init(self):
         filename = self.get('filename')
         if filename:
-            library = Library()
             def get_tag(self, tag):
                 return library.tag_by_filename(tag, filename)
             def get_tags(self):
@@ -90,12 +89,10 @@ class PlayTreeFile(PlayTreeItem):
             library_name = self.get('library')
             Id = self.get('id')
             assert library_name and Id
-            library = Library(library_name)
             def get_tag(self, tag):
-                return library.tag_by_id(tag, Id)
+                return library.tag_by_id(library_name, tag, Id)
             def get_tags(self):
-                return library.tags_by_id(Id)
-        self.library = library
+                return library.tags_by_id(library_name, Id)
         self.get_tag = get_tag.__get__(self, self)
         self.get_tags = get_tags.__get__(self, self)
 
@@ -105,7 +102,7 @@ class PlayTreeFile(PlayTreeItem):
         if filename:
             return filename
         else:
-            return self.library.filename_by_id(self.get('id'))
+            return library.filename_by_id(self.get('library'), self.get('id'))
 
     def __str__(self):
         #pyqtRemoveInputHook(); embed()
@@ -224,7 +221,6 @@ class PlayTreeBrowse(PlayTreeItem):
         self._children = None
         library_name = self.get('library')
         assert library_name
-        self.library = Library(library_name)
         self.value = None
         self.song_count = None
    
@@ -232,7 +228,7 @@ class PlayTreeBrowse(PlayTreeItem):
         if self.song_count is not None:
             return (self.value if self.value is not None else '') + ' (' + str(self.song_count) + ')'
         else:
-            return app.tr('Browse') + ' ' + self.library.name + ' ' + app.tr('by') + ' ' + \
+            return app.tr('Browse') + ' ' + self.library_name + ' ' + app.tr('by') + ' ' + \
                 ", ".join(by.get('tag').lower() for by in self.iterchildren('by'))
 
     @property
@@ -282,7 +278,7 @@ class PlayTreeBrowse(PlayTreeItem):
             if tag is not None:
                 self._children = []
                 N = len(fixed_tags)
-                for value, count in self.library.query_tags_iter(
+                for value, count in library.query_tags_iter(self.library_name,
                         tag, fixed_tags, PlayTreeModel.current.filter_string):
                     child = copy.deepcopy(self)
                     child[N].set('fixed', "yes")
@@ -294,8 +290,8 @@ class PlayTreeBrowse(PlayTreeItem):
                     self._children.append(child)
             else:
                 self._children = [
-                    make_playtree_element(self, 'file', library=self.library.name, id = str(Id))
-                    for Id in self.library.query_songs_iter(fixed_tags, PlayTreeModel.current.filter_string)
+                    make_playtree_element(self, 'file', library=self.library_name, id = str(Id))
+                    for Id in library.query_songs_iter(self.library_name, fixed_tags, PlayTreeModel.current.filter_string)
                 ]
 
     def expand_small_children(self, model):
@@ -503,5 +499,4 @@ from app import app
 tmSongIcon = QIcon(':images/song.png')
 import tandamaster_rc
 
-from library import Library
-library = Library()
+from library import library

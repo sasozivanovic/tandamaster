@@ -1,5 +1,5 @@
-<list id="root">
-  <folder filename="/home/saso/tango/alan"/>
+<list>
+  <folder filename="/home/saso/tango/razno"/>
   <browse library="tango">
     <by tag="ARTIST"/>
     <by tag="ALBUM"/>

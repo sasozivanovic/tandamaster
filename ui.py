@@ -3,7 +3,7 @@ from IPython import embed
 from PyQt5.Qt import *   # todo: import only what you need
 
 from player import TandaMasterPlayer
-from playtreemodel import PlayTreeModel
+from playtreemodel import PlayTreeModel, PlayTreeList
 from library import Library
 
 class TandaMasterWindow(QMainWindow):
@@ -16,10 +16,9 @@ class TandaMasterWindow(QMainWindow):
         #self.player2 = TandaMasterPlayer() # pre-listening
 
         splitter = QSplitter()
-        splitter.addWidget(PlayTreeWidget('root', self.player))
-        splitter.addWidget(PlayTreeWidget('root', self.player))
+        splitter.addWidget(PlayTreeWidget(None, self.player))
+        splitter.addWidget(PlayTreeWidget(None, self.player))
         self.setCentralWidget(splitter)
-        
 
         menubar = QMenuBar()
 
@@ -125,12 +124,12 @@ class TandaMasterWindow(QMainWindow):
 
 class PlayTreeWidget(QWidget):
 
-    def __init__(self, root_xml_id, player, parent = None):
+    def __init__(self, root_id, player, parent = None):
         super().__init__(parent)
         layout = QVBoxLayout()
         self.setLayout(layout)
         self.search = QLineEdit()
-        self.ptv = PlayTreeView(root_xml_id, player, self)
+        self.ptv = PlayTreeView(root_id, player, self)
         layout.addWidget(self.search)
         layout.addWidget(self.ptv)
         self.search.textChanged.connect(lambda: QTimer.singleShot(50, self.refilter))
@@ -140,11 +139,11 @@ class PlayTreeWidget(QWidget):
         
 class PlayTreeView(QTreeView):
 
-    def __init__(self, root_xml_id, player, parent = None):
+    def __init__(self, root_id, player, parent = None):
         super().__init__(parent)
         self.setUniformRowHeights(True)
 
-        model = PlayTreeModel(root_xml_id, self)
+        model = PlayTreeModel(root_id, self)
         self.setModel(model)
         model.view = self
 
@@ -195,12 +194,16 @@ class PlayTreeView(QTreeView):
 
     def on_begin_reset_model(self):
         model = self.model()
-        for item in model.rootItem.iter('list', 'browse', 'folder'):
+        for item in model.rootItem.iter(
+                lambda item: item.isTerminal,
+                lambda item: isinstance(item, PlayTreeList)):
             item.was_expanded = self.isExpanded(item.modelindex(model))
 
     def on_end_reset_model(self):
         model = self.model()
-        for item in model.rootItem.iter('list', 'browse', 'folder'):
+        for item in model.rootItem.iter(
+                lambda item: item.isTerminal,
+                lambda item: isinstance(item, PlayTreeList)):
             self.setExpanded(item.modelindex(model), item.was_expanded)
 
 

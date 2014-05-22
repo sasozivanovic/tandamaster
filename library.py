@@ -174,8 +174,6 @@ class Library(QObject):
         def tables():
             if not (fixed_tags or filter_string):
                 yield 'files_' + name, 'files'
-            #for i,tv in enumerate(fixed_tags):
-            #    if tv[1] is not None:
             for i in range(len(fixed_tags)):
                 yield 'tags_' + name, 'tags_' + str(i)
             if filter_string:
@@ -294,7 +292,6 @@ class Librarian(QObject):
     def bg_process_result(self, queries):
         self.processing = False
         if queries.relevant():
-            print("callback: ", [q.args for q in queries])
             queries.callback(queries)
         self.do()
 

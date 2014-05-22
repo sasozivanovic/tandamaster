@@ -468,7 +468,6 @@ except:
 playtree = PlayTreeItem.create_from_xml(playtree_xml)
 
 class PlayTreeModel(QAbstractItemModel):
-    current = None
 
     def __init__(self, root_id = None, parent = None):
         super().__init__(parent)
@@ -515,7 +514,6 @@ class PlayTreeModel(QAbstractItemModel):
         return self.item(index).hasChildren(self)
 
     def columnCount(self, parent):
-        self.__class__.current = self
         return len(self._columns)
 
     currentindexroles = (Qt.ForegroundRole, Qt.FontRole)

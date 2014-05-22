@@ -9,6 +9,7 @@ class TandaMasterPlayer(QMediaPlayer):
         self._current_model = None
         self._current_item = None
         self._playback_start = None
+        self.mediaStatusChanged.connect(self.on_media_status_changed)
         #self.setNotifyInterval(200)
 
     @property
@@ -87,3 +88,9 @@ class TandaMasterPlayer(QMediaPlayer):
     def stop(self):
         super().stop()
         self.set_current(item = None)
+
+    def on_media_status_changed(self, state):
+        if state == QMediaPlayer.EndOfMedia:
+            self.play_next()
+
+        

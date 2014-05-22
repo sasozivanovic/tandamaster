@@ -5,6 +5,9 @@ from PyQt5.Qt import *   # todo: import only what you need
 from player import TandaMasterPlayer
 from model import PlayTreeModel, PlayTreeList
 from library import Library
+from util import PartialFormatter
+
+import collections
 
 class TandaMasterWindow(QMainWindow):
 
@@ -62,17 +65,11 @@ class TandaMasterWindow(QMainWindow):
         toolbar.setAllowedAreas(Qt.TopToolBarArea | Qt.BottomToolBarArea)
         toolbar.setFloatable(False)
         #toolbar.setIconSize(2*toolbar.iconSize())
-        def create_playcontrol_button(action):
-            button = QToolButton()
-            button.setDefaultAction(action)
-            button.setIconSize(2*button.iconSize())
-            toolbar.addWidget(button)
-            return button
-        create_playcontrol_button(action_back)
-        self.button_play = create_playcontrol_button(self.action_play)
-        self.button_pause = create_playcontrol_button(self.action_pause)
-        create_playcontrol_button(self.action_stop)
-        create_playcontrol_button(action_forward)
+        toolbar.addAction(action_back)
+        toolbar.addAction(self.action_play)
+        toolbar.addAction(self.action_pause)
+        toolbar.addAction(self.action_stop)
+        toolbar.addAction(action_forward)
         self.song_info = QLabel()
         self.song_info.setContentsMargins(8,0,0,0)
         toolbar.addWidget(QWidget())
@@ -85,38 +82,35 @@ class TandaMasterWindow(QMainWindow):
         toolbar2.addWidget(pb)
         self.addToolBar(toolbar2)
 
-        self.player.current_changed.connect(self.update_song_info)
+        self.player.currentMediaChanged.connect(self.update_song_info)
         self.player.stateChanged.connect(self.on_player_state_changed)
         self.on_player_state_changed(QMediaPlayer.StoppedState)
 
     def sizeHint(self):
         return QSize(1800, 800)
 
-    def update_song_info(self, old_model, old_index, model, index):
-        if index.isValid():
-            item = model.item(index)
-            self.setWindowTitle("{ARTIST} - {TITLE} | TandaMaster".format(**item.get_tags()))
-            self.song_info.setText("{ARTIST}<br><b>{TITLE}</b>".format(**item.get_tags()))
+    song_info_formatter = PartialFormatter()
+    def update_song_info(self, media):
+        item = self.player.current_item
+        if item:
+            tags = item.get_tags()
+            self.setWindowTitle(self.song_info_formatter.format(
+                "{ARTIST} - {TITLE} | TandaMaster", **tags))
+            self.song_info.setText(self.song_info_formatter.format(
+                "{ARTIST} <b>{TITLE}</b>", **tags))
         else:
             self.setWindowTitle("TandaMaster")
             self.song_info.setText("")
 
     def on_player_state_changed(self, state):
         if state == QMediaPlayer.PlayingState:
-            self.action_play.setEnabled(False)
-            self.action_pause.setEnabled(True)
+            self.action_play.setVisible(False)
+            self.action_pause.setVisible(True)
             self.action_stop.setEnabled(True)
-            self.button_play.setVisible(False) # todo!
-            self.button_pause.setVisible(True) # todo!
         else:
-            self.action_play.setEnabled(True)
-            self.action_pause.setEnabled(False)
-            self.button_play.setVisible(True) # todo!
-            self.button_pause.setVisible(False) # todo!
-            if state == QMediaPlayer.StoppedState:
-                self.action_stop.setEnabled(False)
-            else:
-                self.action_stop.setEnabled(True)
+            self.action_play.setVisible(True)
+            self.action_pause.setVisible(False)
+            self.action_stop.setEnabled(state != QMediaPlayer.StoppedState)
                 
     def update_library(self):
         Library('tango').refresh(['/home/saso/tango'])
@@ -134,10 +128,6 @@ class PlayTreeWidget(QWidget):
         self.ptv = PlayTreeView(root_id, player, self)
 
         controls = QToolBar()
-        #controls_layout = QHBoxLayout()
-        #controls.setLayout(controls_layout)
-        #controls_layout.addWidget(current_model_button)
-        #controls_layout.addWidget(self.search)
         controls.addWidget(current_model_button)
         controls.addWidget(self.search)
 

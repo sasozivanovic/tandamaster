@@ -1,5 +1,5 @@
 from PyQt5.Qt import *
-from playtreemodel import PlayTreeModel, PlayTreeItem
+from model import PlayTreeModel, PlayTreeItem
 from IPython import embed
 
 class TandaMasterPlayer(QMediaPlayer):

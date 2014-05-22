@@ -232,6 +232,7 @@ class Library(QObject):
         """Get ids of songs having the given fixed tags.
 
         "fixed_tags" should be a list of pairs."""
+
         def params():
             for t,v in fixed_tags:
                 yield t
@@ -251,7 +252,7 @@ class Library(QObject):
 
     def query_songs_all(self, name, fixed_tags, filter_string):
         cursor = self._query_songs(name, fixed_tags, filter_string)
-        return cursor.fetchall()
+        return [row[0] for row in cursor.fetchall()]
 
     bg_queries_done = pyqtSignal(BgQueries)
     def bg_queries(self, queries):

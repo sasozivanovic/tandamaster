@@ -3,7 +3,7 @@ from IPython import embed
 from PyQt5.Qt import *   # todo: import only what you need
 
 from player import TandaMasterPlayer
-from playtreemodel import PlayTreeModel, PlayTreeList
+from model import PlayTreeModel, PlayTreeList
 from library import Library
 
 class TandaMasterWindow(QMainWindow):
@@ -157,18 +157,22 @@ class PlayTreeView(QTreeView):
         self._autoexpand_on = True
         player.current_changed.connect(self.on_current_changed)
         self.player.set_current(model = self.model(), silent = True) # temporary
-        model.modelAboutToBeReset.connect(self.on_begin_reset_model)
+        #model.modelAboutToBeReset.connect(self.on_begin_reset_model)
         model.modelReset.connect(self.on_end_reset_model)
 
     def on_expanded(self, index):
-        if self.model() == self.player.current_model and \
-           index in self.model().ancestors(self.player.current_index):
+        model = self.model()
+        model.item(index).expanded[model] = True
+        if model == self.player.current_model and \
+           index in model.ancestors(self.player.current_index):
             self._autoexpand_on = True
         self.autosize_columns()
 
     def on_collapsed(self, index):
-        if self.model() == self.player.current_model and \
-           index in self.model().ancestors(self.player.current_index):
+        model = self.model()
+        model.item(index).expanded[model] = False
+        if model == self.player.current_model and \
+           index in model.ancestors(self.player.current_index):
             self._autoexpand_on = False
 
     def on_current_changed(self, old_model, old_index, model, index):
@@ -192,20 +196,20 @@ class PlayTreeView(QTreeView):
         for i in range(columns):
             self.resizeColumnToContents(i)
 
-    def on_begin_reset_model(self):
-        model = self.model()
-        for item in model.rootItem.iter(model,
-                lambda item: item.isTerminal,
-                lambda item: isinstance(item, PlayTreeList)):
-            item.was_expanded[model] = self.isExpanded(item.modelindex(model))
+#    def on_begin_reset_model(self):
+#        model = self.model()
+#        for item in model.rootItem.iter(model,
+#                lambda item: item.isTerminal,
+#                lambda item: isinstance(item, PlayTreeList)):
+#            item.expanded[model] = self.isExpanded(item.modelindex(model))
 
     def on_end_reset_model(self):
         model = self.model()
         for item in model.rootItem.iter(model,
-                lambda item: item.isTerminal,
+                lambda item: not item.isTerminal,
                 lambda item: isinstance(item, PlayTreeList)):
-            self.setExpanded(item.modelindex(model), item.was_expanded[model])
-
+            if model in item.expanded:
+                self.setExpanded(item.modelindex(model), item.expanded[model])
 
 class TMProgressBar(QProgressBar):
     def __init__(self, player, parent = None):

@@ -25,8 +25,8 @@ class PlayTreeItem:
 
     xml_tag_registry = {}
     @classmethod
-    def create_from_xml(cls, element):
-        return cls.xml_tag_registry[element.tag]._create_from_xml(element)
+    def create_from_xml(cls, element, parent = None):
+        return cls.xml_tag_registry[element.tag]._create_from_xml(element, parent)
 
     def to_xml(self):
         return etree.Element(self.xml_tag)
@@ -47,7 +47,7 @@ class PlayTreeItem:
     def __init__(self, parent = None):
         super().__init__()
         self.parent = parent
-        self.was_expanded = {}
+        self.expanded = {}
 
     isTerminal = False
 
@@ -80,10 +80,10 @@ class PlayTreeItem:
 class PlayTreeList(PlayTreeItem):
 
     @classmethod
-    def _create_from_xml(cls, element):
-        item = cls(name = element.get('name'), Id = element.get('id'))
+    def _create_from_xml(cls, element, parent):
+        item = cls(name = element.get('name'), Id = element.get('id'), parent = parent)
         for subelement in element:
-            item.children[None].append(PlayTreeItem.create_from_xml(subelement))
+            item.children[None].append(PlayTreeItem.create_from_xml(subelement, item))
         return item
 
     def to_xml(self):
@@ -154,10 +154,11 @@ class PlayTreeFile(PlayTreeItem):
         element.set('filename', self.filename)
 
     @classmethod
-    def _create_from_xml(cls, element):
+    def _create_from_xml(cls, element, parent):
         return PlayTreeLibraryFile(
             library_name = element.get('library'),
-            Id = element.get('id')
+            Id = element.get('id'),
+            parent = parent
         ) if element.get('id') else PlayTreeFile(
             filename = element.get('filename')
         )
@@ -242,8 +243,8 @@ class PlayTreeFolder(PlayTreeItem):
         element.set('filename', self.filename)
 
     @classmethod
-    def _create_from_xml(cls, element):
-        return cls(filename = element.get('filename'))
+    def _create_from_xml(cls, element, parent):
+        return cls(filename = element.get('filename'), parent = parent)
 
     def __init__(self, filename, parent = None):
         super().__init__(parent)
@@ -254,7 +255,7 @@ class PlayTreeFolder(PlayTreeItem):
         return '{}({})'.format(type(self).__name__, self.filename)
 
     def rowCount(self, model):
-        self.populate()
+        self.populate(model)
         return len(self.children[model])
 
     def hasChildren(self, model):
@@ -314,7 +315,7 @@ class PlayTreeFolder(PlayTreeItem):
     def expand_small_children(self, model):
         if model.view.isExpanded(self.modelindex(model)):
             for child in self.children[model]:
-                if isinstance(child, PlayTreeFolder) and child.children is not None and child.rowCount() == 1:
+                if isinstance(child, PlayTreeFolder) and model in child.children and child.children[model] is not None and child.rowCount(model) == 1:
                     model.view.setExpanded(child.modelindex(model), True)
                     child.expand_small_children(model)
         
@@ -322,7 +323,7 @@ class PlayTreeFolder(PlayTreeItem):
 @register_xml_tag_handler('browse')
 class PlayTreeBrowse(PlayTreeItem):
     @classmethod
-    def _create_from_xml(cls, element):
+    def _create_from_xml(cls, element, parent):
         fixed_tags = []
         browse_by_tags = []
         for by in element:
@@ -331,7 +332,7 @@ class PlayTreeBrowse(PlayTreeItem):
                     fixed_tags.append((by.get('tag'), by.get('value')))
                 else:
                     browse_by_tags.append(by.get('tag'))
-        return cls(library_name = element.get('library'), fixed_tags = fixed_tags, browse_by_tags = browse_by_tags)
+        return cls(library_name = element.get('library'), fixed_tags = fixed_tags, browse_by_tags = browse_by_tags, parent = parent)
 
     def to_xml(self):
         element = super().to_xml()
@@ -352,6 +353,7 @@ class PlayTreeBrowse(PlayTreeItem):
         self.children = {}
         self.value = {}
         self.song_count = {}
+        self.value_to_child = {}
    
     def __repr__(self):
         return '{}({},fixed={},by={})'.format(type(self).__name__, self.library, self.fixed_tags, self.browse_by_tags)
@@ -379,8 +381,8 @@ class PlayTreeBrowse(PlayTreeItem):
             return None
         elif role == Qt.DisplayRole:
             if model in self.song_count:
-                return (self.value[model] if model in self.value else '') #+ \
-#                    ' (' + str(self.song_count[model]) + ')'
+                return (self.value[model] if model in self.value and self.value[model] else '') + \
+                    ' (' + str(self.song_count[model]) + ')'
             else:
                 return app.tr('Browse') + ' ' + \
                     self.library + ' ' + app.tr('by') + ' ' + \
@@ -395,16 +397,22 @@ class PlayTreeBrowse(PlayTreeItem):
         browse_by_tags = self.browse_by_tags[1:]        
         for value, count in rows:
             fixed_tags = self.fixed_tags + ((tag, value),)
-            child = PlayTreeBrowse(self.library, fixed_tags, browse_by_tags, parent = self)
+            if value in self.value_to_child:
+                child = self.value_to_child[value]
+            else:
+                child = PlayTreeBrowse(self.library, fixed_tags, browse_by_tags, parent = self)
+                self.value_to_child[value] = child
             child.value[model] = value
             child.song_count[model] = count
             children.append(child)
         
     def populate_songs(self, model, rows):
-        self.children[model] = [
-            PlayTreeLibraryFile(self.library, Id, parent = self)
-            for Id in rows
-        ]
+        self.children[model] = []
+        children = self.children[model]
+        for Id in rows:
+            if Id not in self.value_to_child:
+                self.value_to_child[Id] = PlayTreeLibraryFile(self.library, Id, parent = self)
+            children.append(self.value_to_child[Id])
 
     def populate(self, model, force = False):
         if force or model not in self.children or self.children[model] is None:
@@ -426,7 +434,7 @@ class PlayTreeBrowse(PlayTreeItem):
         queries = BgQueries([], self.expand_small_children_callback, 
                                lambda: model.filter_string == filter_string)
         for child in self.children[model]:
-            if child.rowCount(model) == 1:
+            if child.song_count[model] == 1:
                 query = BgQuery(Library.query_tags_all,
                                 (child.library, child.browse_by_tags[0], child.fixed_tags, filter_string)
                             ) if child.browse_by_tags else \
@@ -470,6 +478,7 @@ class PlayTreeModel(QAbstractItemModel):
                 self.rootItem = item
                 break
         self.filter_string = ''
+        self.rootItem.populate(self)
 
     def item(self, index):
         return index.internalPointer() if index.isValid() else self.rootItem

@@ -75,6 +75,8 @@ class PlayTreeItem:
                 for item in self.child(model, i).iter(model, condition_yield, condition_propagate):
                     yield item
 
+    def populate(self, model):
+        pass
 
 @register_xml_tag_handler('list')
 class PlayTreeList(PlayTreeItem):
@@ -546,6 +548,7 @@ class PlayTreeModel(QAbstractItemModel):
             index = self.index(0,0,index)
         while index.isValid():
             if descend:
+                self.item(index).populate(self)
                 next_index = self.index(0, 0, index)
             else:
                 parent = self.parent(index)
@@ -574,6 +577,7 @@ class PlayTreeModel(QAbstractItemModel):
             previous_index = index
         rows = self.rowCount(previous_index)
         while rows:
+            self.item(previous_index).populate(self)
             previous_index = self.index(rows-1, 0, previous_index)
             if not previous_index.isValid():
                 break

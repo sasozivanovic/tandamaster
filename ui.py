@@ -61,7 +61,7 @@ class TandaMasterWindow(QMainWindow):
         toolbar = QToolBar('Play controls', self)
         toolbar.setAllowedAreas(Qt.TopToolBarArea | Qt.BottomToolBarArea)
         toolbar.setFloatable(False)
-        toolbar.setIconSize(2*toolbar.iconSize())
+        #toolbar.setIconSize(2*toolbar.iconSize())
         def create_playcontrol_button(action):
             button = QToolButton()
             button.setDefaultAction(action)
@@ -126,13 +126,33 @@ class PlayTreeWidget(QWidget):
 
     def __init__(self, root_id, player, parent = None):
         super().__init__(parent)
-        layout = QVBoxLayout()
-        self.setLayout(layout)
+
+        current_model_button = QToolButton()
+        current_model_button.setIcon(self.style().standardIcon(QStyle.SP_DialogApplyButton))
+        current_model_button.setCheckable(True)
         self.search = QLineEdit()
         self.ptv = PlayTreeView(root_id, player, self)
-        layout.addWidget(self.search)
-        layout.addWidget(self.ptv)
+
+        controls = QToolBar()
+        #controls_layout = QHBoxLayout()
+        #controls.setLayout(controls_layout)
+        #controls_layout.addWidget(current_model_button)
+        #controls_layout.addWidget(self.search)
+        controls.addWidget(current_model_button)
+        controls.addWidget(self.search)
+
+        widget_layout = QVBoxLayout()
+        self.setLayout(widget_layout)
+        widget_layout.addWidget(controls)
+        widget_layout.addWidget(self.ptv)
+
         self.search.textChanged.connect(lambda: QTimer.singleShot(50, self.refilter))
+        current_model_button.toggled.connect(
+            lambda checked: player.set_current(model = self.ptv.model()) if checked else None)
+        player.current_changed.connect(
+            lambda old_model, old_index, model, index: current_model_button.setChecked(
+                self.ptv.model() == model))
+        current_model_button.setChecked(self.ptv.model() == player.current_model)
 
     def refilter(self):
         self.ptv.model().refilter(self.search.text())
@@ -156,8 +176,8 @@ class PlayTreeView(QTreeView):
         self._autoexpanded = None
         self._autoexpand_on = True
         player.current_changed.connect(self.on_current_changed)
-        self.player.set_current(model = self.model(), silent = True) # temporary
-        #model.modelAboutToBeReset.connect(self.on_begin_reset_model)
+        if not self.player.current_model:
+            self.player.set_current(model = self.model())
         model.modelReset.connect(self.on_end_reset_model)
 
     def on_expanded(self, index):
@@ -195,13 +215,6 @@ class PlayTreeView(QTreeView):
         columns = self.model().columnCount(QModelIndex())
         for i in range(columns):
             self.resizeColumnToContents(i)
-
-#    def on_begin_reset_model(self):
-#        model = self.model()
-#        for item in model.rootItem.iter(model,
-#                lambda item: item.isTerminal,
-#                lambda item: isinstance(item, PlayTreeList)):
-#            item.expanded[model] = self.isExpanded(item.modelindex(model))
 
     def on_end_reset_model(self):
         model = self.model()

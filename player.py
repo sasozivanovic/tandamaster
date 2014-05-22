@@ -58,11 +58,6 @@ class TandaMasterPlayer(QMediaPlayer):
                 index = QModelIndex()
             if not silent:
                 self.current_changed.emit(old_model, old_index, model, index)
-        if old_model != model:
-            if old_model:
-                old_model.modelReset.disconnect(self.on_model_reset)
-            if model:
-                model.modelReset.connect(self.on_model_reset)
 
     def play(self):
         if not self.current_item.isPlayable:
@@ -72,7 +67,7 @@ class TandaMasterPlayer(QMediaPlayer):
             self.setNotifyInterval(100)
 
     def play_index(self, playtree_index):
-        assert playtree_index.isValid() and playtree_index.model() == self.current_model
+        assert playtree_index.model() == self.current_model
         if not self.current_model.item(playtree_index).isPlayable:
             playtree_index = self.current_model.next_song(playtree_index)
         self.set_current(index = playtree_index)
@@ -92,7 +87,3 @@ class TandaMasterPlayer(QMediaPlayer):
     def stop(self):
         super().stop()
         self.set_current(item = None)
-
-    def on_model_reset(self):
-        if self.current_item is not None:
-            self.current_item.parent = None

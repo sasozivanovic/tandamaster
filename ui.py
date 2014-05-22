@@ -194,17 +194,17 @@ class PlayTreeView(QTreeView):
 
     def on_begin_reset_model(self):
         model = self.model()
-        for item in model.rootItem.iter(
+        for item in model.rootItem.iter(model,
                 lambda item: item.isTerminal,
                 lambda item: isinstance(item, PlayTreeList)):
-            item.was_expanded = self.isExpanded(item.modelindex(model))
+            item.was_expanded[model] = self.isExpanded(item.modelindex(model))
 
     def on_end_reset_model(self):
         model = self.model()
-        for item in model.rootItem.iter(
+        for item in model.rootItem.iter(model,
                 lambda item: item.isTerminal,
                 lambda item: isinstance(item, PlayTreeList)):
-            self.setExpanded(item.modelindex(model), item.was_expanded)
+            self.setExpanded(item.modelindex(model), item.was_expanded[model])
 
 
 class TMProgressBar(QProgressBar):

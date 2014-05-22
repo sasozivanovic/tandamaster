@@ -47,33 +47,32 @@ class PlayTreeItem:
     def __init__(self, parent = None):
         super().__init__()
         self.parent = parent
-        self.was_expanded = False
+        self.was_expanded = {}
 
     isTerminal = False
 
-    @property
-    def row(self):
-        return self.parent.childs_row(self) if self.parent is not None else 0
+    def row(self, model):
+        return self.parent.childs_row(model, self) if self.parent is not None else 0
 
     def modelindex(self, model):
-        return QModelIndex() if self == model.rootItem or self.parent is None else model.createIndex(self.row, 0, self)
+        return QModelIndex() if self == model.rootItem or self.parent is None else model.createIndex(self.row(model), 0, self)
 
     @property
     def isPlayable(self):
         return False
 
-    def filter(self):
+    def filter(self, model):
         return True
 
     def expand_small_children(self, model):
         return 
 
-    def iter(self, condition_yield, condition_propagate):
+    def iter(self, model, condition_yield, condition_propagate):
         if condition_yield(self):
             yield self
-        if self.hasChildren() and condition_propagate(self):
-            for i in range(self.rowCount()):
-                for item in self.child(i).iter(condition_yield, condition_propagate):
+        if self.hasChildren(model) and condition_propagate(self):
+            for i in range(self.rowCount(model)):
+                for item in self.child(model, i).iter(model, condition_yield, condition_propagate):
                     yield item
 
 
@@ -84,14 +83,14 @@ class PlayTreeList(PlayTreeItem):
     def _create_from_xml(cls, element):
         item = cls(name = element.get('name'), Id = element.get('id'))
         for subelement in element:
-            item._children.append(PlayTreeItem.create_from_xml(subelement))
+            item.children[None].append(PlayTreeItem.create_from_xml(subelement))
         return item
 
     def to_xml(self):
         element = super().to_xml()
         element.set('name', self.name)
         element.set('id', self.Id)
-        for child in self._children:
+        for child in self.children[None]:
             element.append(child.to_xml())
         return element
 
@@ -99,47 +98,52 @@ class PlayTreeList(PlayTreeItem):
         super().__init__(parent)
         self.name = name
         self.Id = Id
-        self._children = list(*iterable)
+        self.children = {None: list(*iterable)}
         
-    def __str__(self):
-        return self.name if self.name else ''
-
     def __repr__(self):
         return '{}(id={},name={})'.format(type(self).__name__, self.Id, self.name)
 
-    @property
-    def children(self):
-        return [ c for c in self._children if c.filter() ]
+    def rowCount(self, model):
+        self.populate(model)
+        return len(self.children[model])
 
-    def rowCount(self):
-        return len(self.children)
+    def hasChildren(self, model):
+        self.populate(model)
+        return bool(self.children[model])
 
-    def hasChildren(self):
-        return bool(self.children)
+    def child(self, model, row):
+        self.populate(model)
+        return self.children[model][row]
 
-    def child(self, row):
-        try:
-            return self.children[row]
-        except IndexError:
-            return None
+    def childs_row(self, model, child):
+        self.populate(model)
+        return self.children[model].index(child)
 
-    def childs_row(self, child):
-        return self.children.index(child)
-
-    def data(self, column_name, role):
+    def data(self, model, column_name, role):
         if column_name:
             return None
         if role == Qt.DisplayRole:
             return self.name
 
-    def iter_width(self, condition_yield, condition_propagate):
+    def populate(self, model, force = False):
+        if force or model not in self.children or self.children[model] is None:
+            self.children[model] = [ child for child in self.children[None]
+                                      if child.filter(model) ]
+
+    def filter(self, model):
+        for child in self.children[None]:
+            if child.filter(model):
+                return True
+        return model.filter_string in self.name.lower()
+
+    def iter_width(self, model, condition_yield, condition_propagate):
         items = [self]
         while items:
             item = items.pop(0)
             if condition_yield(item):
                 yield item
             if condition_propagate(item):
-                items.extend(item.children)
+                items.extend(item.children[model])
 
 @register_xml_tag_handler('file')
 class PlayTreeFile(PlayTreeItem):
@@ -168,38 +172,34 @@ class PlayTreeFile(PlayTreeItem):
     def get_tags(self):
         return library.tags_by_filename(self.filename)
 
-    def __str__(self):
-        title = self.get_tag('TITLE')
-        return title if title else os.path.basename(self.filename)
-
     def __repr__(self):
         return '{}({})'.format(type(self).__name__, self.filename)
 
-    def rowCount(self):
+    def rowCount(self, model):
         return 0
 
-    def hasChildren(self):
+    def hasChildren(self, model):
         return False
 
-    def child(self, row):
-        return None
+    def child(self, model, row):
+        raise RuntimeError
 
-    def data(self, column_name, role):
+    def data(self, model, column_name, role):
         if role == Qt.DisplayRole:
-            return self.get_tag(column_name) if column_name else str(self)
+            return self.get_tag(column_name) if column_name else os.path.basename(self.filename)
         elif not column_name and role == Qt.DecorationRole:
             return tmSongIcon
 
-    def childs_row(self, child):
-        return None
+    def childs_row(self, model, child):
+        raise RuntimeError
 
     @property
     def isPlayable(self):
         return True
 
-    def filter(self):
+    def filter(self, model):
         for value in self.get_tags().values():
-            if PlayTreeModel.current.filter_string in value.lower():
+            if model.filter_string in value.lower():
                 return True
 
 class PlayTreeLibraryFile(PlayTreeFile):
@@ -224,6 +224,15 @@ class PlayTreeLibraryFile(PlayTreeFile):
     def __repr__(self):
         return '{}({},{},{})'.format(type(self).__name__, self.library, self.Id, self.filename)
 
+    def data(self, model, column_name, role):
+        if role == Qt.DisplayRole:
+            if column_name:
+                return self.get_tag(column_name)
+            else:
+                title = self.get_tag('TITLE')
+                return title if title else os.path.basename(self.filename)
+        elif not column_name and role == Qt.DecorationRole:
+            return tmSongIcon
 
 @register_xml_tag_handler('folder')
 class PlayTreeFolder(PlayTreeItem):
@@ -239,39 +248,30 @@ class PlayTreeFolder(PlayTreeItem):
     def __init__(self, filename, parent = None):
         super().__init__(parent)
         self.filename = filename
-        self._children = None
-
-    def __str__(self):
-        return self.filename
+        self.children = {None: None}
 
     def __repr__(self):
         return '{}({})'.format(type(self).__name__, self.filename)
 
-    @property
-    def children(self):
-        return [ c for c in self._children if c.filter() ]
+    def rowCount(self, model):
+        self.populate()
+        return len(self.children[model])
 
-    def rowCount(self):
-        self._populate()
-        return len(self.children)
-
-    def hasChildren(self):
-        if self._children is None:
+    def hasChildren(self, model):
+        if self.children[model] is None:
             return True
         else:
-            return bool(len(self.children))
+            return bool(self.children[model])
 
-    def child(self, row):
-        self._populate()
-        return self.children[row]
+    def child(self, model, row):
+        self.populate(model)
+        return self.children[model][row]
 
-    def childs_row(self, child):
-        try:
-            return self.children.index(child)
-        except IndexError:
-            return None
+    def childs_row(self, model, child):
+        self.populate(model)
+        return self.children[model].index(child)
 
-    def data(self, column_name, role):
+    def data(self, model, column_name, role):
         if column_name:
             return None
         elif role == Qt.DisplayRole:
@@ -279,10 +279,10 @@ class PlayTreeFolder(PlayTreeItem):
         elif column_name == '' and role == Qt.DecorationRole:
             return app.style().standardIcon(QStyle.SP_DirIcon)
 
-    def _populate(self, force = False):
-        if force:
-            self._children = None
-        if self._children is None:
+    def populate(self, model, force = False):
+        if force or model not in self.children or self.children[model] is None:
+            self.children[model] = None
+        if self.children[None] is None:
             folders = []
             files = []
             for fn in os.listdir(self.filename):
@@ -293,18 +293,28 @@ class PlayTreeFolder(PlayTreeItem):
                     files.append((fn, fullfn))
             folders.sort()
             files.sort()
-            self._children = [
+            self.children[None] = [
                 PlayTreeFolder(filename=fullfn, parent = self) for fn,fullfn in folders
             ]
             fileelements = [
                 PlayTreeFile(filename=fullfn, parent = self) for fn,fullfn in files
             ]
-            self._children.extend(filter(lambda f: f.get_tags() is not None, fileelements))
+            self.children[None].extend(filter(lambda f: f.get_tags() is not None, fileelements))
+        if self.children[model] is None:
+            self.children[model] = [child for child in self.children[None]
+                                     if child.filter(model) ]
+
+    def filter(self, model):
+        self.populate(model)
+        for child in self.children[None]:
+            if child.filter(model):
+                return True
+        return model.filter_string in self.name.lower()
 
     def expand_small_children(self, model):
         if model.view.isExpanded(self.modelindex(model)):
-            for child in self.children:
-                if isinstance(child, PlayTreeFolder) and child._children is not None and child.rowCount() == 1:
+            for child in self.children[model]:
+                if isinstance(child, PlayTreeFolder) and child.children is not None and child.rowCount() == 1:
                     model.view.setExpanded(child.modelindex(model), True)
                     child.expand_small_children(model)
         
@@ -336,89 +346,87 @@ class PlayTreeBrowse(PlayTreeItem):
 
     def __init__(self, library_name, fixed_tags, browse_by_tags, parent = None):
         super().__init__(parent)
-        self.children = None
         self.library = library_name
         self.fixed_tags = tuple(fixed_tags)
         self.browse_by_tags = tuple(browse_by_tags)
-        self.value = None
-        self.song_count = None
+        self.children = {}
+        self.value = {}
+        self.song_count = {}
    
-    def __str__(self):
-        if self.song_count is not None:
-            return (self.value if self.value is not None else '') + ' (' + str(self.song_count) + ')'
-        else:
-            return app.tr('Browse') + ' ' + self.library + ' ' + app.tr('by') + ' ' + \
-                ", ".join(tag.lower() for tag in self.browse_by_tags)
-
     def __repr__(self):
         return '{}({},fixed={},by={})'.format(type(self).__name__, self.library, self.fixed_tags, self.browse_by_tags)
 
-    def rowCount(self):
-        self._populate()
-        return len(self.children)
+    def rowCount(self, model):
+        self.populate(model)
+        return len(self.children[model])
 
-    def hasChildren(self):
-        if self.children is None:
+    def hasChildren(self, model):
+        if model not in self.children:
             return True
         else:
-            return bool(len(self.children))
+            return bool(self.children[model])
 
-    def child(self, row):
-        self._populate()
-        return self.children[row]
+    def child(self, model, row):
+        self.populate(model)
+        return self.children[model][row]
 
-    def childs_row(self, child):
-        try:
-            return self.children.index(child)
-        except IndexError:
-            return None
+    def childs_row(self, model, child):
+        self.populate(model)
+        return self.children[model].index(child)
 
-    def data(self, column_name, role):
+    def data(self, model, column_name, role):
         if column_name:
             return None
         elif role == Qt.DisplayRole:
-            return str(self)
+            if model in self.song_count:
+                return (self.value[model] if model in self.value else '') #+ \
+#                    ' (' + str(self.song_count[model]) + ')'
+            else:
+                return app.tr('Browse') + ' ' + \
+                    self.library + ' ' + app.tr('by') + ' ' + \
+                    ", ".join(tag.lower() for tag in self.browse_by_tags)
         elif column_name == '' and role == Qt.DecorationRole:
             return app.style().standardIcon(QStyle.SP_DriveCDIcon)
 
-    def _populate_tags(self, rows):
-        self.children = []
+    def populate_tags(self, model, rows):
+        self.children[model] = []
+        children = self.children[model]
         tag = self.browse_by_tags[0]
         browse_by_tags = self.browse_by_tags[1:]        
         for value, count in rows:
             fixed_tags = self.fixed_tags + ((tag, value),)
             child = PlayTreeBrowse(self.library, fixed_tags, browse_by_tags, parent = self)
-            child.value = value
-            child.song_count = count
-            self.children.append(child)
+            child.value[model] = value
+            child.song_count[model] = count
+            children.append(child)
         
-    def _populate_songs(self, rows):
-        self.children = [
+    def populate_songs(self, model, rows):
+        self.children[model] = [
             PlayTreeLibraryFile(self.library, Id, parent = self)
             for Id in rows
         ]
 
-    def _populate(self, force = False):
-        if force:
-            self.children = None
-        if self.children is None:
+    def populate(self, model, force = False):
+        if force or model not in self.children or self.children[model] is None:
+            self.children[model] = None
+        if self.children[model] is None:
             if self.browse_by_tags:
-                self._populate_tags(library.query_tags_iter(
+                self.populate_tags(model, library.query_tags_iter(
                     self.library, self.browse_by_tags[0], self.fixed_tags,
-                    PlayTreeModel.current.filter_string))
+                    model.filter_string))
             else:
-                self._populate_songs(library.query_songs_iter(
+                self.populate_songs(model, library.query_songs_iter(
                     self.library, self.fixed_tags,  
-                    PlayTreeModel.current.filter_string))
+                    model.filter_string))
                 
     def expand_small_children(self, model):
-        if self.rowCount() == 0 or isinstance(self.child(0), PlayTreeFile):
+        if self.rowCount(model) == 0 or isinstance(self.child(model, 0), PlayTreeFile):
             return
         filter_string = model.filter_string
         queries = BgQueries([], self.expand_small_children_callback, 
                                lambda: model.filter_string == filter_string)
-        for child in self.children:
-            if child.rowCount() == 1:
+        for child in self.children[model]:
+            if child.rowCount(model) == 1:
                 query = BgQuery(Library.query_tags_all,
                                 (child.library, child.browse_by_tags[0], child.fixed_tags, filter_string)
                             ) if child.browse_by_tags else \
@@ -432,7 +440,7 @@ class PlayTreeBrowse(PlayTreeItem):
 
     def expand_small_children_callback(self, queries):
         for query in queries:
-            if query.browse in query.browse.parent.children:
+            if query.browse in query.browse.parent.children[queries.model]:
                 queries.model.view.setExpanded(query.browse.modelindex(queries.model), True)
                 query.browse.expand_small_children(queries.model)
         
@@ -456,7 +464,7 @@ class PlayTreeModel(QAbstractItemModel):
         super().__init__(parent)
         self.rootItem = playtree
         if root_id is not None:
-            for item in playtree.iter_width(
+            for item in playtree.iter_width(self, 
                     lambda item: isinstance(item, PlayTreeList) and item.Id == root_id,
                     lambda item: isinstance(item, PlayTreeList)):
                 self.rootItem = item
@@ -471,32 +479,29 @@ class PlayTreeModel(QAbstractItemModel):
     _columns = ('',)
 
     def index(self, row, column, parent):
-        self.__class__.current = self
         if not self.hasIndex(row, column, parent):
             return QModelIndex()
         parentItem = self.item(parent)
-        childItem = parentItem.child(row)
-        return self.createIndex(row, column, childItem) if childItem is not None else QModelIndex()
+        childItem = parentItem.child(self, row)
+        assert childItem
+        return self.createIndex(row, column, childItem)
 
     def parent(self, index):
-        self.__class__.current = self
         if not index.isValid():
             return index
         parentItem = self.item(index).parent
         return QModelIndex() if parentItem in (None, self.rootItem) else \
-            self.createIndex(parentItem.row, 0, parentItem)
+            self.createIndex(parentItem.row(self), 0, parentItem)
 
     def rowCount(self, parent):
-        self.__class__.current = self
         # why oh why?
         if parent.column() > 0:
             return 0
         parentItem = self.item(parent)
-        return parentItem.rowCount()
+        return parentItem.rowCount(self)
 
     def hasChildren(self, index):
-        self.__class__.current = self
-        return self.item(index).hasChildren()
+        return self.item(index).hasChildren(self)
 
     def columnCount(self, parent):
         self.__class__.current = self
@@ -504,8 +509,6 @@ class PlayTreeModel(QAbstractItemModel):
 
     currentindexroles = (Qt.ForegroundRole, Qt.FontRole)
     def data(self, index, role = Qt.DisplayRole):
-        self.__class__.current = self
-        #if role in (Qt.ForegroundRole, Qt.FontRole):
         if role in self.currentindexroles:
             if index == self.view.player.current_index:
                 if role == Qt.ForegroundRole:
@@ -514,17 +517,14 @@ class PlayTreeModel(QAbstractItemModel):
                     font = QFont()
                     font.setWeight(QFont.Bold)
                     return font
-        #elif role == Qt.DisplayRole:
-        #    return 'data'
         else:
-            return self.item(index).data(self._columns[index.column()], role)
+            return self.item(index).data(self, self._columns[index.column()], role)
 
     def headerData(self, section, orientation, role):
         if orientation == Qt.Horizontal and role == Qt.DisplayRole:
             return self._columns[section].title()
 
     def sibling(self, row, column, index):
-        self.__class__.current = self
         return super().sibling(
             index.row() if row is None else row,
             index.column() if column is None else column,
@@ -591,7 +591,7 @@ class PlayTreeModel(QAbstractItemModel):
             self.refilter_update_model, 
             lambda: self.filter_string == filter_string
         )
-        for browse in self.rootItem.iter(
+        for browse in self.rootItem.iter(self,
                 lambda item: isinstance(item, PlayTreeBrowse),
                 lambda item: isinstance(item, PlayTreeList)):
             query = BgQuery(Library.query_tags_all,
@@ -608,12 +608,12 @@ class PlayTreeModel(QAbstractItemModel):
         self.beginResetModel()
         for query in queries:
             if query.method == Library.query_tags_all:
-                query.browse._populate_tags(query.result)
+                query.browse.populate_tags(self, query.result)
             else: # query.method == Library.query_songs_all:
-                query.browse._populate_songs(query.result)
+                query.browse.populate_songs(self, query.result)
         self.endResetModel()
         if self.filter_string:
-            for item in self.rootItem.iter(
+            for item in self.rootItem.iter(self,
                     lambda item: isinstance(item, PlayTreeBrowse) or 
                     isinstance(item, PlayTreeFolder),
                     lambda item: isinstance(item, PlayTreeList)):

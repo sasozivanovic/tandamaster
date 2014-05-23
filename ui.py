@@ -21,7 +21,7 @@ class TandaMasterWindow(QMainWindow):
 
         splitter = QSplitter()
         splitter.addWidget(PlayTreeWidget(None, self.player))
-        splitter.addWidget(PlayTreeWidget(None, self.player))
+        #splitter.addWidget(PlayTreeWidget(None, self.player))
         self.setCentralWidget(splitter)
 
         menubar = QMenuBar()
@@ -73,13 +73,16 @@ class TandaMasterWindow(QMainWindow):
         self.playtreemenu = QMenu(self.tr('Play&tree'))
         action_cut = QAction(
             MyIcon('Tango', 'actions', 'edit-cut'),
-            self.tr('Cu&t'), self, triggered = self.playtree_cut)
+            self.tr('Cu&t'), self, triggered = self.playtree_cut,
+            shortcut = QKeySequence(QKeySequence.Cut))
         action_copy = QAction(
             MyIcon('Tango', 'actions', 'edit-copy'),
-            self.tr('&Copy'), self, triggered = self.playtree_copy)
+            self.tr('&Copy'), self, triggered = self.playtree_copy,
+            shortcut = QKeySequence(QKeySequence.Copy))
         action_paste = QAction(
             MyIcon('Tango', 'actions', 'edit-paste'),
-            self.tr('&Paste'), self, triggered = self.playtree_paste)
+            self.tr('&Paste'), self, triggered = self.playtree_paste,
+            shortcut = QKeySequence(QKeySequence.Paste))
         self.playtreemenu.addAction(action_cut)
         self.playtreemenu.addAction(action_copy)
         self.playtreemenu.addAction(action_paste)
@@ -262,10 +265,21 @@ class PlayTreeView(QTreeView):
         pass
 
     def copy(self):
-        print([self.model().item(index) for index in self.selectedIndexes()])
+        QApplication.clipboard().setMimeData(
+            self.model().mimeData(self.selectedIndexes()))
 
     def paste(self):
-        pass
+        index = self.currentIndex()
+        # ugly hack ... when there is acutally no current index, the first row is returned
+        if self.selectionModel().isSelected(index):
+            row, column, parent = index.row(), index.column(), index.parent()
+        else:
+            row, column, parent = None, None, QModelIndex()
+        self.model().dropMimeData(
+            QApplication.clipboard().mimeData(),
+            Qt.CopyAction,
+            row, column, parent
+        )
 
 class TMProgressBar(QProgressBar):
     def __init__(self, player, parent = None):

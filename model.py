@@ -1,5 +1,4 @@
-from PyQt5.QtCore import pyqtRemoveInputHook; from IPython import embed
-#pyqtRemoveInputHook(); embed()
+#from PyQt5.QtCore import pyqtRemoveInputHook; from IPython import embed; pyqtRemoveInputHook()
 
 import sys, filecmp
 
@@ -104,6 +103,11 @@ class PlayTreeList(PlayTreeItem):
         self.Id = Id
         self.children = {None: list(*iterable)}
         
+    def copy(self):
+        copy = PlayTreeList(self.name)
+        copy.children = {None: [child.copy() for child in self.children[None]]}
+        return copy
+
     def __repr__(self):
         return '{}(id={},name={})'.format(type(self).__name__, self.Id, self.name)
 
@@ -149,6 +153,34 @@ class PlayTreeList(PlayTreeItem):
             if condition_propagate(item):
                 items.extend(item.children[model])
 
+    def dropMimeData(self, mime_data, action, row, column, calling_model):
+        if isinstance(mime_data, PlayTreeMimeData):
+            source_items = mime_data.items
+            inserted_items = None
+            new_items = [item.copy() for item in source_items]
+            children = self.children[None]
+            if row is None: row = len(children)
+            for model in self.children.keys():
+                if model:
+                    parent_index = self.modelindex(model)
+                    model_new_items = [item for item in new_items
+                                       if item.filter(model)]
+                    model_children = self.children[model]
+                    target_i = len(model_children)
+                    for child in children[row:]:
+                        if child in model_children:
+                            target_i = model_children.index(child)
+                            break
+                    model.beginInsertRows(parent_index, target_i, target_i + len(model_new_items) - 1)
+                    model_children[target_i:target_i] = model_new_items
+                    model.endInsertRows()
+                    if model == calling_model:
+                        inserted_items = model_new_items
+            children[row:row] = new_items
+            for item in new_items:
+                item.parent = self
+            return inserted_items
+
 @register_xml_tag_handler('file')
 class PlayTreeFile(PlayTreeItem):
     isTerminal = True
@@ -170,6 +202,9 @@ class PlayTreeFile(PlayTreeItem):
     def __init__(self, filename, parent = None):
         super().__init__(parent)
         self.filename = filename
+
+    def copy(self):
+        return PlayTreeFile(self.filename)
 
     def get_tag(self, tag):
         return library.tag_by_filename(tag, self.filename)
@@ -216,11 +251,14 @@ class PlayTreeLibraryFile(PlayTreeFile):
         element.set('library', self.library)
         element.set('id', self.Id)
 
-    def __init__(self, library_name, Id, parent = None, ):
+    def __init__(self, library_name, Id, parent = None):
         super(PlayTreeFile, self).__init__(parent)
         self.library = library_name
         self.Id = Id
         self.filename = library.filename_by_id(self.library, self.Id)
+
+    def copy(self):
+        return PlayTreeLibraryFile(self.library, self.Id)
 
     def get_tag(self, tag):
         return library.tag_by_id(self.library, tag, self.Id)
@@ -258,6 +296,9 @@ class PlayTreeFolder(PlayTreeItem):
         super().__init__(parent)
         self.filename = filename
         self.children = {None: None}
+
+    def copy(self):
+        return PlayTreeFolder(self.filename)
 
     def __repr__(self):
         return '{}({})'.format(type(self).__name__, self.filename)
@@ -364,6 +405,9 @@ class PlayTreeBrowse(PlayTreeItem):
         self.value = {}
         self.song_count = {}
         self.value_to_child = {}
+
+    def copy(self):
+        return PlayTreeBrowse(self.library, self.fixed_tags, self.browse_by_tags, self.tag)
 
     def __repr__(self):
         return '{}({},fixed={},by={})'.format(type(self).__name__, self.library, self.fixed_tags, self.browse_by_tags)
@@ -644,6 +688,33 @@ class PlayTreeModel(QAbstractItemModel):
                     lambda item: isinstance(item, PlayTreeList)):
                 item.expand_small_children(self)
 
+    def mimeData(self, indexes, action = 'copy'):
+        return PlayTreeMimeData(self, [self.item(index) for index in indexes], action)
+        mime_data = super().mimeData(indexes)
+        filenames = [
+            item.filename
+            for index in indexes
+            for item in self.item(index).iter(
+                    self, 
+                    lambda i: isinstance(i, PlayTreeFile),
+                    lambda i: True)
+            ]
+        urls = [QUrl.fromLocalFile(fn) for fn in filenames]
+        mime_data.setUrls(urls)
+        mime_data.setText("\n".join(filenames))
+        mime_data.setData('x-special/gnome-copied-files', action + "\n" + 
+                          "\n".join(url.url() for url in urls))
+        return mime_data
+
+    def dropMimeData(self, mime_data, action, row, column, parent):
+        parent_item = self.item(parent)
+        inserted_items = parent_item.dropMimeData(mime_data, action, row, column, self)
+        selection_model = self.view.selectionModel()
+        #selection_model.select(QItemSelection(inserted_items[0].modelindex(self),inserted_items[-1].modelindex(self)),QItemSelectionModel.ClearAndSelect)
+        selection_model.clear()
+        for item in inserted_items:
+            print(item.modelindex(self).isValid())
+            selection_model.select(item.modelindex(self),QItemSelectionModel.Select)
 
 from app import app
 #app.aboutToQuit.connect(lambda: playtree.save(playtree_xml_filename))
@@ -653,3 +724,51 @@ from app import app
 
 from library import *
 
+class PlayTreeMimeData(QMimeData):
+    def __init__(self, model, items, action):
+        super().__init__()
+        self.model = model
+        self.items = items
+        self.action = action
+        self._urls = None
+        self._filenames = None
+        
+    def formats(self):
+        return ('application/x-qabstractitemmodeldatalist',
+                'audio/x-mpegurl',
+                'x-special/gnome-copied-files',
+                'text/uri-list',
+            )
+
+    def hasFormat(self, fmt):
+        return fmt in self.formats()
+
+    def retrieveData(self, mimeType, preferredType):
+        if mimeType == 'application/x-qabstractitemmodeldatalist':
+            return self.items
+        elif mimeType == 'audio/x-mpegurl':
+            return "\n".join(self.filenames())
+        elif mimeType == 'x-special/gnome-copied-files':
+            return self.action + "\n" + self.urls()
+        elif mimeType == 'text/uri-list':
+            return self.urls()
+        else:
+            return super().retrieveData(self, mimeType, preferredType)
+
+    def filenames(self):
+        if self._filenames is None:
+            self._filenames = [
+                item.filename
+                for root_item in self.items
+                for item in root_item.iter(
+                        self.model, 
+                        lambda i: isinstance(i, PlayTreeFile),
+                        lambda i: True)
+            ]
+        return self._filenames
+
+    def urls(self):
+        if self._urls is None:
+            self._urls = "\n".join(QUrl.fromLocalFile(filename).url()
+                                  for filename in self.filenames())
+        return self._urls

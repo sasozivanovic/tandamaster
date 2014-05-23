@@ -9,6 +9,8 @@ from PyQt5.Qt import *   # todo: import only what you need
 
 import os, datetime, copy
 
+from util import *
+
 def register_xml_tag_handler(tag):
     def f(cls):
         PlayTreeItem.xml_tag_registry[tag] = cls
@@ -191,7 +193,9 @@ class PlayTreeFile(PlayTreeItem):
         if role == Qt.DisplayRole:
             return self.get_tag(column_name) if column_name else os.path.basename(self.filename)
         elif not column_name and role == Qt.DecorationRole:
-            return tmSongIcon
+            #return tmSongIcon
+            #return QIcon('crazyeye_dance.png')
+            return QIcon('song.png')
 
     def childs_row(self, model, child):
         raise RuntimeError
@@ -235,7 +239,9 @@ class PlayTreeLibraryFile(PlayTreeFile):
                 title = self.get_tag('TITLE')
                 return title if title else os.path.basename(self.filename)
         elif not column_name and role == Qt.DecorationRole:
-            return tmSongIcon
+            #return tmSongIcon
+            #return QIcon('crazyeye_dance.png')
+            return QIcon('song.png')
 
 @register_xml_tag_handler('folder')
 class PlayTreeFolder(PlayTreeItem):
@@ -280,7 +286,8 @@ class PlayTreeFolder(PlayTreeItem):
         elif role == Qt.DisplayRole:
             return os.path.basename(self.filename)
         elif column_name == '' and role == Qt.DecorationRole:
-            return app.style().standardIcon(QStyle.SP_DirIcon)
+            #return app.style().standardIcon(QStyle.SP_DirIcon)
+            return MyIcon('Tango', 'places', 'folder')
 
     def populate(self, model, force = False):
         if force or model not in self.children or self.children[model] is None:
@@ -347,16 +354,17 @@ class PlayTreeBrowse(PlayTreeItem):
             by = etree.SubElement(element, 'by', tag = tag)
         return element
 
-    def __init__(self, library_name, fixed_tags, browse_by_tags, parent = None):
+    def __init__(self, library_name, fixed_tags, browse_by_tags, tag = None, parent = None):
         super().__init__(parent)
         self.library = library_name
         self.fixed_tags = tuple(fixed_tags)
         self.browse_by_tags = tuple(browse_by_tags)
+        self.tag = tag
         self.children = {}
         self.value = {}
         self.song_count = {}
         self.value_to_child = {}
-   
+
     def __repr__(self):
         return '{}({},fixed={},by={})'.format(type(self).__name__, self.library, self.fixed_tags, self.browse_by_tags)
 
@@ -378,6 +386,7 @@ class PlayTreeBrowse(PlayTreeItem):
         self.populate(model)
         return self.children[model].index(child)
 
+    icons = { None: 'library.png', 'ARTIST': 'personal.png', 'ALBUM': 'image_album.png' }
     def data(self, model, column_name, role):
         if column_name:
             return None
@@ -390,7 +399,11 @@ class PlayTreeBrowse(PlayTreeItem):
                     self.library + ' ' + app.tr('by') + ' ' + \
                     ", ".join(tag.lower() for tag in self.browse_by_tags)
         elif column_name == '' and role == Qt.DecorationRole:
-            return app.style().standardIcon(QStyle.SP_DriveCDIcon)
+            #return app.style().standardIcon(QStyle.SP_DriveCDIcon)
+            try:
+                return QIcon(self.icons[self.tag])
+            except:
+                return None
 
     def populate_tags(self, model, rows):
         self.children[model] = []
@@ -402,7 +415,7 @@ class PlayTreeBrowse(PlayTreeItem):
             if value in self.value_to_child:
                 child = self.value_to_child[value]
             else:
-                child = PlayTreeBrowse(self.library, fixed_tags, browse_by_tags, parent = self)
+                child = PlayTreeBrowse(self.library, fixed_tags, browse_by_tags, tag = tag, parent = self)
                 self.value_to_child[value] = child
             child.value[model] = value
             child.song_count[model] = count
@@ -521,7 +534,8 @@ class PlayTreeModel(QAbstractItemModel):
         if role in self.currentindexroles:
             if index == self.view.player.current_index:
                 if role == Qt.ForegroundRole:
-                    return QBrush(QColor(Qt.red))
+                    #return QBrush(QColor(Qt.red))
+                    return QBrush(QColor(Qt.darkGreen))
                 elif role == Qt.FontRole:
                     font = QFont()
                     font.setWeight(QFont.Bold)
@@ -634,8 +648,8 @@ class PlayTreeModel(QAbstractItemModel):
 from app import app
 #app.aboutToQuit.connect(lambda: playtree.save(playtree_xml_filename))
 
-tmSongIcon = QIcon(':images/song.png')
-import tandamaster_rc
+#tmSongIcon = QIcon(':images/song.png')
+#import tandamaster_rc
 
 from library import *
 

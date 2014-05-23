@@ -5,7 +5,8 @@ from PyQt5.Qt import *   # todo: import only what you need
 from player import TandaMasterPlayer
 from model import PlayTreeModel, PlayTreeList
 from library import Library
-from util import PartialFormatter
+from util import *
+from app import app
 
 import collections
 
@@ -38,26 +39,51 @@ class TandaMasterWindow(QMainWindow):
 
         self.playbackmenu = QMenu(self.tr('&Playback'))
         action_back = QAction(
-            self.style().standardIcon(QStyle.SP_MediaSkipBackward), 
+            #self.style().standardIcon(QStyle.SP_MediaSkipBackward), 
+            #MyIcon('Tango', 'actions', 'media-skip-backward'),
+            QIcon('button_rewind_green.png'),
             self.tr('P&revious'), self, triggered = self.player.play_previous)
         self.playbackmenu.addAction(action_back)        
         self.action_play = QAction(
-            self.style().standardIcon(QStyle.SP_MediaPlay), 
+            #self.style().standardIcon(QStyle.SP_MediaPlay), 
+            #MyIcon('Tango', 'actions', 'media-playback-start'),
+            QIcon('button_play_green.png'),
             self.tr('&Play'), self, triggered = self.player.play)
         self.playbackmenu.addAction(self.action_play)        
         self.action_pause =  QAction(
-            self.style().standardIcon(QStyle.SP_MediaPause), 
+            #self.style().standardIcon(QStyle.SP_MediaPause), 
+            QIcon('button_pause_green.png'),
+            #MyIcon('Tango', 'actions', 'media-playback-pause'),
             self.tr('&Pause'), self, triggered = self.player.pause)
         self.playbackmenu.addAction(self.action_pause)        
         self.action_stop = QAction(
-            self.style().standardIcon(QStyle.SP_MediaStop), 
+            #self.style().standardIcon(QStyle.SP_MediaStop), 
+            #MyIcon('Tango', 'actions', 'media-playback-stop'),
+            QIcon('button_stop_green.png'),
             self.tr('&Stop'), self, triggered = self.player.stop)
         self.playbackmenu.addAction(self.action_stop)        
         action_forward = QAction(
-            self.style().standardIcon(QStyle.SP_MediaSkipForward), 
+            #self.style().standardIcon(QStyle.SP_MediaSkipForward), 
+            #MyIcon('Tango', 'actions', 'media-skip-forward'),
+            QIcon('button_fastforward_green.png'),
             self.tr('&Next'), self, triggered = self.player.play_next)
         self.playbackmenu.addAction(action_forward)        
         menubar.addMenu(self.playbackmenu)
+
+        self.playtreemenu = QMenu(self.tr('Play&tree'))
+        action_cut = QAction(
+            MyIcon('Tango', 'actions', 'edit-cut'),
+            self.tr('Cu&t'), self, triggered = self.playtree_cut)
+        action_copy = QAction(
+            MyIcon('Tango', 'actions', 'edit-copy'),
+            self.tr('&Copy'), self, triggered = self.playtree_copy)
+        action_paste = QAction(
+            MyIcon('Tango', 'actions', 'edit-paste'),
+            self.tr('&Paste'), self, triggered = self.playtree_paste)
+        self.playtreemenu.addAction(action_cut)
+        self.playtreemenu.addAction(action_copy)
+        self.playtreemenu.addAction(action_paste)
+        menubar.addMenu(self.playtreemenu)
 
         self.setMenuBar(menubar)
 
@@ -115,6 +141,20 @@ class TandaMasterWindow(QMainWindow):
     def update_library(self):
         Library('tango').refresh(['/home/saso/tango'])
 
+    def playtree_cut(self):
+        ptv = app.focusWidget()
+        if not isinstance(ptv, PlayTreeView): return
+        ptv.cut()
+
+    def playtree_copy(self):
+        ptv = app.focusWidget()
+        if not isinstance(ptv, PlayTreeView): return
+        ptv.copy()
+
+    def playtree_paste(self):
+        ptv = app.focusWidget()
+        if not isinstance(ptv, PlayTreeView): return
+        ptv.paste()
 
 class PlayTreeWidget(QWidget):
 
@@ -122,7 +162,8 @@ class PlayTreeWidget(QWidget):
         super().__init__(parent)
 
         current_model_button = QToolButton()
-        current_model_button.setIcon(self.style().standardIcon(QStyle.SP_DialogApplyButton))
+        #current_model_button.setIcon(self.style().standardIcon(QStyle.SP_DialogApplyButton))
+        current_model_button.setIcon(QIcon('circle_green.png'))
         current_model_button.setCheckable(True)
         self.search = QLineEdit()
         self.ptv = PlayTreeView(root_id, player, self)
@@ -170,6 +211,9 @@ class PlayTreeView(QTreeView):
             self.player.set_current(model = self.model())
         model.modelReset.connect(self.on_end_reset_model)
 
+        self.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.setSelectionMode(QAbstractItemView.ExtendedSelection)
+
     def on_expanded(self, index):
         model = self.model()
         model.item(index).expanded[model] = True
@@ -214,6 +258,15 @@ class PlayTreeView(QTreeView):
             if model in item.expanded:
                 self.setExpanded(item.modelindex(model), item.expanded[model])
 
+    def cut(self):
+        pass
+
+    def copy(self):
+        print([self.model().item(index) for index in self.selectedIndexes()])
+
+    def paste(self):
+        pass
+
 class TMProgressBar(QProgressBar):
     def __init__(self, player, parent = None):
         super().__init__(parent)
@@ -227,22 +280,54 @@ class TMProgressBar(QProgressBar):
         self.on_stateChanged(QMediaPlayer.StoppedState)
         self.update()
 
+        self.in_seek = False
+        self.setMouseTracking(True)
+        self.installEventFilter(TMProgressBar_Interaction(self))
+
     def on_durationChanged(self, duration):
         self.setMaximum(duration)
         self.update()
         
     def on_positionChanged(self, position):
         self.setValue(position)
-        position, self.milliseconds = divmod(position, 1000)
-        position, self.seconds = divmod(position, 60)
-        self.hours, self.minutes = divmod(position, 60)
+        self.hours, self.minutes, self.seconds, self.milliseconds = ms_to_hmsms(position)
         self.update()
 
     def text(self):
-        return str(self.hours) + ":" if self.hours else '' + \
-            ('{:02d}:{:02d}' if self.hours else '{:2d}:{:02d}').format(self.minutes, self.seconds) + \
-            (':' + self.milliseconds if self.player.state == QMediaPlayer.PausedState else '')
+        return hmsms_to_text(self.hours, self.minutes, self.seconds, self.milliseconds,
+                             include_ms = self.player.state == QMediaPlayer.PausedState)
         
     def on_stateChanged(self, state):
+        self.player_state = state
         self.setTextVisible(state != QMediaPlayer.StoppedState)
         self.update()
+
+class TMProgressBar_Interaction(QObject):
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.MouseMove:   
+            if obj.in_seek:
+                obj.player.setPosition(obj.maximum() * event.x() / obj.width())
+            if obj.player_state != QMediaPlayer.StoppedState:
+                QToolTip.showText(event.globalPos(),
+                                  hmsms_to_text(*ms_to_hmsms(int(
+                                      obj.maximum() * event.x() / obj.width())),
+                                                include_ms = False),
+                                  obj, QRect())
+        elif event.type() == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
+            obj.in_seek = True
+            obj.player.setPosition(obj.maximum() * event.x() / obj.width())
+        elif event.type() == QEvent.MouseButtonRelease and event.button() == Qt.LeftButton:
+            obj.in_seek = False
+        return False
+
+def ms_to_hmsms(t):
+    t, ms = divmod(t, 1000)
+    t, s = divmod(t, 60)
+    h, m = divmod(t, 60)
+    return h, m, s, ms
+
+def hmsms_to_text(h,m,s,ms,include_ms=True):
+    return str(h) + ":" if h else '' + \
+        ('{:02d}:{:02d}' if h else '{:2d}:{:02d}').format(m, s) + \
+        (':' + ms if include_ms else '')
+

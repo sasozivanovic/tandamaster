@@ -51,6 +51,7 @@ class PlayTreeItem:
         self.expanded = {}
 
     isTerminal = False
+    are_children_editable = False
 
     def row(self, model):
         return self.parent.childs_row(model, self) if self.parent is not None else 0
@@ -180,6 +181,8 @@ class PlayTreeList(PlayTreeItem):
             for item in new_items:
                 item.parent = self
             return inserted_items
+
+    are_children_editable = True
 
 @register_xml_tag_handler('file')
 class PlayTreeFile(PlayTreeItem):
@@ -710,11 +713,10 @@ class PlayTreeModel(QAbstractItemModel):
         parent_item = self.item(parent)
         inserted_items = parent_item.dropMimeData(mime_data, action, row, column, self)
         selection_model = self.view.selectionModel()
-        #selection_model.select(QItemSelection(inserted_items[0].modelindex(self),inserted_items[-1].modelindex(self)),QItemSelectionModel.ClearAndSelect)
         selection_model.clear()
         for item in inserted_items:
-            print(item.modelindex(self).isValid())
             selection_model.select(item.modelindex(self),QItemSelectionModel.Select)
+        selection_model.setCurrentIndex(inserted_items[0].modelindex(self), QItemSelectionModel.NoUpdate)
 
 from app import app
 #app.aboutToQuit.connect(lambda: playtree.save(playtree_xml_filename))

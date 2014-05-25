@@ -1,4 +1,4 @@
-from IPython import embed
+from PyQt5.QtCore import pyqtRemoveInputHook; from IPython import embed; pyqtRemoveInputHook()
 
 from PyQt5.Qt import *   # todo: import only what you need
 
@@ -71,21 +71,21 @@ class TandaMasterWindow(QMainWindow):
         menubar.addMenu(self.playbackmenu)
 
         self.playtreemenu = QMenu(self.tr('Play&tree'))
-        action_cut = QAction(
+        self.action_cut = QAction(
             MyIcon('Tango', 'actions', 'edit-cut'),
             self.tr('Cu&t'), self, triggered = self.playtree_cut,
             shortcut = QKeySequence(QKeySequence.Cut))
-        action_copy = QAction(
+        self.action_copy = QAction(
             MyIcon('Tango', 'actions', 'edit-copy'),
             self.tr('&Copy'), self, triggered = self.playtree_copy,
             shortcut = QKeySequence(QKeySequence.Copy))
-        action_paste = QAction(
+        self.action_paste = QAction(
             MyIcon('Tango', 'actions', 'edit-paste'),
             self.tr('&Paste'), self, triggered = self.playtree_paste,
             shortcut = QKeySequence(QKeySequence.Paste))
-        self.playtreemenu.addAction(action_cut)
-        self.playtreemenu.addAction(action_copy)
-        self.playtreemenu.addAction(action_paste)
+        self.playtreemenu.addAction(self.action_cut)
+        self.playtreemenu.addAction(self.action_copy)
+        self.playtreemenu.addAction(self.action_paste)
         menubar.addMenu(self.playtreemenu)
 
         self.setMenuBar(menubar)
@@ -106,10 +106,19 @@ class TandaMasterWindow(QMainWindow):
         self.addToolBar(toolbar)
         
         self.addToolBarBreak()
-        toolbar2 = QToolBar('Test', self)
+
+        toolbar = QToolBar('ProgressBar', self)
         pb = TMProgressBar(self.player)
-        toolbar2.addWidget(pb)
-        self.addToolBar(toolbar2)
+        toolbar.addWidget(pb)
+        self.addToolBar(toolbar)
+
+        self.addToolBarBreak()
+
+        toolbar = QToolBar('Edit', self)
+        toolbar.addAction(self.action_cut)
+        toolbar.addAction(self.action_copy)
+        toolbar.addAction(self.action_paste)
+        self.addToolBar(toolbar)        
 
         self.player.currentMediaChanged.connect(self.update_song_info)
         self.player.stateChanged.connect(self.on_player_state_changed)
@@ -216,6 +225,8 @@ class PlayTreeView(QTreeView):
 
         self.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.selectionModel().selectionChanged.connect(self.on_selection_changed)
+        self.selectionModel().selectionChanged.connect(self.on_currentIndex_changed)
 
     def on_expanded(self, index):
         model = self.model()
@@ -280,6 +291,29 @@ class PlayTreeView(QTreeView):
             Qt.CopyAction,
             row, column, parent
         )
+
+    def can_cut(self):
+        model = self.model()
+        for index in self.selectedIndexes():
+            if not model.item(index).parent.are_children_editable:
+                return False
+        return True
+
+    def can_copy(self):
+        return bool(self.selectedIndexes())
+
+    def can_paste(self):
+        if self.currentIndex().isValid():
+            return self.model().item(self.currentIndex()).parent.are_children_editable
+        else:
+            return self.model().rootItem.are_children_editable
+
+    def on_selection_changed(self):
+        self.window().action_cut.setEnabled(self.can_cut())
+        self.window().action_copy.setEnabled(self.can_copy())
+
+    def on_currentIndex_changed(self):
+        self.window().action_paste.setEnabled(self.can_paste())
 
 class TMProgressBar(QProgressBar):
     def __init__(self, player, parent = None):

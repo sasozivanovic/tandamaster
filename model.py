@@ -80,6 +80,9 @@ class PlayTreeItem:
     def populate(self, model):
         pass
 
+    def delete_children(self, model, top, bottom):
+        pass
+
 @register_xml_tag_handler('list')
 class PlayTreeList(PlayTreeItem):
 
@@ -155,10 +158,25 @@ class PlayTreeList(PlayTreeItem):
                 items.extend(item.children[model])
 
     def dropMimeData(self, mime_data, action, row, column, calling_model):
+        source_items = None
+        new_items = None
         if isinstance(mime_data, PlayTreeMimeData):
             source_items = mime_data.items
-            inserted_items = None
             new_items = [item.copy() for item in source_items]
+        elif mime_data.hasFormat('audio/x-mpegurl'):
+            new_items = [
+                PlayTreeFile(filename, parent = self)
+                for filename in mime_data.text().split("\n")
+            ]
+        elif mime_data.hasUrls():
+            new_items = [
+                PlayTreeFile(url.toLocalFile(), parent = self)
+                for url in mime_data.urls()
+                if url.isLocalFile()
+            ]
+        inserted_items = None
+        if new_items:
+            inserted_items = None
             children = self.children[None]
             if row is None: row = len(children)
             for model in self.children.keys():
@@ -180,9 +198,24 @@ class PlayTreeList(PlayTreeItem):
             children[row:row] = new_items
             for item in new_items:
                 item.parent = self
-            return inserted_items
+        if action == Qt.MoveAction and source_items:
+            calling_model.delete(source_items)
+        return inserted_items
+            
 
     are_children_editable = True
+
+    def delete_children(self, items):
+        for model, children in self.children.items():
+            rows = sorted([children.index(item) for item in items])
+            row_ranges = integers_to_ranges(rows)
+            for range in row_ranges:
+                if model:
+                    model.beginRemoveRows(self.modelindex(model), range[0], range[1]-1)
+                del children[range[0]:range[1]]
+                if model:
+                    model.endRemoveRows()
+            
 
 @register_xml_tag_handler('file')
 class PlayTreeFile(PlayTreeItem):
@@ -691,6 +724,9 @@ class PlayTreeModel(QAbstractItemModel):
                     lambda item: isinstance(item, PlayTreeList)):
                 item.expand_small_children(self)
 
+    def flags(self, index):
+        return Qt.ItemIsSelectable | Qt.ItemIsDragEnabled | Qt.ItemIsEnabled | (Qt.ItemIsDropEnabled if self.item(index).are_children_editable else Qt.NoItemFlags)
+
     def mimeData(self, indexes, action = 'copy'):
         return PlayTreeMimeData(self, [self.item(index) for index in indexes], action)
         mime_data = super().mimeData(indexes)
@@ -709,6 +745,9 @@ class PlayTreeModel(QAbstractItemModel):
                           "\n".join(url.url() for url in urls))
         return mime_data
 
+    def supportedDropActions(self):
+        return Qt.CopyAction | Qt.MoveAction
+
     def dropMimeData(self, mime_data, action, row, column, parent):
         parent_item = self.item(parent)
         inserted_items = parent_item.dropMimeData(mime_data, action, row, column, self)
@@ -717,6 +756,19 @@ class PlayTreeModel(QAbstractItemModel):
         for item in inserted_items:
             selection_model.select(item.modelindex(self),QItemSelectionModel.Select)
         selection_model.setCurrentIndex(inserted_items[0].modelindex(self), QItemSelectionModel.NoUpdate)
+        return bool(inserted_items)
+
+    def delete(self, item_selection):
+        ranges = {}
+        for selection_range in item_selection:
+            parent = self.item(selection_range.parent())
+            if parent not in ranges:
+                ranges[parent] = []
+            ranges[parent].extend(
+                parent.child(self, i)
+                for i in range(selection_range.top(), selection_range.bottom()+1))
+        for parent, items in ranges.items():
+            parent.delete_children(items)
 
 from app import app
 #app.aboutToQuit.connect(lambda: playtree.save(playtree_xml_filename))
@@ -774,3 +826,21 @@ class PlayTreeMimeData(QMimeData):
             self._urls = "\n".join(QUrl.fromLocalFile(filename).url()
                                   for filename in self.filenames())
         return self._urls
+
+
+def integers_to_ranges(ns):
+    ranges = []
+    n1 = None
+    for n in ns:
+        if n1 is None:
+            n1 = n
+            n2 = n + 1
+            continue
+        if n2 < n:
+            ranges.append((n1, n2))
+        else:
+            n2 = n + 1
+    if n1 is not None:
+        ranges.append((n1, n2))
+    return ranges
+            

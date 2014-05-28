@@ -3,7 +3,7 @@ from PyQt5.QtCore import pyqtRemoveInputHook; from IPython import embed; pyqtRem
 from PyQt5.Qt import *   # todo: import only what you need
 
 from player import TandaMasterPlayer
-from model import PlayTreeModel, PlayTreeList
+from model import PlayTreeModel, PlayTreeList, PlayTreeMimeData
 from library import Library
 from util import *
 from app import app
@@ -21,7 +21,7 @@ class TandaMasterWindow(QMainWindow):
 
         splitter = QSplitter()
         splitter.addWidget(PlayTreeWidget(None, self.player))
-        #splitter.addWidget(PlayTreeWidget(None, self.player))
+        splitter.addWidget(PlayTreeWidget(None, self.player))
         self.setCentralWidget(splitter)
 
         menubar = QMenuBar()
@@ -75,6 +75,10 @@ class TandaMasterWindow(QMainWindow):
             MyIcon('Tango', 'actions', 'edit-cut'),
             self.tr('Cu&t'), self, triggered = self.playtree_cut,
             shortcut = QKeySequence(QKeySequence.Cut))
+        self.action_delete = QAction(
+            MyIcon('Tango', 'actions', 'edit-delete'),
+            self.tr('&Delete'), self, triggered = self.playtree_delete,
+            shortcut = QKeySequence(QKeySequence.Delete))
         self.action_copy = QAction(
             MyIcon('Tango', 'actions', 'edit-copy'),
             self.tr('&Copy'), self, triggered = self.playtree_copy,
@@ -83,6 +87,7 @@ class TandaMasterWindow(QMainWindow):
             MyIcon('Tango', 'actions', 'edit-paste'),
             self.tr('&Paste'), self, triggered = self.playtree_paste,
             shortcut = QKeySequence(QKeySequence.Paste))
+        self.playtreemenu.addAction(self.action_delete)
         self.playtreemenu.addAction(self.action_cut)
         self.playtreemenu.addAction(self.action_copy)
         self.playtreemenu.addAction(self.action_paste)
@@ -123,6 +128,7 @@ class TandaMasterWindow(QMainWindow):
         self.player.currentMediaChanged.connect(self.update_song_info)
         self.player.stateChanged.connect(self.on_player_state_changed)
         self.on_player_state_changed(QMediaPlayer.StoppedState)
+        QApplication.clipboard().changed.connect(self.on_clipboard_data_changed)
 
     def sizeHint(self):
         return QSize(1800, 800)
@@ -158,6 +164,11 @@ class TandaMasterWindow(QMainWindow):
         if not isinstance(ptv, PlayTreeView): return
         ptv.cut()
 
+    def playtree_delete(self):
+        ptv = app.focusWidget()
+        if not isinstance(ptv, PlayTreeView): return
+        ptv.delete()
+
     def playtree_copy(self):
         ptv = app.focusWidget()
         if not isinstance(ptv, PlayTreeView): return
@@ -167,6 +178,12 @@ class TandaMasterWindow(QMainWindow):
         ptv = app.focusWidget()
         if not isinstance(ptv, PlayTreeView): return
         ptv.paste()
+
+    def on_clipboard_data_changed(self, mode):
+        if mode == QClipboard.Clipboard:
+            ptv = app.focusWidget()
+            if not isinstance(ptv, PlayTreeView): return
+            self.window().action_paste.setEnabled(ptv.can_paste())
 
 class PlayTreeWidget(QWidget):
 
@@ -196,6 +213,20 @@ class PlayTreeWidget(QWidget):
             lambda old_model, old_index, model, index: current_model_button.setChecked(
                 self.ptv.model() == model))
         current_model_button.setChecked(self.ptv.model() == player.current_model)
+
+        self.addAction(QAction(
+            self, 
+            shortcut = QKeySequence.Find, 
+            shortcutContext = Qt.WidgetWithChildrenShortcut,
+            triggered = lambda: self.search.setFocus(Qt.ShortcutFocusReason)))
+
+        self.search.returnPressed.connect(lambda: self.ptv.setFocus(Qt.OtherFocusReason))
+        
+        self.addAction(QAction(
+            self, 
+            shortcut = QKeySequence('Escape'),
+            shortcutContext = Qt.WidgetWithChildrenShortcut,
+            triggered = self.search.clear))
 
     def refilter(self):
         self.ptv.model().refilter(self.search.text())
@@ -227,6 +258,8 @@ class PlayTreeView(QTreeView):
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.selectionModel().selectionChanged.connect(self.on_selection_changed)
         self.selectionModel().selectionChanged.connect(self.on_currentIndex_changed)
+
+        self.setDragDropMode(QAbstractItemView.DragDrop)
 
     def on_expanded(self, index):
         model = self.model()
@@ -273,9 +306,17 @@ class PlayTreeView(QTreeView):
                 self.setExpanded(item.modelindex(model), item.expanded[model])
 
     def cut(self):
-        pass
+        selected = self.selectedIndexes()
+        QApplication.clipboard().setMimeData(self.model().mimeData(selected))
+        self.delete()
+
+    def delete(self):
+        selection_model = self.selectionModel() #QItemSelectionModel
+        item_selection = selection_model.selection() #QItemSelection
+        self.model().delete(item_selection)
 
     def copy(self):
+        embed()
         QApplication.clipboard().setMimeData(
             self.model().mimeData(self.selectedIndexes()))
 
@@ -304,16 +345,39 @@ class PlayTreeView(QTreeView):
 
     def can_paste(self):
         if self.currentIndex().isValid():
-            return self.model().item(self.currentIndex()).parent.are_children_editable
+            are_children_editable = self.model().item(self.currentIndex()).parent.are_children_editable
         else:
-            return self.model().rootItem.are_children_editable
+            are_children_editable = self.model().rootItem.are_children_editable
+        if are_children_editable:
+            mime_data = QApplication.clipboard().mimeData()
+            return isinstance(mime_data, PlayTreeMimeData) or mime_data.hasFormat('audio/x-mpegurl') or mime_data.hasFormat('text/uri-list')
+        else:
+            return False
 
     def on_selection_changed(self):
-        self.window().action_cut.setEnabled(self.can_cut())
+        can_cut = self.can_cut()
+        self.window().action_cut.setEnabled(can_cut)
+        self.window().action_delete.setEnabled(can_cut)
         self.window().action_copy.setEnabled(self.can_copy())
 
     def on_currentIndex_changed(self):
         self.window().action_paste.setEnabled(self.can_paste())
+
+    def dropEvent(self, event):
+        r = super().dropEvent(event)
+        if isinstance(event.mimeData(), PlayTreeMimeData) and event.mimeData().model == self.model():
+            event.setProposedAction(Qt.MoveAction)
+        return r
+
+    def other(self):
+        for w in self.window().findChildren(PlayTreeView):
+            if w != self:
+                return w
+
+    def focusInEvent(self, event):
+        r = super().focusInEvent(event)
+        QWidget.setTabOrder(self, self.other())
+        return r
 
 class TMProgressBar(QProgressBar):
     def __init__(self, player, parent = None):

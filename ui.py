@@ -6,9 +6,9 @@ from player import TandaMasterPlayer
 from model import PlayTreeModel, PlayTreeList, PlayTreeMimeData, save_playtree
 from library import Library
 from util import *
-from app import app
+from app import *
 
-import collections
+import collections, weakref
 
 class TandaMasterWindow(QMainWindow):
 
@@ -122,6 +122,15 @@ class TandaMasterWindow(QMainWindow):
             QIcon('icons/iconfinder/32pxmania/right.png'),
             self.tr('Move &right'), self, triggered = self.playtree_move_right,
             shortcut = QKeySequence('alt+right'))
+        action_undo = undo_stack.createUndoAction(self)
+        action_redo = undo_stack.createRedoAction(self)
+        action_undo.setIcon(QIcon('icons/iconfinder/32pxmania/undo.png'))
+        action_redo.setIcon(QIcon('icons/iconfinder/32pxmania/redo.png'))
+        action_undo.setShortcut(QKeySequence(QKeySequence.Undo))
+        action_redo.setShortcut(QKeySequence(QKeySequence.Redo))
+        self.playtreemenu.addAction(action_undo)
+        self.playtreemenu.addAction(action_redo)
+        self.playtreemenu.addSeparator()
         self.playtreemenu.addAction(self.action_cut)
         self.playtreemenu.addAction(self.action_copy)
         self.playtreemenu.addAction(self.action_paste)
@@ -132,7 +141,7 @@ class TandaMasterWindow(QMainWindow):
         self.playtreemenu.addAction(self.action_move_down)
         self.playtreemenu.addAction(self.action_move_left)
         self.playtreemenu.addAction(self.action_move_right)
-
+        
 
         menubar.addMenu(self.playtreemenu)
 
@@ -161,6 +170,9 @@ class TandaMasterWindow(QMainWindow):
         self.addToolBar(Qt.BottomToolBarArea, toolbar)
         
         toolbar = QToolBar('Edit', self)
+        toolbar.addAction(action_undo)
+        toolbar.addAction(action_redo)
+        toolbar.addSeparator()
         toolbar.addAction(self.action_cut)
         toolbar.addAction(self.action_copy)
         toolbar.addAction(self.action_paste)
@@ -415,7 +427,8 @@ class PlayTreeView(QTreeView):
             row, column, parent = index.row(), index.column(), index.parent()
         else:
             row, column, parent = None, None, QModelIndex()
-        self.model().item(parent).insert([item], row, self.model())
+        #self.model().item(parent).insert([item], row, self.model())
+        InsertPlayTreeItemCommand(item, self.model().item(parent), row, self.model())
 
     def can_cut(self):
         model = self.model()
@@ -472,12 +485,6 @@ class PlayTreeView(QTreeView):
         self.window().action_paste.setEnabled(self.can_paste())
         self.window().action_insert.setEnabled(self.can_insert())
 
-    def dropEvent(self, event):
-        r = super().dropEvent(event)
-        if isinstance(event.mimeData(), PlayTreeMimeData) and event.mimeData().model == self.model():
-            event.setProposedAction(Qt.MoveAction)
-        return r
-
     def other(self):
         for w in self.window().findChildren(PlayTreeView):
             if w != self:
@@ -502,13 +509,13 @@ class PlayTreeView(QTreeView):
                      ]
                 new_parent = parent.parent.child(
                     model, parent.parent.childs_row(model, parent) - 1)
-                parent.delete_children(items)
-                inserted_items = new_parent.insert(items, None, model)
+                parent.delete(items)
+                inserted_items = new_parent.insert(items, -1, model)
         else:
             items = [parent.child(model, top -1)]
             bottom = max(selection_range.bottom()
                   for selection_range in selection_model.selection())
-            parent.delete_children(items)
+            parent.delete(items)
             inserted_items = parent.insert(items, bottom + 1, model)
         for item in inserted_items:
             selection_model.select(item.modelindex(model),QItemSelectionModel.Select)
@@ -523,6 +530,24 @@ class PlayTreeView(QTreeView):
 
     def move_right(self):
         pass
+
+    def dragEnterEvent(self, event):
+        if event.source() == self:
+            event.setDropAction(Qt.MoveAction)
+        super().dragEnterEvent(event)
+
+    def dragMoveEvent(self, event):
+        if event.source() == self:
+            event.setDropAction(Qt.MoveAction)
+        super().dragMoveEvent(event)
+
+    def dropEvent(self, event):
+        if event.source() == self:
+            event.setDropAction(Qt.MoveAction)
+        super().dropEvent(event)
+
+            
+            
 
 
 class TMProgressBar(QProgressBar):
@@ -589,3 +614,23 @@ def hmsms_to_text(h,m,s,ms,include_ms=True):
         ('{:02d}:{:02d}' if h else '{:2d}:{:02d}').format(m, s) + \
         (':' + ms if include_ms else '')
 
+
+class InsertPlayTreeItemCommand(QUndoCommand):
+    def __init__(self, item, item_parent, row, calling_model, text = None, parent = None, push = True):
+        text = 'Insert playtree "{}"'.format(str(item)) \
+               if text is None else text
+        super().__init__(text, parent)
+        self.item = item
+        self.item_parent = item_parent
+        self.row = row
+        self.calling_model = weakref.ref(calling_model)
+        item_parent.insert([item], row, calling_model)
+        if push:
+            undo_stack.push(self)
+
+    def redo(self):
+        self.item_parent.insert([self.item], self.row, self.calling_model())
+
+    def undo(self):
+        self.item_parent.delete([self.item])
+        

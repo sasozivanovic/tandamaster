@@ -6,7 +6,7 @@ import sys, filecmp
 import xml.etree.ElementTree as etree
 from PyQt5.Qt import *   # todo: import only what you need
 
-import os, datetime, copy
+import os, datetime, copy, collections
 
 from util import *
 from library import *
@@ -81,8 +81,11 @@ class PlayTreeItem:
     def populate(self, model):
         pass
 
-    def delete_children(self, model, top, bottom):
-        pass
+    def delete(self, items):
+        raise RuntimeError
+
+    def __str__(self):
+        return 'playtreeitem'
 
 @register_xml_tag_handler('list')
 class PlayTreeList(PlayTreeItem):
@@ -134,11 +137,14 @@ class PlayTreeList(PlayTreeItem):
         self.populate(model)
         return self.children[model].index(child)
 
+    def __str__(self):
+        return self.name if self.name is not None else ''
+
     def data(self, model, column_name, role):
         if column_name:
             return None
         if role == Qt.DisplayRole:
-            return self.name
+            return str(self)
 
     def populate(self, model, force = False):
         if force or model not in self.children or self.children[model] is None:
@@ -179,14 +185,20 @@ class PlayTreeList(PlayTreeItem):
             ]
         inserted_items = self.insert(new_items, row, calling_model) \
                          if new_items else None
-        if isinstance(mime_data, PlayTreeMimeData) and mime_data.model == calling_model:
-            calling_model.delete(source_items)
+        if action == Qt.MoveAction:
+            items_by_parent = collections.defaultdict(lambda: list())
+            for item in source_items:
+                if item.parent:
+                    items_by_parent[item.parent].append(item)
+            for parent, items in items_by_parent.items():
+                    item.parent.delete(items)
         return inserted_items
 
     def insert(self, new_items, row, calling_model):
         inserted_items = None
         children = self.children[None]
-        if row is None: row = len(children)
+        if row == -1: 
+            row = len(children)
         for model in self.children.keys():
             if model:
                 parent_index = self.modelindex(model)
@@ -212,7 +224,7 @@ class PlayTreeList(PlayTreeItem):
 
     are_children_editable = True
 
-    def delete_children(self, items):
+    def delete(self, items):
         for model, children in self.children.items():
             rows = sorted([children.index(item) for item in items])
             row_ranges = integers_to_ranges(rows)
@@ -269,9 +281,12 @@ class PlayTreeFile(PlayTreeItem):
     def child(self, model, row):
         raise RuntimeError
 
+    def __str__(self):
+        return self.get_tag(column_name) if column_name else os.path.basename(self.filename)
+
     def data(self, model, column_name, role):
         if role == Qt.DisplayRole:
-            return self.get_tag(column_name) if column_name else os.path.basename(self.filename)
+            return str(self)
         elif not column_name and role == Qt.DecorationRole:
             #return tmSongIcon
             #return QIcon('crazyeye_dance.png')
@@ -315,13 +330,17 @@ class PlayTreeLibraryFile(PlayTreeFile):
     def __repr__(self):
         return '{}({},{},{})'.format(type(self).__name__, self.library, self.Id, self.filename)
 
+    def __str__(self):
+        if column_name:
+            return self.get_tag(column_name)
+        else:
+            title = self.get_tag('TITLE')
+            return title if title else os.path.basename(self.filename)
+
+
     def data(self, model, column_name, role):
         if role == Qt.DisplayRole:
-            if column_name:
-                return self.get_tag(column_name)
-            else:
-                title = self.get_tag('TITLE')
-                return title if title else os.path.basename(self.filename)
+            return str(self)
         elif not column_name and role == Qt.DecorationRole:
             #return tmSongIcon
             #return QIcon('crazyeye_dance.png')
@@ -368,11 +387,14 @@ class PlayTreeFolder(PlayTreeItem):
         self.populate(model)
         return self.children[model].index(child)
 
+    def __str__(self):
+        return os.path.basename(self.filename)
+
     def data(self, model, column_name, role):
         if column_name:
             return None
         elif role == Qt.DisplayRole:
-            return os.path.basename(self.filename)
+            return str(self)
         elif column_name == '' and role == Qt.DecorationRole:
             #return app.style().standardIcon(QStyle.SP_DirIcon)
             return MyIcon('Tango', 'places', 'folder')
@@ -477,6 +499,13 @@ class PlayTreeBrowse(PlayTreeItem):
         self.populate(model)
         return self.children[model].index(child)
 
+    def __str__(self):
+        return app.tr('Browse') + ' ' + \
+            " -> ".join([self.library]+[str(v) for t,v in self.fixed_tags]) + \
+            ' ' + app.tr('by') + ' ' + \
+            ", ".join(tag.lower() for tag in self.browse_by_tags)
+
+
     icons = { None: 'library.png', 'ARTIST': 'personal.png', 'ALBUM': 'image_album.png' }
     def data(self, model, column_name, role):
         if column_name:
@@ -486,9 +515,7 @@ class PlayTreeBrowse(PlayTreeItem):
                 return (self.value[model] if model in self.value and self.value[model] else '') + \
                     ' (' + str(self.song_count[model]) + ')'
             else:
-                return app.tr('Browse') + ' ' + \
-                    " -> ".join([self.library]+[str(v) for t,v in self.fixed_tags]) + ' ' + app.tr('by') + ' ' + \
-                    ", ".join(tag.lower() for tag in self.browse_by_tags)
+                return str(self)
         elif column_name == '' and role == Qt.DecorationRole:
             #return app.style().standardIcon(QStyle.SP_DriveCDIcon)
             try:
@@ -779,7 +806,7 @@ class PlayTreeModel(QAbstractItemModel):
                 parent.child(self, i)
                 for i in range(selection_range.top(), selection_range.bottom()+1))
         for parent, items in ranges.items():
-            parent.delete_children(items)
+            parent.delete(items)
 
 from app import app
 def save_playtree():

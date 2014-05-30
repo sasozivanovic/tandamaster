@@ -1,7 +1,1 @@
-<list>
-  <folder filename="/home/saso/tango/razno"/>
-  <browse library="tango">
-    <by tag="ARTIST"/>
-    <by tag="ALBUM"/>
-  </browse>
-</list>
+<list><list name="New playtree"><file filename="/home/saso/tango/mp3juices/edgardo-donato/edgardo-donato---el-huracan-(d.-shevchenko).mp3" id="6529" library="tango" /><browse library="tango"><by fixed="yes" tag="ARTIST" value="Carlos Di Sarli - Alberto Podesta" /><by tag="ALBUM" /></browse></list><list name="New playtree"><folder filename="/home/saso/tango/alan" /><folder filename="/home/saso/tango/Carlos_Di_Sarli" /><file filename="/home/saso/tango/barenboim__mederos__console/mi_buenos_aires_querido__tangos_among_friends_piazzolla/01-mi_buenos_aires_querido.mp3" /></list><folder filename="/home/saso/tango/razno" /><browse library="tango"><by tag="ARTIST" /><by tag="ALBUM" /></browse></list>

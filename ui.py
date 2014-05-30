@@ -3,7 +3,7 @@ from PyQt5.QtCore import pyqtRemoveInputHook; from IPython import embed; pyqtRem
 from PyQt5.Qt import *   # todo: import only what you need
 
 from player import TandaMasterPlayer
-from model import PlayTreeModel, PlayTreeList, PlayTreeMimeData
+from model import PlayTreeModel, PlayTreeList, PlayTreeMimeData, save_playtree
 from library import Library
 from util import *
 from app import app
@@ -27,6 +27,11 @@ class TandaMasterWindow(QMainWindow):
         menubar = QMenuBar()
 
         self.musicmenu = QMenu(self.tr('&Music'))
+        action_save_playtree = QAction(
+            self.tr("&Save playtree"), self,
+            shortcut=QKeySequence.Save,
+            triggered = save_playtree)
+        self.musicmenu.addAction(action_save_playtree)
         action_update_library = QAction(
             self.tr("&Update library"), self,
             triggered = self.update_library)
@@ -42,30 +47,40 @@ class TandaMasterWindow(QMainWindow):
             #self.style().standardIcon(QStyle.SP_MediaSkipBackward), 
             #MyIcon('Tango', 'actions', 'media-skip-backward'),
             QIcon('button_rewind_green.png'),
+            #QIcon('icons/iconfinder/32pxmania/previous.png'),
             self.tr('P&revious'), self, triggered = self.player.play_previous)
         self.playbackmenu.addAction(action_back)        
         self.action_play = QAction(
             #self.style().standardIcon(QStyle.SP_MediaPlay), 
             #MyIcon('Tango', 'actions', 'media-playback-start'),
             QIcon('button_play_green.png'),
-            self.tr('&Play'), self, triggered = self.player.play)
-        self.playbackmenu.addAction(self.action_play)        
+            #QIcon('icons/iconfinder/32pxmania/play.png'),
+            self.tr('&Play'), 
+            self,
+            shortcut = QKeySequence('space'),
+            triggered = self.player.play)
+        self.playbackmenu.addAction(self.action_play)
         self.action_pause =  QAction(
             #self.style().standardIcon(QStyle.SP_MediaPause), 
-            QIcon('button_pause_green.png'),
             #MyIcon('Tango', 'actions', 'media-playback-pause'),
-            self.tr('&Pause'), self, triggered = self.player.pause)
+            QIcon('button_pause_green.png'),
+            #QIcon('icons/iconfinder/32pxmania/pause.png'),
+            self.tr('&Pause'), self, 
+            shortcut = QKeySequence('space'),
+            triggered = self.player.pause)
         self.playbackmenu.addAction(self.action_pause)        
         self.action_stop = QAction(
             #self.style().standardIcon(QStyle.SP_MediaStop), 
             #MyIcon('Tango', 'actions', 'media-playback-stop'),
             QIcon('button_stop_green.png'),
+            #QIcon('icons/iconfinder/32pxmania/stop.png'),
             self.tr('&Stop'), self, triggered = self.player.stop)
         self.playbackmenu.addAction(self.action_stop)        
         action_forward = QAction(
             #self.style().standardIcon(QStyle.SP_MediaSkipForward), 
             #MyIcon('Tango', 'actions', 'media-skip-forward'),
             QIcon('button_fastforward_green.png'),
+            #QIcon('icons/iconfinder/32pxmania/next.png'),
             self.tr('&Next'), self, triggered = self.player.play_next)
         self.playbackmenu.addAction(action_forward)        
         menubar.addMenu(self.playbackmenu)
@@ -75,10 +90,6 @@ class TandaMasterWindow(QMainWindow):
             MyIcon('Tango', 'actions', 'edit-cut'),
             self.tr('Cu&t'), self, triggered = self.playtree_cut,
             shortcut = QKeySequence(QKeySequence.Cut))
-        self.action_delete = QAction(
-            MyIcon('Tango', 'actions', 'edit-delete'),
-            self.tr('&Delete'), self, triggered = self.playtree_delete,
-            shortcut = QKeySequence(QKeySequence.Delete))
         self.action_copy = QAction(
             MyIcon('Tango', 'actions', 'edit-copy'),
             self.tr('&Copy'), self, triggered = self.playtree_copy,
@@ -87,13 +98,52 @@ class TandaMasterWindow(QMainWindow):
             MyIcon('Tango', 'actions', 'edit-paste'),
             self.tr('&Paste'), self, triggered = self.playtree_paste,
             shortcut = QKeySequence(QKeySequence.Paste))
-        self.playtreemenu.addAction(self.action_delete)
+        self.action_insert = QAction(
+            QIcon('icons/iconfinder/32pxmania/insert.png'),
+            self.tr('&Insert'), self, triggered = self.playtree_insert,
+            shortcut = QKeySequence('insert'))        
+        self.action_delete = QAction(
+            QIcon('icons/iconfinder/32pxmania/delete.png'),
+            self.tr('&Delete'), self, triggered = self.playtree_delete,
+            shortcut = QKeySequence(QKeySequence.Delete))
+        self.action_move_up = QAction(
+            QIcon('icons/iconfinder/32pxmania/up.png'),
+            self.tr('Move &up'), self, triggered = self.playtree_move_up,
+            shortcut = QKeySequence('alt+up'))
+        self.action_move_down = QAction(
+            QIcon('icons/iconfinder/32pxmania/down.png'),
+            self.tr('Move &down'), self, triggered = self.playtree_move_down,
+            shortcut = QKeySequence('alt+down'))
+        self.action_move_left = QAction(
+            QIcon('icons/iconfinder/32pxmania/left.png'),
+            self.tr('Move &left'), self, triggered = self.playtree_move_left,
+            shortcut = QKeySequence('alt+left'))
+        self.action_move_right = QAction(
+            QIcon('icons/iconfinder/32pxmania/right.png'),
+            self.tr('Move &right'), self, triggered = self.playtree_move_right,
+            shortcut = QKeySequence('alt+right'))
         self.playtreemenu.addAction(self.action_cut)
         self.playtreemenu.addAction(self.action_copy)
         self.playtreemenu.addAction(self.action_paste)
+        self.playtreemenu.addSeparator()
+        self.playtreemenu.addAction(self.action_insert)
+        self.playtreemenu.addAction(self.action_delete)
+        self.playtreemenu.addAction(self.action_move_up)
+        self.playtreemenu.addAction(self.action_move_down)
+        self.playtreemenu.addAction(self.action_move_left)
+        self.playtreemenu.addAction(self.action_move_right)
+
+
         menubar.addMenu(self.playtreemenu)
 
         self.setMenuBar(menubar)
+
+        toolbar = QToolBar('ProgressBar', self)
+        pb = TMProgressBar(self.player)
+        toolbar.addWidget(pb)
+        self.addToolBar(Qt.BottomToolBarArea, toolbar)
+
+        self.addToolBarBreak(Qt.BottomToolBarArea)
 
         toolbar = QToolBar('Play controls', self)
         toolbar.setAllowedAreas(Qt.TopToolBarArea | Qt.BottomToolBarArea)
@@ -108,21 +158,20 @@ class TandaMasterWindow(QMainWindow):
         self.song_info.setContentsMargins(8,0,0,0)
         toolbar.addWidget(QWidget())
         toolbar.addWidget(self.song_info)
-        self.addToolBar(toolbar)
+        self.addToolBar(Qt.BottomToolBarArea, toolbar)
         
-        self.addToolBarBreak()
-
-        toolbar = QToolBar('ProgressBar', self)
-        pb = TMProgressBar(self.player)
-        toolbar.addWidget(pb)
-        self.addToolBar(toolbar)
-
-        self.addToolBarBreak()
-
         toolbar = QToolBar('Edit', self)
         toolbar.addAction(self.action_cut)
         toolbar.addAction(self.action_copy)
         toolbar.addAction(self.action_paste)
+        toolbar.addSeparator()
+        toolbar.addAction(self.action_insert)
+        toolbar.addAction(self.action_delete)
+        toolbar.addAction(self.action_move_up)
+        toolbar.addAction(self.action_move_down)
+        toolbar.addAction(self.action_move_left)
+        toolbar.addAction(self.action_move_right)
+        
         self.addToolBar(toolbar)        
 
         self.player.currentMediaChanged.connect(self.update_song_info)
@@ -164,11 +213,6 @@ class TandaMasterWindow(QMainWindow):
         if not isinstance(ptv, PlayTreeView): return
         ptv.cut()
 
-    def playtree_delete(self):
-        ptv = app.focusWidget()
-        if not isinstance(ptv, PlayTreeView): return
-        ptv.delete()
-
     def playtree_copy(self):
         ptv = app.focusWidget()
         if not isinstance(ptv, PlayTreeView): return
@@ -185,6 +229,36 @@ class TandaMasterWindow(QMainWindow):
             if not isinstance(ptv, PlayTreeView): return
             self.window().action_paste.setEnabled(ptv.can_paste())
 
+    def playtree_delete(self):
+        ptv = app.focusWidget()
+        if not isinstance(ptv, PlayTreeView): return
+        ptv.delete()
+
+    def playtree_insert(self):
+        ptv = app.focusWidget()
+        if not isinstance(ptv, PlayTreeView): return
+        ptv.insert()
+
+    def playtree_move_up(self):
+        ptv = app.focusWidget()
+        if not isinstance(ptv, PlayTreeView): return
+        ptv.move_up()
+
+    def playtree_move_down(self):
+        ptv = app.focusWidget()
+        if not isinstance(ptv, PlayTreeView): return
+        ptv.move_right()
+
+    def playtree_move_left(self):
+        ptv = app.focusWidget()
+        if not isinstance(ptv, PlayTreeView): return
+        ptv.move_left()
+
+    def playtree_move_right(self):
+        ptv = app.focusWidget()
+        if not isinstance(ptv, PlayTreeView): return
+        ptv.move_right()
+
 class PlayTreeWidget(QWidget):
 
     def __init__(self, root_id, player, parent = None):
@@ -192,7 +266,8 @@ class PlayTreeWidget(QWidget):
 
         current_model_button = QToolButton()
         #current_model_button.setIcon(self.style().standardIcon(QStyle.SP_DialogApplyButton))
-        current_model_button.setIcon(QIcon('circle_green.png'))
+        #current_model_button.setIcon(QIcon('circle_green.png'))
+        current_model_button.setIcon(QIcon('icons/iconfinder/32pxmania/current_playtree.png')),
         current_model_button.setCheckable(True)
         self.search = QLineEdit()
         self.ptv = PlayTreeView(root_id, player, self)
@@ -308,7 +383,7 @@ class PlayTreeView(QTreeView):
     def cut(self):
         selected = self.selectedIndexes()
         QApplication.clipboard().setMimeData(self.model().mimeData(selected))
-        self.delete()
+        #self.delete()
 
     def delete(self):
         selection_model = self.selectionModel() #QItemSelectionModel
@@ -316,7 +391,6 @@ class PlayTreeView(QTreeView):
         self.model().delete(item_selection)
 
     def copy(self):
-        embed()
         QApplication.clipboard().setMimeData(
             self.model().mimeData(self.selectedIndexes()))
 
@@ -333,6 +407,16 @@ class PlayTreeView(QTreeView):
             row, column, parent
         )
 
+    def insert(self, name = 'New playtree'):
+        item = PlayTreeList(name)
+        index = self.currentIndex()
+        # ugly hack ... when there is acutally no current index, the first row is returned
+        if self.selectionModel().isSelected(index):
+            row, column, parent = index.row(), index.column(), index.parent()
+        else:
+            row, column, parent = None, None, QModelIndex()
+        self.model().item(parent).insert([item], row, self.model())
+
     def can_cut(self):
         model = self.model()
         for index in self.selectedIndexes():
@@ -344,24 +428,49 @@ class PlayTreeView(QTreeView):
         return bool(self.selectedIndexes())
 
     def can_paste(self):
-        if self.currentIndex().isValid():
-            are_children_editable = self.model().item(self.currentIndex()).parent.are_children_editable
-        else:
-            are_children_editable = self.model().rootItem.are_children_editable
-        if are_children_editable:
+        if self.can_insert():
             mime_data = QApplication.clipboard().mimeData()
             return isinstance(mime_data, PlayTreeMimeData) or mime_data.hasFormat('audio/x-mpegurl') or mime_data.hasFormat('text/uri-list')
         else:
             return False
+
+    def can_insert(self):
+        if self.currentIndex().isValid():
+            return self.model().item(self.currentIndex()).parent.are_children_editable
+        else:
+            return self.model().rootItem.are_children_editable
+        
+
+    def can_move(self):
+        selection_model = self.selectionModel() #QItemSelectionModel
+        item_selection = selection_model.selection() #QItemSelection
+        if not item_selection: return False
+        parent = self.model().item(item_selection[0].parent())
+        if not isinstance(parent, PlayTreeList): return False
+        if len(item_selection) == 1: return True
+        for range in item_selection:
+            if range.parent() != parent:
+                return False
+        ranges = sorted([(range.top(), range.bottom()) for range in item_selection])
+        for bottom, top in zip([range[1] for range in ranges[1:]],
+                               [range[0] for range in ranges[:-1]]):
+            if bottom != top + 1: return False
+        return True
 
     def on_selection_changed(self):
         can_cut = self.can_cut()
         self.window().action_cut.setEnabled(can_cut)
         self.window().action_delete.setEnabled(can_cut)
         self.window().action_copy.setEnabled(self.can_copy())
+        can_move = self.can_move()
+        self.window().action_move_up.setEnabled(can_move)
+        self.window().action_move_down.setEnabled(can_move)
+        self.window().action_move_left.setEnabled(can_move)
+        self.window().action_move_right.setEnabled(can_move)
 
     def on_currentIndex_changed(self):
         self.window().action_paste.setEnabled(self.can_paste())
+        self.window().action_insert.setEnabled(self.can_insert())
 
     def dropEvent(self, event):
         r = super().dropEvent(event)
@@ -378,6 +487,43 @@ class PlayTreeView(QTreeView):
         r = super().focusInEvent(event)
         QWidget.setTabOrder(self, self.other())
         return r
+
+    def move_up(self):
+        model = self.model()
+        selection_model = self.selectionModel()
+        parent = model.item(selection_model.selection()[0].parent())
+        top = min(selection_range.top()
+                  for selection_range in selection_model.selection())
+        if top == 0:
+            if parent.parent and parent.parent.childs_row(model, parent) != 0:
+                items = [model.item(index)
+                         for selection_range in self.selectionModel().selection()
+                         for index in selection_range.indexes()
+                     ]
+                new_parent = parent.parent.child(
+                    model, parent.parent.childs_row(model, parent) - 1)
+                parent.delete_children(items)
+                inserted_items = new_parent.insert(items, None, model)
+        else:
+            items = [parent.child(model, top -1)]
+            bottom = max(selection_range.bottom()
+                  for selection_range in selection_model.selection())
+            parent.delete_children(items)
+            inserted_items = parent.insert(items, bottom + 1, model)
+        for item in inserted_items:
+            selection_model.select(item.modelindex(model),QItemSelectionModel.Select)
+        selection_model.setCurrentIndex(inserted_items[0].modelindex(model), QItemSelectionModel.NoUpdate)
+
+
+    def move_down(self):
+        pass
+
+    def move_left(self):
+        pass
+
+    def move_right(self):
+        pass
+
 
 class TMProgressBar(QProgressBar):
     def __init__(self, player, parent = None):

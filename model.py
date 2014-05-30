@@ -1,4 +1,4 @@
-#from PyQt5.QtCore import pyqtRemoveInputHook; from IPython import embed; pyqtRemoveInputHook()
+from PyQt5.QtCore import pyqtRemoveInputHook; from IPython import embed; pyqtRemoveInputHook()
 
 import sys, filecmp
 
@@ -9,6 +9,7 @@ from PyQt5.Qt import *   # todo: import only what you need
 import os, datetime, copy
 
 from util import *
+from library import *
 
 def register_xml_tag_handler(tag):
     def f(cls):
@@ -34,8 +35,8 @@ class PlayTreeItem:
 
     def save(self, filename):
         document = etree.ElementTree(self.to_xml())
-        with open(filename + '.tmp', 'wb') as outfile:
-            document.write(outfile, pretty_print = True, encoding='UTF-8')
+        with open(filename + '.tmp', 'w') as outfile:
+            document.write(outfile, encoding='unicode')
             if filecmp.cmp(filename, filename + '.tmp'):
                 os.remove(filename + '.tmp')
             else:
@@ -95,8 +96,10 @@ class PlayTreeList(PlayTreeItem):
 
     def to_xml(self):
         element = super().to_xml()
-        element.set('name', self.name)
-        element.set('id', self.Id)
+        if self.name is not None:
+            element.set('name', self.name)
+        if self.Id is not None:
+            element.set('id', self.Id)
         for child in self.children[None]:
             element.append(child.to_xml())
         return element
@@ -104,7 +107,7 @@ class PlayTreeList(PlayTreeItem):
     def __init__(self, name, Id = None, parent = None, *iterable):
         super().__init__(parent)
         self.name = name
-        self.Id = Id
+        self.Id = None if Id is None else int(Id)
         self.children = {None: list(*iterable)}
         
     def copy(self):
@@ -174,34 +177,38 @@ class PlayTreeList(PlayTreeItem):
                 for url in mime_data.urls()
                 if url.isLocalFile()
             ]
-        inserted_items = None
-        if new_items:
-            inserted_items = None
-            children = self.children[None]
-            if row is None: row = len(children)
-            for model in self.children.keys():
-                if model:
-                    parent_index = self.modelindex(model)
-                    model_new_items = [item for item in new_items
-                                       if item.filter(model)]
-                    model_children = self.children[model]
-                    target_i = len(model_children)
-                    for child in children[row:]:
-                        if child in model_children:
-                            target_i = model_children.index(child)
-                            break
-                    model.beginInsertRows(parent_index, target_i, target_i + len(model_new_items) - 1)
-                    model_children[target_i:target_i] = model_new_items
-                    model.endInsertRows()
-                    if model == calling_model:
-                        inserted_items = model_new_items
-            children[row:row] = new_items
-            for item in new_items:
-                item.parent = self
-        if action == Qt.MoveAction and source_items:
+        inserted_items = self.insert(new_items, row, calling_model) \
+                         if new_items else None
+        if isinstance(mime_data, PlayTreeMimeData) and mime_data.model == calling_model:
             calling_model.delete(source_items)
         return inserted_items
-            
+
+    def insert(self, new_items, row, calling_model):
+        inserted_items = None
+        children = self.children[None]
+        if row is None: row = len(children)
+        for model in self.children.keys():
+            if model:
+                parent_index = self.modelindex(model)
+                model_new_items = [item for item in new_items
+                                   if item.filter(model)]
+                model_children = self.children[model]
+                target_i = len(model_children)
+                for child in children[row:]:
+                    if child in model_children:
+                        target_i = model_children.index(child)
+                        break
+                model.beginInsertRows(parent_index, target_i, target_i + len(model_new_items) - 1)
+                model_children[target_i:target_i] = model_new_items
+                model.endInsertRows()
+                if model == calling_model:
+                    inserted_items = model_new_items
+        children[row:row] = new_items
+        for item in new_items:
+            item.parent = self
+        return inserted_items
+        
+        
 
     are_children_editable = True
 
@@ -224,6 +231,7 @@ class PlayTreeFile(PlayTreeItem):
     def to_xml(self):
         element = super().to_xml()
         element.set('filename', self.filename)
+        return element
 
     @classmethod
     def _create_from_xml(cls, element, parent):
@@ -232,7 +240,8 @@ class PlayTreeFile(PlayTreeItem):
             Id = element.get('id'),
             parent = parent
         ) if element.get('id') else PlayTreeFile(
-            filename = element.get('filename')
+            filename = element.get('filename'),
+            parent = parent
         )
 
     def __init__(self, filename, parent = None):
@@ -285,7 +294,8 @@ class PlayTreeLibraryFile(PlayTreeFile):
     def to_xml(self):
         element = super().to_xml()
         element.set('library', self.library)
-        element.set('id', self.Id)
+        element.set('id', str(self.Id))
+        return element
 
     def __init__(self, library_name, Id, parent = None):
         super(PlayTreeFile, self).__init__(parent)
@@ -323,6 +333,7 @@ class PlayTreeFolder(PlayTreeItem):
     def to_xml(self):
         element = super().to_xml()
         element.set('filename', self.filename)
+        return element
 
     @classmethod
     def _create_from_xml(cls, element, parent):
@@ -422,7 +433,7 @@ class PlayTreeBrowse(PlayTreeItem):
 
     def to_xml(self):
         element = super().to_xml()
-        element.set('library_name', self.library)
+        element.set('library', self.library)
         for tag, value in self.fixed_tags:
             by = etree.SubElement(element, 'by', fixed = 'yes', tag = tag)
             if value is not None:
@@ -476,7 +487,7 @@ class PlayTreeBrowse(PlayTreeItem):
                     ' (' + str(self.song_count[model]) + ')'
             else:
                 return app.tr('Browse') + ' ' + \
-                    self.library + ' ' + app.tr('by') + ' ' + \
+                    " -> ".join([self.library]+[str(v) for t,v in self.fixed_tags]) + ' ' + app.tr('by') + ' ' + \
                     ", ".join(tag.lower() for tag in self.browse_by_tags)
         elif column_name == '' and role == Qt.DecorationRole:
             #return app.style().standardIcon(QStyle.SP_DriveCDIcon)
@@ -771,12 +782,12 @@ class PlayTreeModel(QAbstractItemModel):
             parent.delete_children(items)
 
 from app import app
-#app.aboutToQuit.connect(lambda: playtree.save(playtree_xml_filename))
+def save_playtree():
+    playtree.save(playtree_xml_filename)
+#app.aboutToQuit.connect(save_playtree)
 
 #tmSongIcon = QIcon(':images/song.png')
 #import tandamaster_rc
-
-from library import *
 
 class PlayTreeMimeData(QMimeData):
     def __init__(self, model, items, action):

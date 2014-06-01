@@ -268,15 +268,17 @@ class PlayTreeFile(PlayTreeItem):
     def __init__(self, filename, parent = None):
         super().__init__(parent)
         self.filename = filename
+        file_reader.register_file(filename, self)
+        file_reader.bg_get_fileinfo(FileInfo(filename, FileInfo.reason_NewPlayTreeFile))
 
     def copy(self):
         return PlayTreeFile(self.filename)
 
     def get_tag(self, tag):
-        return library.tag_by_filename(tag, self.filename)
+        return file_reader.get_tag(self.filename, tag)
 
     def get_tags(self):
-        return library.tags_by_filename(self.filename)
+        return file_reader.get_tags(self.filename)
 
     def __repr__(self):
         return '{}({})'.format(type(self).__name__, self.filename)
@@ -309,7 +311,10 @@ class PlayTreeFile(PlayTreeItem):
         return True
 
     def filter(self, model):
-        for value in self.get_tags().values():
+        tags = self.get_tags()
+        if tags == {}:
+            return True
+        for value in tags.values():
             if model.filter_string in value.lower():
                 return True
 
@@ -382,7 +387,7 @@ class PlayTreeFolder(PlayTreeItem):
         return len(self.children[model])
 
     def hasChildren(self, model):
-        if self.children[model] is None:
+        if model not in self.children or self.children[model] is None:
             return True
         else:
             return bool(self.children[model])
@@ -427,17 +432,20 @@ class PlayTreeFolder(PlayTreeItem):
             fileelements = [
                 PlayTreeFile(filename=fullfn, parent = self) for fn,fullfn in files
             ]
-            self.children[None].extend(filter(lambda f: f.get_tags() is not None, fileelements))
+            #self.children[None].extend(filter(lambda f: f.get_tags() is not None, fileelements))
+            self.children[None].extend(fileelements)
         if self.children[model] is None:
-            self.children[model] = [child for child in self.children[None]
-                                     if child.filter(model) ]
+            #self.children[model] = [child for child in self.children[None]if child.filter(model) ]
+            self.children[model] = self.children[None]
 
     def filter(self, model):
-        self.populate(model)
+        #self.populate(model)
+        if self.children[None] is None or model not in self.children:
+            return model.filter_string in self.filename.lower()
         for child in self.children[None]:
             if child.filter(model):
                 return True
-        return model.filter_string in self.name.lower()
+        return model.filter_string in self.filename.lower()
 
     def expand_small_children(self, model):
         if model.view.isExpanded(self.index(model)):
@@ -624,8 +632,8 @@ class PlayTreeModel(QAbstractItemModel):
         return index.internalPointer() if index.isValid() else self.root_item
 
     # column "" provides browsing info (folder name, file name, ...)
-    #_columns = ('', 'ARTIST', 'ALBUM', 'TITLE')
-    _columns = ('',)
+    _columns = ('', 'ARTIST', 'ALBUM', 'TITLE')
+    #_columns = ('',)
 
     def index(self, row, column, parent):
         if not self.hasIndex(row, column, parent):

@@ -5,11 +5,11 @@ import taglib
 import sqlite3
 import os, os.path
 from warnings import warn
-import functools, itertools
+import functools, itertools, collections, weakref
 
 def _strip(tags):
     """Pulls single list items out of lists."""
-    return dict((t,v[0] if isinstance(v,list) and len(v)==1 else v) for t,v in tags.items())
+    return collections.defaultdict(lambda: '', ((t,v[0] if isinstance(v,list) and len(v)==1 else v) for t,v in tags.items()))
 
 class BgQuery:
     def __init__(self, method, args):
@@ -271,9 +271,9 @@ class Librarian(QObject):
         self.bg_thread.started.connect(self.bg_library.connect)
         self.bg_queries_start.connect(self.bg_library.bg_queries)
         self.bg_library.bg_queries_done.connect(self.bg_process_result)
-        self.bg_thread.start()
         self.queue = []
         self.processing = False
+        self.bg_thread.start()
 
     def bg_queries(self, queries):
         if queries:
@@ -297,3 +297,81 @@ class Librarian(QObject):
         self.do()
 
 librarian = Librarian()
+
+class FileInfo:
+    reason_NewPlayTreeFile = 1
+    def __init__(self, filename, reason):
+        self.filename = filename
+        self.reason = reason
+
+class FileReaderWorker(QObject):
+    file_reading_done = pyqtSignal(FileInfo)
+    def get_fileinfo(self, fileinfo):
+        fileinfo.tags = {}
+        try:
+            audiofile = taglib.File(fileinfo.filename)
+            fileinfo.tags = audiofile.tags
+        except:
+            fileinfo.tags = None
+        self.file_reading_done.emit(fileinfo)
+
+class FileReader(QObject):
+    def __init__(self):
+        super().__init__()
+        self.bg_thread = QThread()
+        self.worker = FileReaderWorker()
+        self.worker.moveToThread(self.bg_thread)
+        self.start_reading_file.connect(self.worker.get_fileinfo)
+        self.worker.file_reading_done.connect(self.process_fileinfo)
+        self.queue = []
+        self.processing = False
+        self.tags = {}
+        self.playtreefiles = collections.defaultdict(lambda: weakref.WeakSet())
+        self.bg_thread.start()
+
+    def bg_get_fileinfo(self, empty_fileinfo):
+        self.queue.append(empty_fileinfo)
+        self.do()
+
+    start_reading_file = pyqtSignal(FileInfo)
+    def do(self):
+        if not self.processing:
+            while self.queue:
+                empty_fileinfo = self.queue.pop(0)
+                if empty_fileinfo.reason == FileInfo.reason_NewPlayTreeFile \
+                   and empty_fileinfo.filename in self.tags:
+                    continue
+                self.processing = True
+                self.start_reading_file.emit(empty_fileinfo)
+                break
+
+    def process_fileinfo(self, fileinfo):
+        self.processing = False
+        self.tags[fileinfo.filename] = _strip(fileinfo.tags) if fileinfo.tags else None
+        for file_item in self.playtreefiles[fileinfo.filename]:
+            for model, children in file_item.parent.children.items():
+                if model and file_item in children:
+                    file_index = file_item.index(model)
+                    model.dataChanged.emit(
+                        file_index,
+                        model.sibling(
+                            file_index.row(), 
+                            model.columnCount(file_index), 
+                            file_index),
+                        [Qt.DisplayRole, Qt.DecorationRole, Qt.EditRole, 
+                        Qt.ToolTipRole, Qt.StatusTipRole, 
+                        Qt.WhatsThisRole, Qt.SizeHintRole]
+                    )
+        self.do()
+                        
+    def register_file(self, filename, file_item):
+        self.playtreefiles[filename].add(file_item)
+
+    def get_tags(self, filename):
+        return self.tags[filename] if filename in self.tags else collections.defaultdict(lambda: '')
+
+    def get_tag(self, filename, tag):
+        return self.tags[filename][tag] if filename in self.tags else None
+
+file_reader = FileReader()
+

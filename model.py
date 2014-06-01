@@ -57,8 +57,8 @@ class PlayTreeItem:
     def row(self, model):
         return self.parent.childs_row(model, self) if self.parent is not None else 0
 
-    def index(self, model):
-        return QModelIndex() if self == model.root_item or self.parent is None else model.createIndex(self.row(model), 0, self)
+    def index(self, model, column = 0):
+        return QModelIndex() if self == model.root_item or self.parent is None else model.createIndex(self.row(model), column, self)
 
     @property
     def isPlayable(self):
@@ -86,6 +86,9 @@ class PlayTreeItem:
 
     def __str__(self):
         return 'playtreeitem'
+
+    def flags(self, column = ''):
+        return Qt.ItemIsSelectable | Qt.ItemIsDragEnabled | Qt.ItemIsEnabled
 
 @register_xml_tag_handler('list')
 class PlayTreeList(PlayTreeItem):
@@ -228,7 +231,18 @@ class PlayTreeList(PlayTreeItem):
             InsertPlayTreeItemsCommand(new_items, self, self.child(None, row), command_prefix = 'Drop')
         return new_items
         
+    def flags(self, column = ''):
+        return Qt.ItemIsSelectable | Qt.ItemIsDragEnabled | Qt.ItemIsDropEnabled | Qt.ItemIsEnabled | Qt.ItemIsEditable
 
+    def setData(self, column, value):
+        if column == 0:
+            self.name = value
+            for model in self.children.keys():
+                if model:
+                    index = self.index(model, column)
+                    model.dataChanged.emit(index, index, [Qt.EditRole])
+            return True
+        return False
 
 @register_xml_tag_handler('file')
 class PlayTreeFile(PlayTreeItem):
@@ -770,7 +784,7 @@ class PlayTreeModel(QAbstractItemModel):
                 item.expand_small_children(self)
 
     def flags(self, index):
-        return Qt.ItemIsSelectable | Qt.ItemIsDragEnabled | Qt.ItemIsEnabled | (Qt.ItemIsDropEnabled if self.item(index).are_children_manually_set else Qt.NoItemFlags)
+        return self.item(index).flags(self._columns[index.column()])
 
     def supportedDropActions(self):
         return Qt.CopyAction | Qt.MoveAction
@@ -792,6 +806,11 @@ class PlayTreeModel(QAbstractItemModel):
             selection_model.select(item.index(self),QItemSelectionModel.Select)
         selection_model.setCurrentIndex(inserted_items[0].index(self), QItemSelectionModel.NoUpdate)
         return bool(inserted_items)
+
+    def setData(self, index, value, role):
+        if role == Qt.EditRole:
+            return self.item(index).setData(index.column(), value)
+        return False
 
 from app import app
 def save_playtree():

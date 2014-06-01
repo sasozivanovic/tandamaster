@@ -116,13 +116,21 @@ class TandaMasterWindow(QMainWindow):
             self.tr('Move &down'), self, triggered = self.playtree_move_down,
             shortcut = QKeySequence('alt+down'))
         self.action_move_left = QAction(
-            QIcon('icons/iconfinder/32pxmania/left.png'),
-            self.tr('Move &left'), self, triggered = self.playtree_move_left,
+            QIcon('icons/iconfinder/momentum_glossy/arrow-up-left.png'),
+            self.tr('Move &out of parent'), self, triggered = self.playtree_move_left,
             shortcut = QKeySequence('alt+left'))
         self.action_move_right = QAction(
-            QIcon('icons/iconfinder/32pxmania/right.png'),
-            self.tr('Move &right'), self, triggered = self.playtree_move_right,
+            QIcon('icons/iconfinder/momentum_glossy/arrow-down-right.png'),
+            self.tr('Move into &next sibling'), self, triggered = self.playtree_move_right,
             shortcut = QKeySequence('alt+right'))
+        self.action_move_home = QAction(
+            QIcon('icons/iconfinder/momentum_glossy/move_top.png'),
+            self.tr('Move to &top'), self, triggered = self.playtree_move_home,
+            shortcut = QKeySequence('alt+home'))
+        self.action_move_end = QAction(
+            QIcon('icons/iconfinder/momentum_glossy/move_bottom.png'),
+            self.tr('Move to &bottom'), self, triggered = self.playtree_move_end,
+            shortcut = QKeySequence('alt+end'))
         action_undo = undo_stack.createUndoAction(self)
         action_redo = undo_stack.createRedoAction(self)
         action_undo.setIcon(QIcon('icons/iconfinder/32pxmania/undo.png'))
@@ -138,11 +146,12 @@ class TandaMasterWindow(QMainWindow):
         self.playtreemenu.addSeparator()
         self.playtreemenu.addAction(self.action_insert)
         self.playtreemenu.addAction(self.action_delete)
+        self.playtreemenu.addAction(self.action_move_home)
         self.playtreemenu.addAction(self.action_move_up)
         self.playtreemenu.addAction(self.action_move_down)
+        self.playtreemenu.addAction(self.action_move_end)
         self.playtreemenu.addAction(self.action_move_left)
         self.playtreemenu.addAction(self.action_move_right)
-        
 
         menubar.addMenu(self.playtreemenu)
 
@@ -180,8 +189,10 @@ class TandaMasterWindow(QMainWindow):
         toolbar.addSeparator()
         toolbar.addAction(self.action_insert)
         toolbar.addAction(self.action_delete)
+        toolbar.addAction(self.action_move_home)
         toolbar.addAction(self.action_move_up)
         toolbar.addAction(self.action_move_down)
+        toolbar.addAction(self.action_move_end)
         toolbar.addAction(self.action_move_left)
         toolbar.addAction(self.action_move_right)
         
@@ -271,6 +282,16 @@ class TandaMasterWindow(QMainWindow):
         ptv = app.focusWidget()
         if not isinstance(ptv, PlayTreeView): return
         ptv.move_right()
+
+    def playtree_move_home(self):
+        ptv = app.focusWidget()
+        if not isinstance(ptv, PlayTreeView): return
+        ptv.move_home()
+
+    def playtree_move_end(self):
+        ptv = app.focusWidget()
+        if not isinstance(ptv, PlayTreeView): return
+        ptv.move_end()
 
 class PlayTreeWidget(QWidget):
 
@@ -468,39 +489,45 @@ class PlayTreeView(QTreeView):
         model = self.model()
         selection_model = self.selectionModel()
         item_selection = selection_model.selection()
-        if not item_selection: return (False,)*4
+        if not item_selection: return (False,)*6
         parent_index = item_selection[0].parent()
         parent = model.item(parent_index)
-        if not parent.are_children_manually_set: return (False,)*4
+        if not parent.are_children_manually_set: return (False,)*6
         for range in item_selection:
             if range.parent() != parent_index:
-                return (False,)*4
+                return (False,)*6
         ranges = sorted([(range.top(), range.bottom()) for range in item_selection])
         if len(item_selection) > 1:
             for bottom, top in zip([range[1] for range in ranges[1:]],
                                    [range[0] for range in ranges[:-1]]):
                 if bottom != top + 1: 
-                    return (False,)*4
-        top_index = model.index(ranges[0][0], 0, parent_index)
-        bottom_index = model.index(ranges[-1][1], 0, parent_index)
+                    return (False,)*6
+        top = ranges[0][0]
+        bottom = ranges[-1][1]
+        top_index = model.index(top, 0, parent_index)
+        bottom_index = model.index(bottom, 0, parent_index)
         grandparent_index = model.parent(parent_index)
         grandparent_item = model.item(grandparent_index)
         can_move_up = top_index.row() != 0 or (parent_index.isValid() and parent_index.row() != 0 and model.item(model.index(parent_index.row()-1,0,grandparent_index)).are_children_manually_set)
         can_move_down = bottom_index.row() != model.rowCount(parent_index)-1 or (parent_index.isValid() and parent_index.row() != model.rowCount(grandparent_index)-1 and model.item(model.index(parent_index.row()+1,0,grandparent_index)).are_children_manually_set)
         can_move_left = parent_index.isValid()
         can_move_right = model.rowCount(parent_index) > ranges[-1][1]+1 and model.item(model.index(ranges[-1][1]+1, 0, parent_index)).are_children_manually_set
-        return can_move_up, can_move_down, can_move_left, can_move_right
+        can_move_home = top != 0 or (parent_index.isValid() and model.root_item.are_children_manually_set)
+        can_move_end = bottom != model.rowCount(parent_index)-1 or (parent_index.isValid() and model.root_item.are_children_manually_set)
+        return can_move_up, can_move_down, can_move_left, can_move_right, can_move_home, can_move_end
 
     def on_selection_changed(self):
         can_cut = self.can_cut()
         self.window().action_cut.setEnabled(can_cut)
         self.window().action_delete.setEnabled(can_cut)
         self.window().action_copy.setEnabled(self.can_copy())
-        can_move_up, can_move_down, can_move_left, can_move_right = self.can_move()
+        can_move_up, can_move_down, can_move_left, can_move_right, can_move_home, can_move_end = self.can_move()
         self.window().action_move_up.setEnabled(can_move_up)
         self.window().action_move_down.setEnabled(can_move_down)
         self.window().action_move_left.setEnabled(can_move_left)
         self.window().action_move_right.setEnabled(can_move_right)
+        self.window().action_move_home.setEnabled(can_move_home)
+        self.window().action_move_end.setEnabled(can_move_end)
 
     def on_currentIndex_changed(self):
         self.window().action_paste.setEnabled(self.can_paste())
@@ -582,10 +609,72 @@ class PlayTreeView(QTreeView):
 
 
     def move_left(self):
-        pass
+        model = self.model()
+        selection_model = self.selectionModel()
+        selected_indexes = selection_model.selectedIndexes()
+        selected_items = [model.item(index) for index in selected_indexes]
+        current_item = model.item(self.currentIndex())
+        parent_index = selected_indexes[0].parent()
+        parent_item = model.item(parent_index)
+        grandparent_index = model.parent(parent_index)
+        grandparent_item = model.item(grandparent_index)
+        MovePlayTreeItemsCommand(
+            selected_items, grandparent_item, parent_item,
+            command_prefix = "Move", command_suffix = "before parent")
+        for item in selected_items:
+            selection_model.select(item.index(model),QItemSelectionModel.Select)
+        selection_model.setCurrentIndex(current_item.index(model), QItemSelectionModel.NoUpdate)
 
     def move_right(self):
-        pass
+        model = self.model()
+        selection_model = self.selectionModel()
+        selected_indexes = selection_model.selectedIndexes()
+        selected_items = [model.item(index) for index in selected_indexes]
+        current_item = model.item(self.currentIndex())
+        parent_index = selected_indexes[0].parent()
+        parent_item = model.item(parent_index)
+        bottom = max(index.row() for index in selected_indexes)
+        new_parent_index = model.index(bottom+1, 0, parent_index)
+        new_parent_item = model.item(new_parent_index)
+        MovePlayTreeItemsCommand(
+            selected_items, new_parent_item, 
+            new_parent_item.child(None, 0) if model.rowCount(new_parent_index) != 0 else None,
+            command_prefix = "Move", command_suffix = "info next sibling")
+        for item in selected_items:
+            selection_model.select(item.index(model),QItemSelectionModel.Select)
+        selection_model.setCurrentIndex(current_item.index(model), QItemSelectionModel.NoUpdate)
+
+    def move_home(self):
+        model = self.model()
+        selection_model = self.selectionModel()
+        selected_indexes = selection_model.selectedIndexes()
+        selected_items = [model.item(index) for index in selected_indexes]
+        top = min(index.row() for index in selected_indexes)
+        new_parent_index = selected_indexes[0].parent() if top != 0 else QModelIndex()
+        new_parent = model.item(new_parent_index)
+        current_item = model.item(self.currentIndex())
+        MovePlayTreeItemsCommand(
+            selected_items, new_parent, model.item(model.index(0, 0, new_parent_index)), 
+            command_prefix = 'Move', command_suffix = 'before all siblings')
+        for item in selected_items:
+            selection_model.select(item.index(model),QItemSelectionModel.Select)
+        selection_model.setCurrentIndex(current_item.index(model), QItemSelectionModel.NoUpdate)
+
+    def move_end(self):
+        model = self.model()
+        selection_model = self.selectionModel()
+        selected_indexes = selection_model.selectedIndexes()
+        selected_items = [model.item(index) for index in selected_indexes]
+        parent_index = selected_indexes[0].parent()
+        bottom = max(index.row() for index in selected_indexes)
+        new_parent_index = selected_indexes[0].parent() if bottom != model.rowCount(parent_index)-1 else QModelIndex()
+        new_parent = model.item(new_parent_index)
+        current_item = model.item(self.currentIndex())
+        MovePlayTreeItemsCommand(selected_items, new_parent, None, 
+                                 command_prefix = 'Move', command_suffix = 'after all siblings')
+        for item in selected_items:
+            selection_model.select(item.index(model),QItemSelectionModel.Select)
+        selection_model.setCurrentIndex(current_item.index(model), QItemSelectionModel.NoUpdate)
 
     def dragEnterEvent(self, event):
         if event.source() == self:

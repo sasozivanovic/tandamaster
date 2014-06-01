@@ -7,6 +7,7 @@ from model import PlayTreeModel, PlayTreeList, PlayTreeMimeData, save_playtree
 from library import Library
 from util import *
 from app import *
+from commands import *
 
 import collections, weakref
 
@@ -386,54 +387,63 @@ class PlayTreeView(QTreeView):
 
     def on_end_reset_model(self):
         model = self.model()
-        for item in model.rootItem.iter(model,
+        for item in model.root_item.iter(model,
                 lambda item: not item.isTerminal,
                 lambda item: isinstance(item, PlayTreeList)):
             if model in item.expanded:
-                self.setExpanded(item.modelindex(model), item.expanded[model])
+                self.setExpanded(item.index(model), item.expanded[model])
 
     def cut(self):
         selected = self.selectedIndexes()
         QApplication.clipboard().setMimeData(self.model().mimeData(selected))
-        #self.delete()
+        self.delete()
 
     def delete(self):
-        selection_model = self.selectionModel() #QItemSelectionModel
+        model = self.model()
+        selection_model = self.selectionModel()
         item_selection = selection_model.selection() #QItemSelection
-        self.model().delete(item_selection)
+        current_index = self.currentIndex()
+        current_path = model.index_to_path(current_index)
+        DeletePlayTreeItemsCommand(
+            [model.item(index) for index in item_selection.indexes()])
+        current_index = model.path_to_index(current_path)
+        if current_index.isValid():
+            selection_model.setCurrentIndex(current_index, QItemSelectionModel.ClearAndSelect)
 
     def copy(self):
         QApplication.clipboard().setMimeData(
             self.model().mimeData(self.selectedIndexes()))
 
     def paste(self):
-        index = self.currentIndex()
-        # ugly hack ... when there is acutally no current index, the first row is returned
-        if self.selectionModel().isSelected(index):
-            row, column, parent = index.row(), index.column(), index.parent()
-        else:
-            row, column, parent = None, None, QModelIndex()
-        self.model().dropMimeData(
-            QApplication.clipboard().mimeData(),
-            Qt.CopyAction,
-            row, column, parent
-        )
+        model = self.model()
+        current_index = self.currentIndex()
+        current_path = model.index_to_path(current_index)
+        parent_item, row, column = (model.item(current_index).parent, current_index.row(), current_index.column()) if current_index.isValid() else (QModelIndex(), -1, -1)
+        new_items = parent_item.dropMimeData(QApplication.clipboard().mimeData(), Qt.CopyAction, row, column, command_prefix = 'Paste')
+        inserted_items = [item for item in new_items
+                          if item in item.parent.children[model]]
+        selection_model = self.selectionModel()
+        selection_model.clear()
+        for item in inserted_items:
+            selection_model.select(item.index(model),QItemSelectionModel.Select)
+        selection_model.setCurrentIndex(
+            model.path_to_index(current_path), QItemSelectionModel.NoUpdate)
 
     def insert(self, name = 'New playtree'):
-        item = PlayTreeList(name)
-        index = self.currentIndex()
-        # ugly hack ... when there is acutally no current index, the first row is returned
-        if self.selectionModel().isSelected(index):
-            row, column, parent = index.row(), index.column(), index.parent()
+        model = self.model()
+        current_index = self.currentIndex()
+        current_item = model.item(current_index)
+        new_item = PlayTreeList(name)
+        if current_index.isValid():
+            InsertPlayTreeItemsCommand([new_item], current_item.parent, current_item)
         else:
-            row, column, parent = None, None, QModelIndex()
-        #self.model().item(parent).insert([item], row, self.model())
-        InsertPlayTreeItemCommand(item, self.model().item(parent), row, self.model())
+            InsertPlayTreeItemsCommand([new_item], model.root_item, None)
+        self.setCurrentIndex(new_item.index(model))
 
     def can_cut(self):
         model = self.model()
         for index in self.selectedIndexes():
-            if not model.item(index).parent.are_children_editable:
+            if not model.item(index).parent.are_children_manually_set:
                 return False
         return True
 
@@ -449,37 +459,46 @@ class PlayTreeView(QTreeView):
 
     def can_insert(self):
         if self.currentIndex().isValid():
-            return self.model().item(self.currentIndex()).parent.are_children_editable
+            return self.model().item(self.currentIndex()).parent.are_children_manually_set
         else:
-            return self.model().rootItem.are_children_editable
+            return self.model().root_item.are_children_manually_set
         
 
     def can_move(self):
-        selection_model = self.selectionModel() #QItemSelectionModel
-        item_selection = selection_model.selection() #QItemSelection
-        if not item_selection: return False
-        parent = self.model().item(item_selection[0].parent())
-        if not isinstance(parent, PlayTreeList): return False
-        if len(item_selection) == 1: return True
+        model = self.model()
+        selection_model = self.selectionModel()
+        item_selection = selection_model.selection()
+        if not item_selection: return (False,)*4
+        parent_index = item_selection[0].parent()
+        parent = model.item(parent_index)
+        if not parent.are_children_manually_set: return (False,)*4
         for range in item_selection:
-            if range.parent() != parent:
-                return False
+            if range.parent() != parent_index:
+                return (False,)*4
         ranges = sorted([(range.top(), range.bottom()) for range in item_selection])
-        for bottom, top in zip([range[1] for range in ranges[1:]],
-                               [range[0] for range in ranges[:-1]]):
-            if bottom != top + 1: return False
-        return True
+        if len(item_selection) > 1:
+            for bottom, top in zip([range[1] for range in ranges[1:]],
+                                   [range[0] for range in ranges[:-1]]):
+                if bottom != top + 1: 
+                    return (False,)*4
+        top_index = model.index(ranges[0][0], 0, parent_index)
+        can_move_up = not all(i==0 for i in model.index_to_path(top_index))
+        bottom_index = model.index(ranges[-1][1], 0, parent_index)
+        can_move_down = model.index_to_path(bottom_index) != [model.rowCount(index)-1 for index in reversed(model.ancestors(bottom_index)[1:])]
+        can_move_left = parent_index.isValid()
+        can_move_right = model.rowCount(parent_index) > ranges[-1][1]+1 and model.item(model.index(ranges[-1][1]+1, 0, parent_index)).are_children_manually_set
+        return can_move_up, can_move_down, can_move_left, can_move_right
 
     def on_selection_changed(self):
         can_cut = self.can_cut()
         self.window().action_cut.setEnabled(can_cut)
         self.window().action_delete.setEnabled(can_cut)
         self.window().action_copy.setEnabled(self.can_copy())
-        can_move = self.can_move()
-        self.window().action_move_up.setEnabled(can_move)
-        self.window().action_move_down.setEnabled(can_move)
-        self.window().action_move_left.setEnabled(can_move)
-        self.window().action_move_right.setEnabled(can_move)
+        can_move_up, can_move_down, can_move_left, can_move_right = self.can_move()
+        self.window().action_move_up.setEnabled(can_move_up)
+        self.window().action_move_down.setEnabled(can_move_down)
+        self.window().action_move_left.setEnabled(can_move_left)
+        self.window().action_move_right.setEnabled(can_move_right)
 
     def on_currentIndex_changed(self):
         self.window().action_paste.setEnabled(self.can_paste())
@@ -490,6 +509,10 @@ class PlayTreeView(QTreeView):
             if w != self:
                 return w
 
+    def focusNextPrevChild(self, next):
+        self.other().setFocus(Qt.TabFocusReason if next else Qt.BacktabFocusReason)
+        return True
+
     def focusInEvent(self, event):
         r = super().focusInEvent(event)
         QWidget.setTabOrder(self, self.other())
@@ -498,28 +521,28 @@ class PlayTreeView(QTreeView):
     def move_up(self):
         model = self.model()
         selection_model = self.selectionModel()
-        parent = model.item(selection_model.selection()[0].parent())
-        top = min(selection_range.top()
-                  for selection_range in selection_model.selection())
+        selected_indexes = selection_model.selectedIndexes()
+        selected_items = [model.item(index) for index in selected_indexes]
+        parent_index = selected_indexes[0].parent()
+        parent = model.item(parent_index)
+        top = min(index.row() for index in selected_indexes)
         if top == 0:
-            if parent.parent and parent.parent.childs_row(model, parent) != 0:
-                items = [model.item(index)
-                         for selection_range in self.selectionModel().selection()
-                         for index in selection_range.indexes()
-                     ]
-                new_parent = parent.parent.child(
-                    model, parent.parent.childs_row(model, parent) - 1)
-                parent.delete(items)
-                inserted_items = new_parent.insert(items, -1, model)
+            current_item = model.item(self.currentIndex())
+            new_parent = parent.parent.child(model, parent.parent.childs_row(model, parent)-1)
+            MovePlayTreeItemsCommand(selected_items, new_parent, None, command_prefix = 'Move', command_suffix = 'up')
+            for item in selected_items:
+                selection_model.select(item.index(model),QItemSelectionModel.Select)
+            selection_model.setCurrentIndex(current_item.index(model), QItemSelectionModel.NoUpdate)
         else:
-            items = [parent.child(model, top -1)]
-            bottom = max(selection_range.bottom()
-                  for selection_range in selection_model.selection())
-            parent.delete(items)
-            inserted_items = parent.insert(items, bottom + 1, model)
-        for item in inserted_items:
-            selection_model.select(item.modelindex(model),QItemSelectionModel.Select)
-        selection_model.setCurrentIndex(inserted_items[0].modelindex(model), QItemSelectionModel.NoUpdate)
+            item = parent.child(model, top -1)
+            before_index = model.index(
+                max(index.row() for index in selected_indexes) + 1, 0, parent_index)
+            before_item = model.item(before_index) if before_index.isValid() else None
+            MovePlayTreeItemsCommand(
+                [item], parent, before_item,
+                command_text = 'Move "{}" up'.format(
+                    TMPlayTreeItemsCommand.describe_items(selected_items)))
+            selection_model.selectionChanged.emit(QItemSelection(), QItemSelection())
 
 
     def move_down(self):
@@ -615,22 +638,3 @@ def hmsms_to_text(h,m,s,ms,include_ms=True):
         (':' + ms if include_ms else '')
 
 
-class InsertPlayTreeItemCommand(QUndoCommand):
-    def __init__(self, item, item_parent, row, calling_model, text = None, parent = None, push = True):
-        text = 'Insert playtree "{}"'.format(str(item)) \
-               if text is None else text
-        super().__init__(text, parent)
-        self.item = item
-        self.item_parent = item_parent
-        self.row = row
-        self.calling_model = weakref.ref(calling_model)
-        item_parent.insert([item], row, calling_model)
-        if push:
-            undo_stack.push(self)
-
-    def redo(self):
-        self.item_parent.insert([self.item], self.row, self.calling_model())
-
-    def undo(self):
-        self.item_parent.delete([self.item])
-        

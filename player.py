@@ -22,7 +22,7 @@ class TandaMasterPlayer(QMediaPlayer):
 
     @property
     def current_index(self):
-        return self._current_item.modelindex(self._current_model) \
+        return self._current_item.index(self._current_model) \
             if self._current_model and self._current_item is not None \
                else QModelIndex()
 
@@ -35,14 +35,14 @@ class TandaMasterPlayer(QMediaPlayer):
             assert index.model() == self.current_model
             item = index.internalPointer() if index.isValid() else None
         if item is None:
-            item = model.rootItem
+            item = model.root_item
         old_model = self._current_model
         old_item = self._current_item
         self._current_model = model
         self._current_item = item
         if old_model != model or old_item != item:
             if old_model is not None and old_item is not None:
-                old_index = old_item.modelindex(old_model)
+                old_index = old_item.index(old_model)
                 if not silent:
                     old_model.dataChanged.emit(old_model.sibling(None, 0, old_index),
                                                old_model.sibling(None, -1, old_index),
@@ -50,7 +50,7 @@ class TandaMasterPlayer(QMediaPlayer):
             else:
                 old_index = QModelIndex()
             if model is not None and item is not None:
-                index = item.modelindex(model)
+                index = item.index(model)
                 if not silent:
                     model.dataChanged.emit(model.sibling(None, 0, index),
                                            model.sibling(None, -1, index),

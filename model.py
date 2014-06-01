@@ -1,15 +1,15 @@
 from PyQt5.QtCore import pyqtRemoveInputHook; from IPython import embed; pyqtRemoveInputHook()
 
-import sys, filecmp
+import sys, filecmp, os, datetime, copy, collections
 
 #from lxml import etree
 import xml.etree.ElementTree as etree
 from PyQt5.Qt import *   # todo: import only what you need
 
-import os, datetime, copy, collections
-
 from util import *
 from library import *
+from app import *
+from commands import *
 
 def register_xml_tag_handler(tag):
     def f(cls):
@@ -52,13 +52,13 @@ class PlayTreeItem:
         self.expanded = {}
 
     isTerminal = False
-    are_children_editable = False
+    are_children_manually_set = False
 
     def row(self, model):
         return self.parent.childs_row(model, self) if self.parent is not None else 0
 
-    def modelindex(self, model):
-        return QModelIndex() if self == model.rootItem or self.parent is None else model.createIndex(self.row(model), 0, self)
+    def index(self, model):
+        return QModelIndex() if self == model.root_item or self.parent is None else model.createIndex(self.row(model), 0, self)
 
     @property
     def isPlayable(self):
@@ -118,6 +118,8 @@ class PlayTreeList(PlayTreeItem):
         copy.children = {None: [child.copy() for child in self.children[None]]}
         return copy
 
+    are_children_manually_set = True
+
     def __repr__(self):
         return '{}(id={},name={})'.format(type(self).__name__, self.Id, self.name)
 
@@ -166,42 +168,13 @@ class PlayTreeList(PlayTreeItem):
             if condition_propagate(item):
                 items.extend(item.children[model])
 
-    def dropMimeData(self, mime_data, action, row, column, calling_model):
-        source_items = None
-        new_items = None
-        if isinstance(mime_data, PlayTreeMimeData):
-            source_items = mime_data.items
-            new_items = [item.copy() for item in source_items]
-        elif mime_data.hasFormat('audio/x-mpegurl'):
-            new_items = [
-                PlayTreeFile(filename, parent = self)
-                for filename in mime_data.text().split("\n")
-            ]
-        elif mime_data.hasUrls():
-            new_items = [
-                PlayTreeFile(url.toLocalFile(), parent = self)
-                for url in mime_data.urls()
-                if url.isLocalFile()
-            ]
-        inserted_items = self.insert(new_items, row, calling_model) \
-                         if new_items else None
-        if action == Qt.MoveAction:
-            items_by_parent = collections.defaultdict(lambda: list())
-            for item in source_items:
-                if item.parent:
-                    items_by_parent[item.parent].append(item)
-            for parent, items in items_by_parent.items():
-                    item.parent.delete(items)
-        return inserted_items
-
-    def insert(self, new_items, row, calling_model):
-        inserted_items = None
+    def insert(self, new_items, row):
         children = self.children[None]
         if row == -1: 
             row = len(children)
         for model in self.children.keys():
             if model:
-                parent_index = self.modelindex(model)
+                parent_index = self.index(model)
                 model_new_items = [item for item in new_items
                                    if item.filter(model)]
                 model_children = self.children[model]
@@ -213,16 +186,9 @@ class PlayTreeList(PlayTreeItem):
                 model.beginInsertRows(parent_index, target_i, target_i + len(model_new_items) - 1)
                 model_children[target_i:target_i] = model_new_items
                 model.endInsertRows()
-                if model == calling_model:
-                    inserted_items = model_new_items
         children[row:row] = new_items
         for item in new_items:
             item.parent = self
-        return inserted_items
-        
-        
-
-    are_children_editable = True
 
     def delete(self, items):
         for model, children in self.children.items():
@@ -230,11 +196,39 @@ class PlayTreeList(PlayTreeItem):
             row_ranges = integers_to_ranges(rows)
             for range in row_ranges:
                 if model:
-                    model.beginRemoveRows(self.modelindex(model), range[0], range[1]-1)
+                    model.beginRemoveRows(self.index(model), range[0], range[1]-1)
                 del children[range[0]:range[1]]
                 if model:
                     model.endRemoveRows()
+        for item in items:
+            item.parent = None
             
+    def dropMimeData(self, mime_data, action, row, column, command_prefix = 'Drop'):
+        new_items = None
+        if isinstance(mime_data, PlayTreeMimeData):
+            source_items = mime_data.items
+            if action == Qt.MoveAction:
+                new_items = source_items
+                for item in source_items:
+                    item.parent.delete([item])
+            else:
+                new_items = [item.copy() for item in source_items]
+        elif mime_data.hasFormat('audio/x-mpegurl'):
+            new_items = [
+                PlayTreeFile(filename, parent = self)
+                for filename in mime_data.text().split("\n")
+            ]
+        elif mime_data.hasUrls():
+            new_items = [
+                PlayTreeFile(url.toLocalFile(), parent = self)
+                for url in mime_data.urls()
+                if url.isLocalFile()
+            ]
+        if new_items:
+            InsertPlayTreeItemsCommand(new_items, self, self.child(None, row), command_prefix = 'Drop')
+        return new_items
+        
+
 
 @register_xml_tag_handler('file')
 class PlayTreeFile(PlayTreeItem):
@@ -282,11 +276,11 @@ class PlayTreeFile(PlayTreeItem):
         raise RuntimeError
 
     def __str__(self):
-        return self.get_tag(column_name) if column_name else os.path.basename(self.filename)
+        return os.path.basename(self.filename)
 
     def data(self, model, column_name, role):
         if role == Qt.DisplayRole:
-            return str(self)
+            return self.get_tag(column_name) if column_name else str(self)
         elif not column_name and role == Qt.DecorationRole:
             #return tmSongIcon
             #return QIcon('crazyeye_dance.png')
@@ -331,16 +325,15 @@ class PlayTreeLibraryFile(PlayTreeFile):
         return '{}({},{},{})'.format(type(self).__name__, self.library, self.Id, self.filename)
 
     def __str__(self):
-        if column_name:
-            return self.get_tag(column_name)
-        else:
-            title = self.get_tag('TITLE')
-            return title if title else os.path.basename(self.filename)
-
+        return os.path.basename(self.filename)
 
     def data(self, model, column_name, role):
         if role == Qt.DisplayRole:
-            return str(self)
+            if column_name:
+                return self.get_tag(column_name)
+            else:
+                title = self.get_tag('TITLE')
+                return title if title else str(self)
         elif not column_name and role == Qt.DecorationRole:
             #return tmSongIcon
             #return QIcon('crazyeye_dance.png')
@@ -432,10 +425,10 @@ class PlayTreeFolder(PlayTreeItem):
         return model.filter_string in self.name.lower()
 
     def expand_small_children(self, model):
-        if model.view.isExpanded(self.modelindex(model)):
+        if model.view.isExpanded(self.index(model)):
             for child in self.children[model]:
                 if isinstance(child, PlayTreeFolder) and model in child.children and child.children[model] is not None and child.rowCount(model) == 1:
-                    model.view.setExpanded(child.modelindex(model), True)
+                    model.view.setExpanded(child.index(model), True)
                     child.expand_small_children(model)
         
 
@@ -582,7 +575,7 @@ class PlayTreeBrowse(PlayTreeItem):
     def expand_small_children_callback(self, queries):
         for query in queries:
             if query.browse in query.browse.parent.children[queries.model]:
-                queries.model.view.setExpanded(query.browse.modelindex(queries.model), True)
+                queries.model.view.setExpanded(query.browse.index(queries.model), True)
                 query.browse.expand_small_children(queries.model)
         
 
@@ -602,18 +595,18 @@ class PlayTreeModel(QAbstractItemModel):
 
     def __init__(self, root_id = None, parent = None):
         super().__init__(parent)
-        self.rootItem = playtree
+        self.root_item = playtree
         if root_id is not None:
             for item in playtree.iter_width(self, 
                     lambda item: isinstance(item, PlayTreeList) and item.Id == root_id,
                     lambda item: isinstance(item, PlayTreeList)):
-                self.rootItem = item
+                self.root_item = item
                 break
         self.filter_string = ''
-        self.rootItem.populate(self)
+        self.root_item.populate(self)
 
     def item(self, index):
-        return index.internalPointer() if index.isValid() else self.rootItem
+        return index.internalPointer() if index.isValid() else self.root_item
 
     # column "" provides browsing info (folder name, file name, ...)
     #_columns = ('', 'ARTIST', 'ALBUM', 'TITLE')
@@ -631,7 +624,7 @@ class PlayTreeModel(QAbstractItemModel):
         if not index.isValid():
             return index
         parentItem = self.item(index).parent
-        return QModelIndex() if parentItem in (None, self.rootItem) else \
+        return QModelIndex() if parentItem in (None, self.root_item) else \
             self.createIndex(parentItem.row(self), 0, parentItem)
 
     def rowCount(self, parent):
@@ -725,7 +718,21 @@ class PlayTreeModel(QAbstractItemModel):
         while index.isValid():
             ancestors.append(index)
             index = self.parent(index)
+        ancestors.append(QModelIndex())
         return ancestors
+
+    def index_to_path(self, index):
+        path = []
+        while index.isValid():
+            path.insert(0, index.row())
+            index = index.parent()
+        return path
+
+    def path_to_index(self, path):
+        index = QModelIndex()
+        for i in path:
+            index = self.index(i, 0, index)
+        return index
 
     def refilter(self, string):
         filter_string = string.lower()
@@ -734,7 +741,7 @@ class PlayTreeModel(QAbstractItemModel):
             self.refilter_update_model, 
             lambda: self.filter_string == filter_string
         )
-        for browse in self.rootItem.iter(self,
+        for browse in self.root_item.iter(self,
                 lambda item: isinstance(item, PlayTreeBrowse),
                 lambda item: isinstance(item, PlayTreeList)):
             query = BgQuery(Library.query_tags_all,
@@ -756,65 +763,40 @@ class PlayTreeModel(QAbstractItemModel):
                 query.browse.populate_songs(self, query.result)
         self.endResetModel()
         if self.filter_string:
-            for item in self.rootItem.iter(self,
+            for item in self.root_item.iter(self,
                     lambda item: isinstance(item, PlayTreeBrowse) or 
                     isinstance(item, PlayTreeFolder),
                     lambda item: isinstance(item, PlayTreeList)):
                 item.expand_small_children(self)
 
     def flags(self, index):
-        return Qt.ItemIsSelectable | Qt.ItemIsDragEnabled | Qt.ItemIsEnabled | (Qt.ItemIsDropEnabled if self.item(index).are_children_editable else Qt.NoItemFlags)
-
-    def mimeData(self, indexes, action = 'copy'):
-        return PlayTreeMimeData(self, [self.item(index) for index in indexes], action)
-        mime_data = super().mimeData(indexes)
-        filenames = [
-            item.filename
-            for index in indexes
-            for item in self.item(index).iter(
-                    self, 
-                    lambda i: isinstance(i, PlayTreeFile),
-                    lambda i: True)
-            ]
-        urls = [QUrl.fromLocalFile(fn) for fn in filenames]
-        mime_data.setUrls(urls)
-        mime_data.setText("\n".join(filenames))
-        mime_data.setData('x-special/gnome-copied-files', action + "\n" + 
-                          "\n".join(url.url() for url in urls))
-        return mime_data
+        return Qt.ItemIsSelectable | Qt.ItemIsDragEnabled | Qt.ItemIsEnabled | (Qt.ItemIsDropEnabled if self.item(index).are_children_manually_set else Qt.NoItemFlags)
 
     def supportedDropActions(self):
         return Qt.CopyAction | Qt.MoveAction
 
+    def mimeData(self, indexes, action = 'copy'):
+        return PlayTreeMimeData(self, [self.item(index) for index in indexes], action)
+
     def dropMimeData(self, mime_data, action, row, column, parent):
         parent_item = self.item(parent)
-        inserted_items = parent_item.dropMimeData(mime_data, action, row, column, self)
+        new_items = parent_item.dropMimeData(
+            mime_data, action, 
+            parent.childs_row(None, parent.child(self, row)),
+            command_prefix = 'Drop')
+        inserted_items = [item for item in new_items
+                          if item in item.parent.children[self]]
         selection_model = self.view.selectionModel()
         selection_model.clear()
         for item in inserted_items:
-            selection_model.select(item.modelindex(self),QItemSelectionModel.Select)
-        selection_model.setCurrentIndex(inserted_items[0].modelindex(self), QItemSelectionModel.NoUpdate)
+            selection_model.select(item.index(self),QItemSelectionModel.Select)
+        selection_model.setCurrentIndex(inserted_items[0].index(self), QItemSelectionModel.NoUpdate)
         return bool(inserted_items)
-
-    def delete(self, item_selection):
-        ranges = {}
-        for selection_range in item_selection:
-            parent = self.item(selection_range.parent())
-            if parent not in ranges:
-                ranges[parent] = []
-            ranges[parent].extend(
-                parent.child(self, i)
-                for i in range(selection_range.top(), selection_range.bottom()+1))
-        for parent, items in ranges.items():
-            parent.delete(items)
 
 from app import app
 def save_playtree():
     playtree.save(playtree_xml_filename)
 #app.aboutToQuit.connect(save_playtree)
-
-#tmSongIcon = QIcon(':images/song.png')
-#import tandamaster_rc
 
 class PlayTreeMimeData(QMimeData):
     def __init__(self, model, items, action):
@@ -882,3 +864,7 @@ def integers_to_ranges(ns):
         ranges.append((n1, n2))
     return ranges
             
+
+
+#tmSongIcon = QIcon(':images/song.png')
+#import tandamaster_rc

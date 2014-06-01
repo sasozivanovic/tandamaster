@@ -602,7 +602,21 @@ class PlayTreeView(QTreeView):
             event.setDropAction(Qt.MoveAction)
         super().dropEvent(event)
 
-            
+    def keyPressEvent(self, event):
+        modifiers = event.modifiers()
+        key = event.key()
+        if modifiers & Qt.AltModifier and key in (Qt.Key_Up, Qt.Key_Down, Qt.Key_Left, Qt.Key_Right, Qt.Key_Home, Qt.Key_End):
+            return
+        if modifiers == Qt.NoModifier and key in (Qt.Key_Home, Qt.Key_End):
+            ci = self.currentIndex()
+            if ci.isValid():
+                if key == Qt.Key_Home and ci.row() != 0:
+                    self.setCurrentIndex(self.model().index(0,0,ci.parent()))
+                    return
+                if key == Qt.Key_End and ci.row() != self.model().rowCount(ci.parent())-1:
+                    self.setCurrentIndex(self.model().index(self.model().rowCount(ci.parent())-1,0,ci.parent()))
+                    return
+        super().keyPressEvent(event)
             
 
 

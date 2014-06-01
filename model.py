@@ -318,6 +318,32 @@ class PlayTreeFile(PlayTreeItem):
             if model.filter_string in value.lower():
                 return True
 
+    def refresh_models(self):
+        if self.get_tags() is None: # not an audio file: delete
+            for model, children in self.parent.children.items():
+                if self in self.parent.children[model]:
+                    i = self.parent.childs_row(model, self)
+                    if model:
+                        model.beginRemoveRows(self.parent.index(model), i, i)
+                    del self.parent.children[model][i]
+                    if model:
+                        model.endRemoveRows()
+        else:
+            for model, children in self.parent.children.items():
+                if model and self in children:
+                    index = self.index(model)
+                    model.dataChanged.emit(
+                        index,
+                        model.sibling(
+                            index.row(), 
+                            model.columnCount(index), 
+                            index),
+                        [Qt.DisplayRole, Qt.DecorationRole, Qt.EditRole, 
+                        Qt.ToolTipRole, Qt.StatusTipRole, 
+                        Qt.WhatsThisRole, Qt.SizeHintRole]
+                    )
+        
+
 class PlayTreeLibraryFile(PlayTreeFile):
     
     def to_xml(self):
@@ -429,17 +455,15 @@ class PlayTreeFolder(PlayTreeItem):
             self.children[None] = [
                 PlayTreeFolder(filename=fullfn, parent = self) for fn,fullfn in folders
             ]
-            fileelements = [
-                PlayTreeFile(filename=fullfn, parent = self) for fn,fullfn in files
-            ]
-            #self.children[None].extend(filter(lambda f: f.get_tags() is not None, fileelements))
-            self.children[None].extend(fileelements)
+            for fn,fullfn in files:
+                if not file_reader.not_an_audio_file(fullfn):
+                    self.children[None].append(
+                        PlayTreeFile(filename=fullfn, parent = self))
         if self.children[model] is None:
             #self.children[model] = [child for child in self.children[None]if child.filter(model) ]
             self.children[model] = self.children[None]
 
     def filter(self, model):
-        #self.populate(model)
         if self.children[None] is None or model not in self.children:
             return model.filter_string in self.filename.lower()
         for child in self.children[None]:

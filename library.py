@@ -349,19 +349,7 @@ class FileReader(QObject):
         self.processing = False
         self.tags[fileinfo.filename] = _strip(fileinfo.tags) if fileinfo.tags else None
         for file_item in self.playtreefiles[fileinfo.filename]:
-            for model, children in file_item.parent.children.items():
-                if model and file_item in children:
-                    file_index = file_item.index(model)
-                    model.dataChanged.emit(
-                        file_index,
-                        model.sibling(
-                            file_index.row(), 
-                            model.columnCount(file_index), 
-                            file_index),
-                        [Qt.DisplayRole, Qt.DecorationRole, Qt.EditRole, 
-                        Qt.ToolTipRole, Qt.StatusTipRole, 
-                        Qt.WhatsThisRole, Qt.SizeHintRole]
-                    )
+            file_item.refresh_models()
         self.do()
                         
     def register_file(self, filename, file_item):
@@ -371,7 +359,10 @@ class FileReader(QObject):
         return self.tags[filename] if filename in self.tags else collections.defaultdict(lambda: '')
 
     def get_tag(self, filename, tag):
-        return self.tags[filename][tag] if filename in self.tags else None
+        return self.tags[filename][tag] if filename in self.tags else ''
+
+    def not_an_audio_file(self, filename):
+        return filename in self.tags and self.tags[filename] is None
 
 file_reader = FileReader()
 

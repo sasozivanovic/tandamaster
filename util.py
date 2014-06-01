@@ -26,3 +26,15 @@ from PyQt5.Qt import QIcon
 def MyIcon(repository, category, name):
     return QIcon('/usr/share/icons/{}/scalable/{}/{}'.format(repository, category, name))
 
+def common_prefix_length(list1, list2):
+    i = 0
+    while i<l1 and i<l2 and list1[i] == list2[i]:
+        i+=1
+    return i
+    
+def common_suffix_length(list1, list2):
+    i = 0
+    l1,l2 = len(list2), len(list2)
+    while i<l1 and i<l2 and list1[l1-i-1] == list2[l2-i-1]:
+        i+=1
+    return i

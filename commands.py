@@ -5,7 +5,13 @@ undo_stack = QUndoStack(app)
 class TMPlayTreeItemsCommand(QUndoCommand):
     @staticmethod
     def describe_items(items):
-        return '"' + str(items[0]) + '"' if len(items) == 1 else '{} items'.format(len(items))
+        n_other = len(items)-1
+        if n_other == -1:
+            return 'nothing'
+        return '"{}"{}'.format(
+            str(items[0]),
+            app.tr(' and %n other item(s)', '', n_other) if n_other else '')
+
     def __init__(self, items, 
                  command_prefix = '', command_suffix = '', command_text = None, 
                  command_parent = None):

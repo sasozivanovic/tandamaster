@@ -782,10 +782,10 @@ class PlayTreeModel(QAbstractItemModel):
         parent_item = self.item(parent)
         new_items = parent_item.dropMimeData(
             mime_data, action, 
-            parent.childs_row(None, parent.child(self, row)),
+            parent_item.childs_row(None, parent_item.child(self, row)),
             command_prefix = 'Drop')
         inserted_items = [item for item in new_items
-                          if item in item.parent.children[self]]
+                          if item in item.parent_item.children[self]]
         selection_model = self.view.selectionModel()
         selection_model.clear()
         for item in inserted_items:

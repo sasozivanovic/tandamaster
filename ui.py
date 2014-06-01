@@ -260,7 +260,7 @@ class TandaMasterWindow(QMainWindow):
     def playtree_move_down(self):
         ptv = app.focusWidget()
         if not isinstance(ptv, PlayTreeView): return
-        ptv.move_right()
+        ptv.move_down()
 
     def playtree_move_left(self):
         ptv = app.focusWidget()
@@ -482,9 +482,11 @@ class PlayTreeView(QTreeView):
                 if bottom != top + 1: 
                     return (False,)*4
         top_index = model.index(ranges[0][0], 0, parent_index)
-        can_move_up = not all(i==0 for i in model.index_to_path(top_index))
         bottom_index = model.index(ranges[-1][1], 0, parent_index)
-        can_move_down = model.index_to_path(bottom_index) != [model.rowCount(index)-1 for index in reversed(model.ancestors(bottom_index)[1:])]
+        grandparent_index = model.parent(parent_index)
+        grandparent_item = model.item(grandparent_index)
+        can_move_up = top_index.row() != 0 or (parent_index.isValid() and parent_index.row() != 0 and model.item(model.index(parent_index.row()-1,0,grandparent_index)).are_children_manually_set)
+        can_move_down = bottom_index.row() != model.rowCount(parent_index)-1 or (parent_index.isValid() and parent_index.row() != model.rowCount(grandparent_index)-1 and model.item(model.index(parent_index.row()+1,0,grandparent_index)).are_children_manually_set)
         can_move_left = parent_index.isValid()
         can_move_right = model.rowCount(parent_index) > ranges[-1][1]+1 and model.item(model.index(ranges[-1][1]+1, 0, parent_index)).are_children_manually_set
         return can_move_up, can_move_down, can_move_left, can_move_right
@@ -526,8 +528,8 @@ class PlayTreeView(QTreeView):
         parent_index = selected_indexes[0].parent()
         parent = model.item(parent_index)
         top = min(index.row() for index in selected_indexes)
+        current_item = model.item(self.currentIndex())
         if top == 0:
-            current_item = model.item(self.currentIndex())
             new_parent = parent.parent.child(model, parent.parent.childs_row(model, parent)-1)
             MovePlayTreeItemsCommand(selected_items, new_parent, None, command_prefix = 'Move', command_suffix = 'up')
             for item in selected_items:
@@ -540,13 +542,44 @@ class PlayTreeView(QTreeView):
             before_item = model.item(before_index) if before_index.isValid() else None
             MovePlayTreeItemsCommand(
                 [item], parent, before_item,
-                command_text = 'Move "{}" up'.format(
+                command_text = 'Move {} up'.format(
                     TMPlayTreeItemsCommand.describe_items(selected_items)))
             selection_model.selectionChanged.emit(QItemSelection(), QItemSelection())
-
+            selection_model.setCurrentIndex(
+                current_item.index(model), QItemSelectionModel.NoUpdate)
 
     def move_down(self):
-        pass
+        model = self.model()
+        selection_model = self.selectionModel()
+        selected_indexes = selection_model.selectedIndexes()
+        selected_items = [model.item(index) for index in selected_indexes]
+        parent_index = selected_indexes[0].parent()
+        parent = model.item(parent_index)
+        bottom = max(index.row() for index in selected_indexes)
+        current_item = model.item(self.currentIndex())
+        if bottom == model.rowCount(parent_index)-1:
+            new_parent = parent.parent.child(model, parent.parent.childs_row(model, parent)+1)
+            MovePlayTreeItemsCommand(
+                selected_items, 
+                new_parent, 
+                new_parent.child(model, 0) if new_parent.rowCount(model) else None, 
+                command_prefix = 'Move', command_suffix = 'down')
+            for item in selected_items:
+                selection_model.select(item.index(model),QItemSelectionModel.Select)
+            selection_model.setCurrentIndex(current_item.index(model), QItemSelectionModel.NoUpdate)
+        else:
+            item = parent.child(model, bottom+1)
+            before_index = model.index(
+                min(index.row() for index in selected_indexes), 0, parent_index)
+            before_item = model.item(before_index)
+            MovePlayTreeItemsCommand(
+                [item], parent, before_item,
+                command_text = 'Move {} down'.format(
+                    TMPlayTreeItemsCommand.describe_items(selected_items)))
+            selection_model.selectionChanged.emit(QItemSelection(), QItemSelection())
+            selection_model.setCurrentIndex(
+                current_item.index(model), QItemSelectionModel.NoUpdate)
+
 
     def move_left(self):
         pass

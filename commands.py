@@ -24,15 +24,17 @@ class TMPlayTreeItemsCommand(QUndoCommand):
 class InsertPlayTreeItemsCommand(TMPlayTreeItemsCommand):
     def __init__(self, items, items_parent, before_item, 
                  command_prefix = 'Insert', command_suffix = None, command_text = None, 
-                 command_parent = None, push = True):
+                 Id = -1, command_parent = None, push = True):
         super().__init__(items, 
                          command_prefix, command_suffix, command_text, command_parent)
+        self._id = Id
         self.items = items
         self.items_parent = items_parent
         self.before_item = before_item
         if push:
             undo_stack.push(self)
-
+    def id(self):
+        return self._id
     def redo(self):
         self.items_parent.insert(
             self.items, 
@@ -42,6 +44,12 @@ class InsertPlayTreeItemsCommand(TMPlayTreeItemsCommand):
 
     def undo(self):
         self.items_parent.delete(self.items)
+
+    def mergeWith(self, other):
+        if isinstance(other, EditPlayTreeNameCommand) and len(self.items) == 1 and self.items[0] == other.item:
+            self.setText(self.text().replace(other.old_name, other.new_name))
+            return True
+        return False
 
 class DeletePlayTreeItemsCommand(TMPlayTreeItemsCommand):
     def __init__(self, items, 
@@ -73,3 +81,29 @@ class MovePlayTreeItemsCommand(TMPlayTreeItemsCommand):
         if push:
             undo_stack.push(self)
     
+
+class EditPlayTreeNameCommand(QUndoCommand):
+    @classmethod
+    def id(self):
+        return 1
+    def __init__(self, item, new_name, command_text = None, command_parent = None, push = True):
+        command_text = 'Rename "{}" to "{}"'.format(item.name, new_name) \
+                       if command_text is None else command_text
+        super().__init__(command_text, command_parent)
+        self.item = item
+        self.old_name = item.name
+        self.new_name = new_name
+        if push:
+            undo_stack.push(self)
+    def redo(self):
+        self.do_rename(self.new_name)
+    def undo(self):
+        self.do_rename(self.old_name)
+    def do_rename(self, name):
+        self.item.name = name
+        for model in self.item.children.keys():
+            if model:
+                index = self.item.index(model, 0)
+                model.dataChanged.emit(index, index, [Qt.EditRole])
+        
+

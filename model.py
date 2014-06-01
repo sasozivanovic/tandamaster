@@ -148,7 +148,7 @@ class PlayTreeList(PlayTreeItem):
     def data(self, model, column_name, role):
         if column_name:
             return None
-        if role == Qt.DisplayRole:
+        if role in (Qt.DisplayRole, Qt.EditRole):
             return str(self)
 
     def populate(self, model, force = False):
@@ -236,11 +236,12 @@ class PlayTreeList(PlayTreeItem):
 
     def setData(self, column, value):
         if column == 0:
-            self.name = value
-            for model in self.children.keys():
-                if model:
-                    index = self.index(model, column)
-                    model.dataChanged.emit(index, index, [Qt.EditRole])
+            EditPlayTreeNameCommand(self, value)
+            #self.name = value
+            #for model in self.children.keys():
+            #    if model:
+            #        index = self.index(model, column)
+            #        model.dataChanged.emit(index, index, [Qt.EditRole])
             return True
         return False
 
@@ -293,7 +294,7 @@ class PlayTreeFile(PlayTreeItem):
         return os.path.basename(self.filename)
 
     def data(self, model, column_name, role):
-        if role == Qt.DisplayRole:
+        if role in (Qt.DisplayRole, Qt.EditRole):
             return self.get_tag(column_name) if column_name else str(self)
         elif not column_name and role == Qt.DecorationRole:
             #return tmSongIcon
@@ -342,7 +343,7 @@ class PlayTreeLibraryFile(PlayTreeFile):
         return os.path.basename(self.filename)
 
     def data(self, model, column_name, role):
-        if role == Qt.DisplayRole:
+        if role in (Qt.DisplayRole, Qt.EditRole):
             if column_name:
                 return self.get_tag(column_name)
             else:

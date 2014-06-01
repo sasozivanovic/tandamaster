@@ -369,6 +369,7 @@ class PlayTreeView(QTreeView):
         self.selectionModel().selectionChanged.connect(self.on_currentIndex_changed)
 
         self.setDragDropMode(QAbstractItemView.DragDrop)
+        self.setEditTriggers(QAbstractItemView.EditKeyPressed)
 
     def on_expanded(self, index):
         model = self.model()
@@ -456,10 +457,12 @@ class PlayTreeView(QTreeView):
         current_item = model.item(current_index)
         new_item = PlayTreeList(name)
         if current_index.isValid():
-            InsertPlayTreeItemsCommand([new_item], current_item.parent, current_item)
+            InsertPlayTreeItemsCommand([new_item], current_item.parent, current_item, Id = 1)
         else:
-            InsertPlayTreeItemsCommand([new_item], model.root_item, None)
-        self.setCurrentIndex(new_item.index(model))
+            InsertPlayTreeItemsCommand([new_item], model.root_item, None, Id = 1)
+        new_index = new_item.index(model)
+        self.setCurrentIndex(new_index)
+        self.edit(new_index)
 
     def can_cut(self):
         model = self.model()

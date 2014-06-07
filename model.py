@@ -852,6 +852,13 @@ class PlayTreeModel(QAbstractItemModel):
             )], 
             action)
 
+    def mimeTypes(self):
+        return [
+            'application/x-qabstractitemmodeldatalist',
+            'audio/x-mpegurl',
+            'text/uri-list',
+        ]
+
     def dropMimeData(self, mime_data, action, row, column, parent):
         parent_item = self.item(parent)
         new_items = parent_item.dropMimeData(

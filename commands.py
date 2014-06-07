@@ -38,7 +38,6 @@ class InsertPlayTreeItemsCommand(TMPlayTreeItemsCommand):
     def id(self):
         return self._id
     def redo(self):
-        #embed()
         self.items_parent.insert(
             self.items, 
             self.items_parent.childs_row(None, self.before_item)
@@ -60,7 +59,8 @@ class DeletePlayTreeItemsCommand(TMPlayTreeItemsCommand):
                  command_parent = None, push = True):
         super().__init__(items, 
                          command_prefix, command_suffix, command_text, command_parent)
-        self.items = sorted((item.parent, item.row(None), item) for item in items)
+        self.items = sorted(((item.parent, item.row(None), item) for item in items), 
+                            key = lambda triplet: triplet[2].path(None))
         if push:
             undo_stack.push(self)
 

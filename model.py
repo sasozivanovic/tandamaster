@@ -60,6 +60,12 @@ class PlayTreeItem:
     def index(self, model, column = 0):
         return QModelIndex() if self == model.root_item or self.parent is None else model.createIndex(self.row(model), column, self)
 
+    def path(self, model):
+        if self.parent:
+            return self.parent.path(model) + (self.parent.childs_row(model, self),)
+        else:
+            return tuple()
+
     @property
     def isPlayable(self):
         return False
@@ -173,7 +179,7 @@ class PlayTreeList(PlayTreeItem):
 
     def insert(self, new_items, row):
         children = self.children[None]
-        if row == -1: 
+        if row is None:
             row = len(children)
         for model in self.children.keys():
             if model:
@@ -227,13 +233,23 @@ class PlayTreeList(PlayTreeItem):
             ]
         if new_items:
             if action == Qt.MoveAction:
-                print('move command')
+                if row == -1:
+                    before_item = None
+                else:
+                    before_item = self.child(None, row)
+                    n = self.rowCount(None)
+                    while before_item in new_items:
+                        row += 1
+                        if row < n:
+                            before_item = self.child(None, row)
+                        else:
+                            before_item = None
+                            break
                 MovePlayTreeItemsCommand(
-                    new_items, self, self.child(None, row) if row is not None else None)
+                    new_items, self, before_item)
             else:
-                print('insert command')
                 InsertPlayTreeItemsCommand(
-                    new_items, self, self.child(None, row) if row is not None else None, 
+                    new_items, self, None if row == -1 else self.child(None, row), 
                     command_prefix = 'Drop')
         return new_items
         
@@ -840,8 +856,8 @@ class PlayTreeModel(QAbstractItemModel):
         parent_item = self.item(parent)
         new_items = parent_item.dropMimeData(
             mime_data, action, 
-            parent_item.childs_row(None, parent_item.child(self, row))
-            if row < parent_item.rowCount(self) else None,
+            -1 if (row == -1 or row >= parent_item.rowCount(self)) else
+            parent_item.childs_row(None, parent_item.child(self, row)),
             command_prefix = 'Drop')
         inserted_items = [item for item in new_items
                           if item in item.parent.children[self]]

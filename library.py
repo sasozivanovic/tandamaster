@@ -25,6 +25,7 @@ class BgQueries(list):
     
 class Library(QObject):
     _cache = {}
+    musicfile_extensions = ['.mp3', '.wav', '.ogg']
 
     def __init__(self, filename = 'tandamaster.db', connect = True):
         super().__init__()
@@ -354,6 +355,9 @@ class FileReader(QObject):
                         
     def register_file(self, filename, file_item):
         self.playtreefiles[filename].add(file_item)
+
+    def have_tags(self, filename):
+        return filename in self.tags
 
     def get_tags(self, filename):
         return self.tags[filename] if filename in self.tags else collections.defaultdict(lambda: '')

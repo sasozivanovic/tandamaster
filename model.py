@@ -206,7 +206,7 @@ class PlayTreeList(PlayTreeItem):
         for item in items:
             item.parent = None
             
-    def dropMimeData(self, mime_data, action, row, column, command_prefix = 'Drop'):
+    def dropMimeData(self, mime_data, action, row, command_prefix = 'Drop'):
         new_items = None
         if isinstance(mime_data, PlayTreeMimeData):
             source_items = mime_data.items
@@ -311,10 +311,9 @@ class PlayTreeFile(PlayTreeItem):
         return True
 
     def filter(self, model):
-        tags = self.get_tags()
-        if tags == {}:
+        if not file_reader.have_tags(self.filename):
             return True
-        for value in tags.values():
+        for value in self.get_tags.values():
             if model.filter_string in value.lower():
                 return True
 
@@ -456,11 +455,12 @@ class PlayTreeFolder(PlayTreeItem):
                 PlayTreeFolder(filename=fullfn, parent = self) for fn,fullfn in folders
             ]
             for fn,fullfn in files:
-                if not file_reader.not_an_audio_file(fullfn):
+                if os.path.splitext(fn)[1] in Library.musicfile_extensions and \
+                   not file_reader.not_an_audio_file(fullfn):
                     self.children[None].append(
                         PlayTreeFile(filename=fullfn, parent = self))
         if self.children[model] is None:
-            #self.children[model] = [child for child in self.children[None]if child.filter(model) ]
+            self.children[model] = [child for child in self.children[None] if child.filter(model) ]
             self.children[model] = self.children[None]
 
     def filter(self, model):
@@ -823,7 +823,12 @@ class PlayTreeModel(QAbstractItemModel):
         return Qt.CopyAction | Qt.MoveAction
 
     def mimeData(self, indexes, action = 'copy'):
-        return PlayTreeMimeData(self, [self.item(index) for index in indexes], action)
+        return PlayTreeMimeData(
+            self, 
+            [self.item(index) for index in set(
+                index.sibling(index.row(), 0) for index in indexes
+            )], 
+            action)
 
     def dropMimeData(self, mime_data, action, row, column, parent):
         parent_item = self.item(parent)
@@ -832,11 +837,11 @@ class PlayTreeModel(QAbstractItemModel):
             parent_item.childs_row(None, parent_item.child(self, row)),
             command_prefix = 'Drop')
         inserted_items = [item for item in new_items
-                          if item in item.parent_item.children[self]]
+                          if item in item.parent.children[self]]
         selection_model = self.view.selectionModel()
         selection_model.clear()
         for item in inserted_items:
-            selection_model.select(item.index(self),QItemSelectionModel.Select)
+            selection_model.select(item.index(self),QItemSelectionModel.Select|QItemSelectionModel.Rows)
         selection_model.setCurrentIndex(inserted_items[0].index(self), QItemSelectionModel.NoUpdate)
         return bool(inserted_items)
 
@@ -844,7 +849,7 @@ class PlayTreeModel(QAbstractItemModel):
         if role == Qt.EditRole:
             return self.item(index).setData(index.column(), value)
         return False
-
+        
 from app import app
 def save_playtree():
     playtree.save(playtree_xml_filename)

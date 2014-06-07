@@ -212,8 +212,6 @@ class PlayTreeList(PlayTreeItem):
             source_items = mime_data.items
             if action == Qt.MoveAction:
                 new_items = source_items
-                for item in source_items:
-                    item.parent.delete([item])
             else:
                 new_items = [item.copy() for item in source_items]
         elif mime_data.hasFormat('audio/x-mpegurl'):
@@ -228,7 +226,15 @@ class PlayTreeList(PlayTreeItem):
                 if url.isLocalFile()
             ]
         if new_items:
-            InsertPlayTreeItemsCommand(new_items, self, self.child(None, row), command_prefix = 'Drop')
+            if action == Qt.MoveAction:
+                print('move command')
+                MovePlayTreeItemsCommand(
+                    new_items, self, self.child(None, row) if row is not None else None)
+            else:
+                print('insert command')
+                InsertPlayTreeItemsCommand(
+                    new_items, self, self.child(None, row) if row is not None else None, 
+                    command_prefix = 'Drop')
         return new_items
         
     def flags(self, column = ''):
@@ -313,7 +319,7 @@ class PlayTreeFile(PlayTreeItem):
     def filter(self, model):
         if not file_reader.have_tags(self.filename):
             return True
-        for value in self.get_tags.values():
+        for value in self.get_tags().values():
             if model.filter_string in value.lower():
                 return True
 
@@ -834,7 +840,8 @@ class PlayTreeModel(QAbstractItemModel):
         parent_item = self.item(parent)
         new_items = parent_item.dropMimeData(
             mime_data, action, 
-            parent_item.childs_row(None, parent_item.child(self, row)),
+            parent_item.childs_row(None, parent_item.child(self, row))
+            if row < parent_item.rowCount(self) else None,
             command_prefix = 'Drop')
         inserted_items = [item for item in new_items
                           if item in item.parent.children[self]]

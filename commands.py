@@ -1,3 +1,5 @@
+from PyQt5.QtCore import pyqtRemoveInputHook; from IPython import embed; pyqtRemoveInputHook()
+
 from PyQt5.Qt import *   # todo: import only what you need
 from app import *
 undo_stack = QUndoStack(app)
@@ -36,6 +38,7 @@ class InsertPlayTreeItemsCommand(TMPlayTreeItemsCommand):
     def id(self):
         return self._id
     def redo(self):
+        #embed()
         self.items_parent.insert(
             self.items, 
             self.items_parent.childs_row(None, self.before_item)

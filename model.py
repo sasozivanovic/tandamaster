@@ -96,6 +96,9 @@ class PlayTreeItem:
     def flags(self, column = ''):
         return Qt.ItemIsSelectable | Qt.ItemIsDragEnabled | Qt.ItemIsEnabled
 
+    duration_mode_all = 0
+    duration_mode_cortinas = 1
+
 @register_xml_tag_handler('list')
 class PlayTreeList(PlayTreeItem):
 
@@ -267,6 +270,9 @@ class PlayTreeList(PlayTreeItem):
             return True
         return False
 
+    def duration(self, model, mode = PlayTreeItem.duration_mode_all):
+        return sum(child.duration(model, mode) for child in self.children[model])
+
 @register_xml_tag_handler('file')
 class PlayTreeFile(PlayTreeItem):
     isTerminal = True
@@ -319,11 +325,22 @@ class PlayTreeFile(PlayTreeItem):
 
     def data(self, model, column_name, role):
         if role in (Qt.DisplayRole, Qt.EditRole):
-            return self.get_tag(column_name) if column_name else str(self)
+            if column_name == '_length':
+                return hmsms_to_text(*ms_to_hmsms(1000*self.duration()), include_ms=False)
+            elif column_name:
+                return self.get_tag(column_name)
+            else:
+                return str(self)
         elif not column_name and role == Qt.DecorationRole:
             #return tmSongIcon
             #return QIcon('crazyeye_dance.png')
-            return QIcon('song.png')
+            if self.function() == 'kortina':
+                return QIcon('icons/iconfinder/farm-fresh/curtain.png')
+            else:
+                return QIcon('icons/happy-dance.gif')
+
+    def function(self):
+        return 'tanda' if '/tango/' in self.filename else 'cortina'
 
     def childs_row(self, model, child):
         raise RuntimeError
@@ -363,7 +380,15 @@ class PlayTreeFile(PlayTreeItem):
                         Qt.ToolTipRole, Qt.StatusTipRole, 
                         Qt.WhatsThisRole, Qt.SizeHintRole]
                     )
-        
+
+    cortina_duration = 30
+    def duration(self, model = None, mode = PlayTreeItem.duration_mode_all):
+        if mode & self.duration_mode_cortinas and self.function() == 'cortina':
+            return self.cortina_duration
+        try:
+            return int(self.get_tag('_length'))
+        except:
+            return 0
 
 class PlayTreeLibraryFile(PlayTreeFile):
     
@@ -397,14 +422,12 @@ class PlayTreeLibraryFile(PlayTreeFile):
     def data(self, model, column_name, role):
         if role in (Qt.DisplayRole, Qt.EditRole):
             if column_name:
-                return self.get_tag(column_name)
+                return super().data(model, column_name, role)
             else:
                 title = self.get_tag('TITLE')
                 return title if title else str(self)
-        elif not column_name and role == Qt.DecorationRole:
-            #return tmSongIcon
-            #return QIcon('crazyeye_dance.png')
-            return QIcon('song.png')
+        else:
+            return super().data(model, column_name, role)
 
 @register_xml_tag_handler('folder')
 class PlayTreeFolder(PlayTreeItem):
@@ -499,6 +522,10 @@ class PlayTreeFolder(PlayTreeItem):
                 if isinstance(child, PlayTreeFolder) and model in child.children and child.children[model] is not None and child.rowCount(model) == 1:
                     model.view.setExpanded(child.index(model), True)
                     child.expand_small_children(model)
+
+    def duration(self, model, mode = PlayTreeItem.duration_mode_all):
+        return sum(child.duration(model, mode) for child in self.children[model]) \
+            if model in self.children else 0
         
 
 @register_xml_tag_handler('browse')
@@ -647,6 +674,10 @@ class PlayTreeBrowse(PlayTreeItem):
                 queries.model.view.setExpanded(query.browse.index(queries.model), True)
                 query.browse.expand_small_children(queries.model)
         
+    def duration(self, model, mode = PlayTreeItem.duration_mode_all):
+        return sum(child.duration(model, mode) for child in self.children[model]) \
+            if model in self.children else 0
+
 
 @register_xml_tag_handler('link')
 class PlayTreeLink(PlayTreeItem):
@@ -678,7 +709,7 @@ class PlayTreeModel(QAbstractItemModel):
         return index.internalPointer() if index.isValid() else self.root_item
 
     # column "" provides browsing info (folder name, file name, ...)
-    _columns = ('', 'ARTIST', 'ALBUM', 'TITLE')
+    _columns = ('', 'ARTIST', 'ALBUM', 'TITLE', '_length')
     #_columns = ('',)
 
     def index(self, row, column, parent):
@@ -712,7 +743,7 @@ class PlayTreeModel(QAbstractItemModel):
     currentindexroles = (Qt.ForegroundRole, Qt.FontRole)
     def data(self, index, role = Qt.DisplayRole):
         if role in self.currentindexroles:
-            if index == self.view.player.current_index:
+            if self.item(index) == self.view.player.current_item:
                 if role == Qt.ForegroundRole:
                     #return QBrush(QColor(Qt.red))
                     return QBrush(QColor(Qt.darkGreen))

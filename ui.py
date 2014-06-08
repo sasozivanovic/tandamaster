@@ -3,7 +3,7 @@ from PyQt5.QtCore import pyqtRemoveInputHook; from IPython import embed; pyqtRem
 from PyQt5.Qt import *   # todo: import only what you need
 
 from player import TandaMasterPlayer
-from model import PlayTreeModel, PlayTreeList, PlayTreeMimeData, save_playtree
+from model import *
 from library import Library
 from util import *
 from app import *
@@ -197,6 +197,8 @@ class TandaMasterWindow(QMainWindow):
         toolbar.addAction(self.action_move_right)
         
         self.addToolBar(toolbar)        
+
+        self.setStatusBar(QStatusBar())
 
         self.player.currentMediaChanged.connect(self.update_song_info)
         self.player.stateChanged.connect(self.on_player_state_changed)
@@ -531,6 +533,18 @@ class PlayTreeView(QTreeView):
         self.window().action_move_right.setEnabled(can_move_right)
         self.window().action_move_home.setEnabled(can_move_home)
         self.window().action_move_end.setEnabled(can_move_end)
+        duration = {}
+        for mode in (PlayTreeItem.duration_mode_all, PlayTreeItem.duration_mode_cortinas):
+            duration[mode] = sum(
+                    self.model().item(index).duration(self.model(), mode)
+                    for index in self.selectionModel().selectedRows()
+                ) if self.selectionModel().hasSelection() \
+                else 1000*self.model().root_item.duration(self.model(), mode)
+        self.window().statusBar().showMessage(
+            'Duration: {} ({} for {}s cortinas)'.format(
+                hmsms_to_text(*ms_to_hmsms(1000*duration[PlayTreeItem.duration_mode_all]),include_ms=False),
+                hmsms_to_text(*ms_to_hmsms(1000*duration[PlayTreeItem.duration_mode_cortinas]),include_ms=False),
+                PlayTreeFile.cortina_duration))
 
     def on_currentIndex_changed(self):
         self.window().action_paste.setEnabled(self.can_paste())
@@ -764,16 +778,3 @@ class TMProgressBar_Interaction(QObject):
         elif event.type() == QEvent.MouseButtonRelease and event.button() == Qt.LeftButton:
             obj.in_seek = False
         return False
-
-def ms_to_hmsms(t):
-    t, ms = divmod(t, 1000)
-    t, s = divmod(t, 60)
-    h, m = divmod(t, 60)
-    return h, m, s, ms
-
-def hmsms_to_text(h,m,s,ms,include_ms=True):
-    return str(h) + ":" if h else '' + \
-        ('{:02d}:{:02d}' if h else '{:2d}:{:02d}').format(m, s) + \
-        (':' + ms if include_ms else '')
-
-

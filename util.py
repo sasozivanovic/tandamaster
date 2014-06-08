@@ -38,3 +38,17 @@ def common_suffix_length(list1, list2):
     while i<l1 and i<l2 and list1[l1-i-1] == list2[l2-i-1]:
         i+=1
     return i
+
+
+def ms_to_hmsms(t):
+    t, ms = divmod(t, 1000)
+    t, s = divmod(t, 60)
+    h, m = divmod(t, 60)
+    return h, m, s, ms
+
+def hmsms_to_text(h,m,s,ms,include_ms=True):
+    return str(h) + ":" if h else '' + \
+        ('{:02d}:{:02d}' if h else '{:2d}:{:02d}').format(m, s) + \
+        (':' + str(ms) if include_ms else '')
+
+

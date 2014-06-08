@@ -112,7 +112,13 @@ class Library(QObject):
                         'INSERT INTO tags_{name} (id, tag, value) VALUES (?,?,?)'
                         .format(name = name),
                         ( (song_id, tag, value) 
-                          for tag, values in audiofile.tags.items() 
+                          for tag, values in itertools.chain(
+                                  audiofile.tags.items(), iter((
+                                      ('_length', (audiofile.length,)),
+                                      ('_bitrate', (audiofile.bitrate,)),
+                                      ('_sample_rate', (audiofile.sampleRate,)),
+                                      ('_channels', (audiofile.channels,)),
+                                  )))
                           for value in values )
                     )
                     self.connection.commit()
@@ -122,6 +128,10 @@ class Library(QObject):
             try:
                 audiofile = taglib.File(filename)
                 tags = audiofile.tags
+                tags['_length'] = audiofile.length
+                tags['_bitrate'] = audiofile.bitrate
+                tags['_sample_rate'] = audiofile.sampleRate
+                tags['_channels'] = audiofile.channels
                 self._cache[filename] = _strip(tags)
             except OSError:
                 self._cache[filename] = None
@@ -312,6 +322,10 @@ class FileReaderWorker(QObject):
         try:
             audiofile = taglib.File(fileinfo.filename)
             fileinfo.tags = audiofile.tags
+            fileinfo.tags['_length'] = audiofile.length
+            fileinfo.tags['_bitrate'] = audiofile.bitrate
+            fileinfo.tags['_sample_rate'] = audiofile.sampleRate
+            fileinfo.tags['_channels'] = audiofile.channels
         except:
             fileinfo.tags = None
         self.file_reading_done.emit(fileinfo)

@@ -21,7 +21,7 @@ class TandaMasterWindow(QMainWindow):
         #self.player2 = TandaMasterPlayer() # pre-listening
 
         splitter = QSplitter()
-        #splitter.addWidget(PlayTreeWidget(None, self.player))
+        splitter.addWidget(PlayTreeWidget(None, self.player))
         splitter.addWidget(PlayTreeWidget(None, self.player))
         self.setCentralWidget(splitter)
 
@@ -44,13 +44,13 @@ class TandaMasterWindow(QMainWindow):
         menubar.addMenu(self.musicmenu)
 
         self.playbackmenu = QMenu(self.tr('&Playback'))
-        action_back = QAction(
+        self.action_back = QAction(
             #self.style().standardIcon(QStyle.SP_MediaSkipBackward), 
             #MyIcon('Tango', 'actions', 'media-skip-backward'),
             QIcon('button_rewind_green.png'),
             #QIcon('icons/iconfinder/32pxmania/previous.png'),
             self.tr('P&revious'), self, triggered = self.player.play_previous)
-        self.playbackmenu.addAction(action_back)        
+        self.playbackmenu.addAction(self.action_back)        
         self.action_play = QAction(
             #self.style().standardIcon(QStyle.SP_MediaPlay), 
             #MyIcon('Tango', 'actions', 'media-playback-start'),
@@ -77,13 +77,19 @@ class TandaMasterWindow(QMainWindow):
             #QIcon('icons/iconfinder/32pxmania/stop.png'),
             self.tr('&Stop'), self, triggered = self.player.stop)
         self.playbackmenu.addAction(self.action_stop)        
-        action_forward = QAction(
+        self.action_forward = QAction(
             #self.style().standardIcon(QStyle.SP_MediaSkipForward), 
             #MyIcon('Tango', 'actions', 'media-skip-forward'),
             QIcon('button_fastforward_green.png'),
             #QIcon('icons/iconfinder/32pxmania/next.png'),
             self.tr('&Next'), self, triggered = self.player.play_next)
-        self.playbackmenu.addAction(action_forward)        
+        self.playbackmenu.addAction(self.action_forward)
+        self.playbackmenu.addSeparator()
+        self.action_lock = QAction(
+            QIcon('icons/iconfinder/iconza/unlocked.png'),
+            self.tr('Un&locked'), self, toggled = self.lock)
+        self.action_lock.setCheckable(True)
+        self.playbackmenu.addAction(self.action_lock)
         menubar.addMenu(self.playbackmenu)
 
         self.playtreemenu = QMenu(self.tr('Play&tree'))
@@ -168,11 +174,13 @@ class TandaMasterWindow(QMainWindow):
         toolbar.setAllowedAreas(Qt.TopToolBarArea | Qt.BottomToolBarArea)
         toolbar.setFloatable(False)
         #toolbar.setIconSize(2*toolbar.iconSize())
-        toolbar.addAction(action_back)
+        toolbar.addAction(self.action_back)
         toolbar.addAction(self.action_play)
         toolbar.addAction(self.action_pause)
         toolbar.addAction(self.action_stop)
-        toolbar.addAction(action_forward)
+        toolbar.addAction(self.action_forward)
+        toolbar.addSeparator()
+        toolbar.addAction(self.action_lock)
         self.song_info = QLabel()
         self.song_info.setContentsMargins(8,0,0,0)
         toolbar.addWidget(QWidget())
@@ -201,6 +209,7 @@ class TandaMasterWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
 
         self.player.currentMediaChanged.connect(self.update_song_info)
+        self.player.currentMediaChanged.connect(lambda: self.lock_action_forward())
         self.player.stateChanged.connect(self.on_player_state_changed)
         self.on_player_state_changed(QMediaPlayer.StoppedState)
         QApplication.clipboard().changed.connect(self.on_clipboard_data_changed)
@@ -225,11 +234,11 @@ class TandaMasterWindow(QMainWindow):
         if state == QMediaPlayer.PlayingState:
             self.action_play.setVisible(False)
             self.action_pause.setVisible(True)
-            self.action_stop.setEnabled(True)
+            self.action_stop.setEnabled(not self.action_lock.isChecked())
         else:
             self.action_play.setVisible(True)
             self.action_pause.setVisible(False)
-            self.action_stop.setEnabled(state != QMediaPlayer.StoppedState)
+            self.action_stop.setEnabled(state != QMediaPlayer.StoppedState and not self.action_lock.isChecked())
                 
     def update_library(self):
         Library('tango').refresh(['/home/saso/tango'])
@@ -295,6 +304,26 @@ class TandaMasterWindow(QMainWindow):
         if not isinstance(ptv, PlayTreeView): return
         ptv.move_end()
 
+    def lock(self, locked):
+        if locked:
+            self.action_lock.setIcon(QIcon('icons/iconfinder/iconza/locked.png'))
+            self.action_lock.setText(app.tr('&Locked'))
+            self.action_play.setEnabled(locked)
+        else:
+            self.action_lock.setIcon(QIcon('icons/iconfinder/iconza/unlocked.png'))
+            self.action_lock.setText(app.tr('Un&locked'))
+        self.action_back.setEnabled(not locked)
+        self.action_play.setEnabled(not locked)
+        self.action_pause.setEnabled(not locked)
+        self.action_stop.setEnabled(not locked)
+        self.lock_action_forward(locked)
+
+    def lock_action_forward(self, locked = None):
+        if locked is None:
+            locked = self.action_lock.isChecked()
+        self.action_forward.setEnabled(not locked or self.player.current_item.function() == 'cortina')
+
+
 class PlayTreeWidget(QWidget):
 
     def __init__(self, root_id, player, parent = None):
@@ -353,7 +382,7 @@ class PlayTreeView(QTreeView):
         model.view = self
 
         self.player = player
-        self.activated.connect(player.play_index)
+        self.activated.connect(self.on_activated)
 
         self.setExpandsOnDoubleClick(False)
         self.expanded.connect(self.on_expanded)
@@ -402,6 +431,18 @@ class PlayTreeView(QTreeView):
                     self.expand(index)
                     self._autoexpanded = index
                     index = model.parent(index)
+
+    def on_activated(self, index):
+        if self.player.current_model == self.model():
+            if not self.window().action_lock.isChecked():
+                self.player.play_index(index)
+        else:
+            destination = self.other().model().root_item
+            if destination.are_children_manually_set:
+                InsertPlayTreeItemsCommand(
+                    [self.model().item(self.currentIndex())],
+                    destination,
+                    None)
 
     def autosize_columns(self):
         return
@@ -773,8 +814,12 @@ class TMProgressBar_Interaction(QObject):
                                                 include_ms = False),
                                   obj, QRect())
         elif event.type() == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
+            if obj.window().action_lock.isChecked():
+                return False
             obj.in_seek = True
             obj.player.setPosition(obj.maximum() * event.x() / obj.width())
         elif event.type() == QEvent.MouseButtonRelease and event.button() == Qt.LeftButton:
+            if obj.window().action_lock.isChecked():
+                return False
             obj.in_seek = False
         return False

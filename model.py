@@ -99,6 +99,9 @@ class PlayTreeItem:
     duration_mode_all = 0
     duration_mode_cortinas = 1
 
+    def function(self):
+        return None
+
 @register_xml_tag_handler('list')
 class PlayTreeList(PlayTreeItem):
 
@@ -743,7 +746,7 @@ class PlayTreeModel(QAbstractItemModel):
     currentindexroles = (Qt.ForegroundRole, Qt.FontRole)
     def data(self, index, role = Qt.DisplayRole):
         if role in self.currentindexroles:
-            if self.item(index) == self.view.player.current_item:
+            if self.view.player.current_model == self and self.item(index) == self.view.player.current_item:
                 if role == Qt.ForegroundRole:
                     #return QBrush(QColor(Qt.red))
                     return QBrush(QColor(Qt.darkGreen))

@@ -20,10 +20,13 @@ class TandaMasterWindow(QMainWindow):
         self.player = TandaMasterPlayer()
         #self.player2 = TandaMasterPlayer() # pre-listening
 
-        splitter = QSplitter()
-        splitter.addWidget(PlayTreeWidget(None, self.player))
-        splitter.addWidget(PlayTreeWidget(None, self.player))
-        self.setCentralWidget(splitter)
+        #splitter = QSplitter()
+        #splitter.addWidget(PlayTreeWidget(None, self.player))
+        #splitter.addWidget(PlayTreeWidget(None, self.player))
+        #self.setCentralWidget(splitter)
+        self.setCentralWidget(TMWidget.create_from_xml(etree.parse('central_widget.xml').getroot()))
+        for ptv in self.centralWidget().findChildren(PlayTreeWidget):
+            ptv.set_player(self.player)
 
         menubar = QMenuBar()
 
@@ -324,21 +327,64 @@ class TandaMasterWindow(QMainWindow):
         self.action_forward.setEnabled(not locked or self.player.current_item.function() == 'cortina')
 
 
-class PlayTreeWidget(QWidget):
 
-    def __init__(self, root_id, player, parent = None):
+class TMWidget:
+    xml_tag_registry = {}
+
+    @classmethod
+    def register_xml_tag_handler(cls, tag):
+        def f(subcls):
+            cls.xml_tag_registry[tag] = subcls
+            cls.xml_tag = tag
+            return subcls
+        return f
+
+    @classmethod
+    def create_from_xml(cls, element, parent = None):
+        return cls.xml_tag_registry[element.tag]._create_from_xml(element, parent)
+
+    def to_xml(self):
+        return etree.Element(self.xml_tag)
+
+@TMWidget.register_xml_tag_handler('splitter')
+class TMSplitter(QSplitter, TMWidget):
+    @classmethod
+    def _create_from_xml(cls, element, parent):
+        splitter = cls(parent = parent)
+        for subelement in element:
+            splitter.addWidget(cls.create_from_xml(subelement, splitter))
+        return splitter
+
+    def to_xml(self):
+        element = super().to_xml()
+        for child in self.children():
+            element.append(child.to_xml())
+
+@TMWidget.register_xml_tag_handler('playtree')
+class PlayTreeWidget(QWidget, TMWidget):
+
+    @classmethod
+    def _create_from_xml(cls, element, parent):
+        ptv = cls(element.get('id'), parent)
+        return ptv
+
+    def to_xml(self):
+        element = super().to_xml()
+        element.set('id', self.ptv.model().root_item.Id)
+
+    def __init__(self, root_id, parent = None):
         super().__init__(parent)
 
-        current_model_button = QToolButton()
+        self.current_model_button = QToolButton()
         #current_model_button.setIcon(self.style().standardIcon(QStyle.SP_DialogApplyButton))
         #current_model_button.setIcon(QIcon('circle_green.png'))
-        current_model_button.setIcon(QIcon('icons/iconfinder/32pxmania/current_playtree.png')),
-        current_model_button.setCheckable(True)
+        self.current_model_button.setIcon(QIcon('icons/iconfinder/32pxmania/current_playtree.png')),
+        self.current_model_button.setCheckable(True)
         self.search = QLineEdit()
-        self.ptv = PlayTreeView(root_id, player, self)
+        self.ptv = PlayTreeView(root_id, self)
 
         controls = QToolBar()
-        controls.addWidget(current_model_button)
+        controls.addWidget(self.current_model_button)
         controls.addWidget(self.search)
 
         widget_layout = QVBoxLayout()
@@ -347,12 +393,6 @@ class PlayTreeWidget(QWidget):
         widget_layout.addWidget(self.ptv)
 
         self.search.textChanged.connect(lambda: QTimer.singleShot(50, self.refilter))
-        current_model_button.toggled.connect(
-            lambda checked: player.set_current(model = self.ptv.model()) if checked else None)
-        player.current_changed.connect(
-            lambda old_model, old_index, model, index: current_model_button.setChecked(
-                self.ptv.model() == model))
-        current_model_button.setChecked(self.ptv.model() == player.current_model)
 
         self.addAction(QAction(
             self, 
@@ -368,31 +408,43 @@ class PlayTreeWidget(QWidget):
             shortcutContext = Qt.WidgetWithChildrenShortcut,
             triggered = self.search.clear))
 
+    def set_player(self, player):
+        if self.ptv.player:
+            for connection in self.player_connections:
+                self.disconnect(connection)
+        self.player_connections = []
+        self.ptv.set_player(player)
+        self.player_connections.append(
+            self.current_model_button.toggled.connect(
+                lambda checked: player.set_current(
+                    model = self.ptv.model()) if checked else None))
+        self.player_connections.append(
+            player.current_changed.connect(
+            lambda old_model, old_index, model, index: 
+                self.current_model_button.setChecked(
+                self.ptv.model() == model)))
+        self.player_connections.append(
+            self.current_model_button.setChecked(self.ptv.model() == player.current_model))
+
     def refilter(self):
         self.ptv.model().refilter(self.search.text())
         
 class PlayTreeView(QTreeView):
 
-    def __init__(self, root_id, player, parent = None):
+    def __init__(self, root_id, parent = None):
         super().__init__(parent)
         self.setUniformRowHeights(True)
 
         model = PlayTreeModel(root_id, self)
         self.setModel(model)
         model.view = self
-
-        self.player = player
-        self.activated.connect(self.on_activated)
+        self.player = None
 
         self.setExpandsOnDoubleClick(False)
         self.expanded.connect(self.on_expanded)
         self.collapsed.connect(self.on_collapsed)
         self._autoexpanded = None
         self._autoexpand_on = True
-        player.current_changed.connect(self.on_current_changed)
-        if not self.player.current_model:
-            self.player.set_current(model = self.model())
-        model.modelReset.connect(self.on_end_reset_model)
 
         self.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
@@ -401,6 +453,21 @@ class PlayTreeView(QTreeView):
 
         self.setDragDropMode(QAbstractItemView.DragDrop)
         self.setEditTriggers(QAbstractItemView.EditKeyPressed)
+
+    def set_player(self, player):
+        if self.player:
+            for connection in self.player_connections:
+                self.disconnect(connection)
+        self.player = player
+        self.player_connections = []
+        self.player_connections.append(           
+            self.activated.connect(self.on_activated))
+        self.player_connections.append(
+            player.current_changed.connect(self.on_current_changed))
+        if not self.player.current_model:
+            self.player.set_current(model = self.model())
+        self.player_connections.append(
+            self.model().modelReset.connect(self.on_end_reset_model))
 
     def on_expanded(self, index):
         model = self.model()
@@ -440,7 +507,7 @@ class PlayTreeView(QTreeView):
             destination = self.other().model().root_item
             if destination.are_children_manually_set:
                 InsertPlayTreeItemsCommand(
-                    [self.model().item(self.currentIndex())],
+                    [self.model().item(self.currentIndex()).copy()],
                     destination,
                     None)
 

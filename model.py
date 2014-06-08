@@ -25,13 +25,14 @@ def _timestamp(sep = ' '):
 
 class PlayTreeItem:
 
+    max_id = 0
     xml_tag_registry = {}
     @classmethod
     def create_from_xml(cls, element, parent = None):
         return cls.xml_tag_registry[element.tag]._create_from_xml(element, parent)
 
     def to_xml(self):
-        return etree.Element(self.xml_tag)
+        return etree.Element(self.xml_tag, id = str(self.Id))
 
     def save(self, filename):
         document = etree.ElementTree(self.to_xml())
@@ -46,8 +47,13 @@ class PlayTreeItem:
                     pass
                 os.rename(filename + '.tmp', filename)
 
-    def __init__(self, parent = None):
+    def __init__(self, Id = None, parent = None):
         super().__init__()
+        if Id is None:
+            self.Id = None
+        else:
+            self.Id = int(Id)
+            self.__class__.max_id = max(self.max_id, self.Id)
         self.parent = parent
         self.expanded = {}
 
@@ -116,16 +122,13 @@ class PlayTreeList(PlayTreeItem):
         element = super().to_xml()
         if self.name is not None:
             element.set('name', self.name)
-        if self.Id is not None:
-            element.set('id', self.Id)
         for child in self.children[None]:
             element.append(child.to_xml())
         return element
 
     def __init__(self, name, Id = None, parent = None, *iterable):
-        super().__init__(parent)
+        super().__init__(Id, parent)
         self.name = name
-        self.Id = None if Id is None else int(Id)
         self.children = {None: list(*iterable)}
         
     def copy(self):
@@ -181,6 +184,7 @@ class PlayTreeList(PlayTreeItem):
             if condition_yield(item):
                 yield item
             if condition_propagate(item):
+                item.populate(model)
                 items.extend(item.children[model])
 
     def insert(self, new_items, row):
@@ -289,15 +293,16 @@ class PlayTreeFile(PlayTreeItem):
     def _create_from_xml(cls, element, parent):
         return PlayTreeLibraryFile(
             library_name = element.get('library'),
+            song_id = element.get('song_id'),
             Id = element.get('id'),
             parent = parent
-        ) if element.get('id') else PlayTreeFile(
+        ) if element.get('song_id') else PlayTreeFile(
             filename = element.get('filename'),
             parent = parent
         )
 
-    def __init__(self, filename, parent = None):
-        super().__init__(parent)
+    def __init__(self, filename, Id = None, parent = None):
+        super().__init__(Id, parent)
         self.filename = filename
         file_reader.register_file(filename, self)
         file_reader.bg_get_fileinfo(FileInfo(filename, FileInfo.reason_NewPlayTreeFile))
@@ -398,26 +403,26 @@ class PlayTreeLibraryFile(PlayTreeFile):
     def to_xml(self):
         element = super().to_xml()
         element.set('library', self.library)
-        element.set('id', str(self.Id))
+        element.set('song_id', self.song_id)
         return element
 
-    def __init__(self, library_name, Id, parent = None):
-        super(PlayTreeFile, self).__init__(parent)
+    def __init__(self, library_name, song_id, Id = None, parent = None):
+        super(PlayTreeFile, self).__init__(Id, parent)
         self.library = library_name
-        self.Id = Id
-        self.filename = library.filename_by_id(self.library, self.Id)
+        self.song_id = song_id
+        self.filename = library.filename_by_id(self.library, song_id)
 
     def copy(self):
-        return PlayTreeLibraryFile(self.library, self.Id)
+        return PlayTreeLibraryFile(self.library, self.song_id)
 
     def get_tag(self, tag):
-        return library.tag_by_id(self.library, tag, self.Id)
+        return library.tag_by_id(self.library, tag, self.song_id)
 
     def get_tags(self):
-        return library.tags_by_id(self.library, self.Id)
+        return library.tags_by_id(self.library, self.song_id)
         
     def __repr__(self):
-        return '{}({},{},{})'.format(type(self).__name__, self.library, self.Id, self.filename)
+        return '{}({},{},{})'.format(type(self).__name__, self.library, self.song_id, self.filename)
 
     def __str__(self):
         return os.path.basename(self.filename)
@@ -444,8 +449,8 @@ class PlayTreeFolder(PlayTreeItem):
     def _create_from_xml(cls, element, parent):
         return cls(filename = element.get('filename'), parent = parent)
 
-    def __init__(self, filename, parent = None):
-        super().__init__(parent)
+    def __init__(self, filename, Id = None, parent = None):
+        super().__init__(Id, parent)
         self.filename = filename
         self.children = {None: None}
 
@@ -543,7 +548,7 @@ class PlayTreeBrowse(PlayTreeItem):
                     fixed_tags.append((by.get('tag'), by.get('value')))
                 else:
                     browse_by_tags.append(by.get('tag'))
-        return cls(library_name = element.get('library'), fixed_tags = fixed_tags, browse_by_tags = browse_by_tags, parent = parent)
+        return cls(library_name = element.get('library'), fixed_tags = fixed_tags, browse_by_tags = browse_by_tags, Id = element.get('id'), parent = parent)
 
     def to_xml(self):
         element = super().to_xml()
@@ -556,8 +561,8 @@ class PlayTreeBrowse(PlayTreeItem):
             by = etree.SubElement(element, 'by', tag = tag)
         return element
 
-    def __init__(self, library_name, fixed_tags, browse_by_tags, tag = None, parent = None):
-        super().__init__(parent)
+    def __init__(self, library_name, fixed_tags, browse_by_tags, tag = None, Id = None, parent = None):
+        super().__init__(Id, parent)
         self.library = library_name
         self.fixed_tags = tuple(fixed_tags)
         self.browse_by_tags = tuple(browse_by_tags)
@@ -699,13 +704,15 @@ class PlayTreeModel(QAbstractItemModel):
     def __init__(self, root_id = None, parent = None):
         super().__init__(parent)
         self.root_item = playtree
+        self.filter_string = ''
         if root_id is not None:
+            root_id = int(root_id)
             for item in playtree.iter_width(self, 
-                    lambda item: isinstance(item, PlayTreeList) and item.Id == root_id,
+                    lambda item: item.Id == root_id,
                     lambda item: isinstance(item, PlayTreeList)):
                 self.root_item = item
+                print(item)
                 break
-        self.filter_string = ''
         self.root_item.populate(self)
 
     def item(self, index):

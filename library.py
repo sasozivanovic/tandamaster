@@ -6,6 +6,7 @@ import sqlite3
 import os, os.path
 from warnings import warn
 import functools, itertools, collections, weakref
+from app import app
 
 def _strip(tags):
     """Pulls single list items out of lists."""
@@ -68,60 +69,92 @@ class Library(QObject):
         )
         self.connection.commit()
 
-    def refresh(self, name, folders):
-        cursor = self.connection.cursor()
-        for folder in folders:
-            for dirpath, dirnames, filenames in os.walk(folder):
-                for fn in filenames:
-                    filename = os.path.join(dirpath, fn)
-                    if not os.path.isfile(filename):
-                        continue
-                    try:
-                        filestat = os.stat(filename)
-                    except:
-                        warn("Cannot stat {}".format(filename), RuntimeWarning)
-                    try:
-                        audiofile = taglib.File(filename)
-                        assert(audiofile)
-                    except:
-                        warn("Cannot read {}. Probably not an audio file".format(filename), RuntimeWarning)
-                        continue
-                    print(filename)
-                    cursor.execute(
-                        'SELECT id FROM files_{name} WHERE filename=?'
-                        .format(name=name),
-                        (filename,)
-                    )
-                    song = cursor.fetchone()
-                    if song:
-                        song_id = song[0]
-                        cursor.execute(
-                            'DELETE FROM tags_{name} WHERE id=?'
-                            .format(name = name),
-                            (song_id,)
-                        )
-                    else:
-                        cursor.execute(
-                            'INSERT INTO files_{name} (filename) VALUES(?)'
-                            .format(name = name),
-                            (filename,)
-                        )
-                        song_id = cursor.lastrowid
-                    
-                    cursor.executemany(
-                        'INSERT INTO tags_{name} (id, tag, value) VALUES (?,?,?)'
-                        .format(name = name),
-                        ( (song_id, tag, value) 
-                          for tag, values in itertools.chain(
-                                  audiofile.tags.items(), iter((
-                                      ('_length', (audiofile.length,)),
-                                      ('_bitrate', (audiofile.bitrate,)),
-                                      ('_sample_rate', (audiofile.sampleRate,)),
-                                      ('_channels', (audiofile.channels,)),
-                                  )))
-                          for value in values )
-                    )
-                    self.connection.commit()
+    refresh_next = pyqtSignal()
+    refresh_finished = pyqtSignal()
+    refreshing = pyqtSignal(str)
+    def refresh_all_libraries(self):
+        self.queue = []
+        for library_name, folders in library_folders.items():
+            for folder in folders:
+                self.queue.append((library_name, folder))
+        self.dir_iterator = None
+        self.cursor = self.connection.cursor()
+        self.refresh_next.connect(self.refresh_one_song, type = Qt.QueuedConnection)
+        self.refresh_next.emit()
+    def refresh_one_song(self):
+        if not self.dir_iterator or not self.dir_iterator.hasNext():
+            if not self.queue:
+                self.refresh_finished.emit()
+            else:
+                self.name, folder = self.queue.pop(0)
+                self.create_library_table(self.name)
+                self.dir_iterator = QDirIterator(
+                    folder, 
+                    ['*'+ext for ext in self.musicfile_extensions],
+                    QDir.Files | QDir.Readable, 
+                    QDirIterator.Subdirectories)
+                self.refresh_next.emit()
+        else:
+            filename = self.dir_iterator.next()
+            try:
+                filestat = os.stat(filename)
+            except:
+                warn("Cannot stat {}".format(filename), RuntimeWarning)
+                self.refresh_next.emit()
+                return
+            try:
+                audiofile = taglib.File(filename)
+                assert(audiofile)
+            except:
+                warn("Cannot read {}. Probably not an audio file".format(filename), RuntimeWarning)
+                self.refresh_next.emit()
+                return
+            self.cursor.execute(
+                'SELECT id,mtime,filesize FROM files_{name} WHERE filename=?'
+                .format(name=self.name),
+                (filename,)
+            )
+            self.refreshing.emit(filename)
+            song = self.cursor.fetchone()
+            if song:
+                song_id,mtime,filesize = song
+                if mtime is not None and filesize is not None and filestat.st_mtime <= mtime and filestat.st_size == filesize:
+                    self.refresh_next.emit()
+                    return
+                self.cursor.execute(
+                    'UPDATE files_{name} '
+                    'SET mtime=?, filesize=? '
+                    'WHERE id=?'
+                    .format(name=self.name),
+                    (filestat.st_mtime, filestat.st_size, song_id)
+                )
+                #self.cursor.execute(
+                #    'DELETE FROM tags_{name} WHERE id=?'
+                #    .format(name = self.name),
+                #    (song_id,)
+                #)
+            else:
+                self.cursor.execute(
+                    'INSERT INTO files_{name} (filename, mtime, filesize) VALUES(?,?,?)'
+                    .format(name = self.name),
+                    (filename, filestat.st_mtime, filestat.st_size)
+                )
+                song_id = self.cursor.lastrowid
+            self.cursor.executemany(
+                'INSERT OR REPLACE INTO tags_{name} (id, tag, value) VALUES (?,?,?)'
+                .format(name = self.name),
+                ( (song_id, tag, value) 
+                  for tag, values in itertools.chain(
+                          audiofile.tags.items(), iter((
+                              ('_length', (audiofile.length,)),
+                              ('_bitrate', (audiofile.bitrate,)),
+                              ('_sample_rate', (audiofile.sampleRate,)),
+                              ('_channels', (audiofile.channels,)),
+                          )))
+                  for value in values )
+            )
+            self.connection.commit()
+            self.refresh_next.emit()
 
     def _cache_file(self, filename):
         if filename not in self._cache:
@@ -277,6 +310,7 @@ class Librarian(QObject):
     def __init__(self):
         super().__init__()        
         self.bg_thread = QThread()
+        app.aboutToQuit.connect(self.bg_thread.exit)
         self.bg_library = Library(connect = False)
         self.bg_library.moveToThread(self.bg_thread)
         self.bg_thread.started.connect(self.bg_library.connect)
@@ -334,6 +368,7 @@ class FileReader(QObject):
     def __init__(self):
         super().__init__()
         self.bg_thread = QThread()
+        app.aboutToQuit.connect(self.bg_thread.exit)
         self.worker = FileReaderWorker()
         self.worker.moveToThread(self.bg_thread)
         self.start_reading_file.connect(self.worker.get_fileinfo)
@@ -384,3 +419,7 @@ class FileReader(QObject):
 
 file_reader = FileReader()
 
+library_folders = {
+    'tango': ['/home/saso/tango'],
+    'glasba': ['/home/saso/glasba'],
+}

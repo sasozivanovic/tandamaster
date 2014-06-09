@@ -37,10 +37,10 @@ class TandaMasterWindow(QMainWindow):
             shortcut=QKeySequence.Save,
             triggered = save_playtree)
         self.musicmenu.addAction(action_save_playtree)
-        action_update_library = QAction(
+        self.action_update_library = QAction(
             self.tr("&Update library"), self,
             triggered = self.update_library)
-        self.musicmenu.addAction(action_update_library)
+        self.musicmenu.addAction(self.action_update_library)
         action_quit = QAction(
             self.tr("&Quit"), self, shortcut=QKeySequence.Quit,
             statusTip="Quit the program", triggered=self.close)
@@ -250,7 +250,17 @@ class TandaMasterWindow(QMainWindow):
             self.action_stop.setEnabled(state != QMediaPlayer.StoppedState and not self.action_lock.isChecked())
                 
     def update_library(self):
-        Library('tango').refresh(['/home/saso/tango'])
+        thread = QThread(self)
+        app.aboutToQuit.connect(thread.exit)
+        thread.library = Library(connect = False)
+        thread.library.moveToThread(thread)
+        thread.started.connect(thread.library.connect)
+        thread.started.connect(thread.library.refresh_all_libraries)
+        thread.library.refresh_finished.connect(thread.exit)
+        thread.finished.connect(lambda: self.action_update_library.setEnabled(True))
+        thread.library.refreshing.connect(self.statusBar().showMessage)
+        self.action_update_library.setEnabled(False)
+        thread.start()
 
     def playtree_cut(self):
         ptv = app.focusWidget()

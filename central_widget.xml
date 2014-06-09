@@ -1,0 +1,8 @@
+<TMSplitter>
+  <TabbedPlayTreesWidget tabPosition="2">
+    <PlayTreeWidget id="1"/>
+  </TabbedPlayTreesWidget>
+  <TabbedPlayTreesWidget tabPosition="0">
+    <PlayTreeWidget current="yes"/>
+  </TabbedPlayTreesWidget>
+</TMSplitter>

@@ -361,7 +361,7 @@ class PlayTreeFile(PlayTreeItem):
         if not file_reader.have_tags(self.filename):
             return True
         for value in self.get_tags().values():
-            if model.filter_string in value.lower():
+            if model.filter_string in str(value).lower():
                 return True
 
     def refresh_models(self):
@@ -618,7 +618,7 @@ class PlayTreeBrowse(PlayTreeItem):
             try:
                 return QIcon(self.icons[self.tag])
             except:
-                return None
+                return QIcon(self.icons[None])
 
     def populate_tags(self, model, rows):
         self.children[model] = []
@@ -703,17 +703,24 @@ class PlayTreeModel(QAbstractItemModel):
 
     def __init__(self, root_id = None, parent = None):
         super().__init__(parent)
-        self.root_item = playtree
         self.filter_string = ''
-        if root_id is not None:
-            root_id = int(root_id)
-            for item in playtree.iter_width(self, 
-                    lambda item: item.Id == root_id,
-                    lambda item: isinstance(item, PlayTreeList)):
-                self.root_item = item
-                print(item)
-                break
-        self.root_item.populate(self)
+        self.set_root_item(root_id = root_id)
+
+    def set_root_item(self, root_item = None, root_id = None):
+        if not root_item:
+            root_item = playtree
+            if root_id:
+                root_id = int(root_id)
+                for item in playtree.iter_width(self, 
+                        lambda item: item.Id == root_id,
+                        lambda item: isinstance(item, PlayTreeList)):
+                    root_item = item
+        if not root_item.Id:
+            PlayTreeItem.max_id += 1
+            root_item.Id = PlayTreeItem.max_id
+        self.root_item = root_item
+        root_item.populate(self)
+            
 
     def item(self, index):
         return index.internalPointer() if index.isValid() else self.root_item

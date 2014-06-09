@@ -79,6 +79,8 @@ class TandaMasterPlayer(QMediaPlayer):
         n = self.current_model.next_song(self.current_index)
         if n.isValid():
             self.play_index(n)
+        else:
+            self.stop()
 
     def play_previous(self):
         n = self.current_model.previous_song(self.current_index)

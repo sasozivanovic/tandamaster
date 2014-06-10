@@ -98,15 +98,18 @@ class TandaMasterWindow(QMainWindow):
 
         self.playtreemenu = QMenu(self.tr('Play&tree'))
         self.action_cut = QAction(
-            MyIcon('Tango', 'actions', 'edit-cut'),
+            #MyIcon('Tango', 'actions', 'edit-cut'),
+            QIcon('icons/tango/edit-cut'),
             self.tr('Cu&t'), self, triggered = self.playtree_cut,
             shortcut = QKeySequence(QKeySequence.Cut))
         self.action_copy = QAction(
-            MyIcon('Tango', 'actions', 'edit-copy'),
+            QIcon('icons/tango/edit-copy'),
+            #MyIcon('Tango', 'actions', 'edit-copy'),
             self.tr('&Copy'), self, triggered = self.playtree_copy,
             shortcut = QKeySequence(QKeySequence.Copy))
         self.action_paste = QAction(
-            MyIcon('Tango', 'actions', 'edit-paste'),
+            #MyIcon('Tango', 'actions', 'edit-paste'),
+            QIcon('icons/tango/edit-paste'),
             self.tr('&Paste'), self, triggered = self.playtree_paste,
             shortcut = QKeySequence(QKeySequence.Paste))
         self.action_insert = QAction(

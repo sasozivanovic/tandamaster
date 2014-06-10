@@ -421,5 +421,5 @@ file_reader = FileReader()
 
 library_folders = {
     'tango': ['/home/saso/tango'],
-    'glasba': ['/home/saso/glasba'],
+    #'glasba': ['/home/saso/glasba'],
 }

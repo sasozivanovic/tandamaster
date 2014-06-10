@@ -342,7 +342,7 @@ class PlayTreeFile(PlayTreeItem):
         elif not column_name and role == Qt.DecorationRole:
             #return tmSongIcon
             #return QIcon('crazyeye_dance.png')
-            if self.function() == 'kortina':
+            if self.function() == 'cortina':
                 return QIcon('icons/iconfinder/farm-fresh/curtain.png')
             else:
                 return QIcon('icons/happy-dance.gif')

@@ -86,7 +86,7 @@ class TandaMasterPlayer(QMediaPlayer):
         if self.fadeout_timer:
             self.fadeout_timer.stop()
             self.fadeout_timer = None
-        if not no_gap and self.current_model and self.current_item and self.current_model.view.window().action_lock.isChecked():
+        if not no_gap and self.gap and self.current_model and self.current_item and self.current_model.view.window().action_lock.isChecked():
             QTimer.singleShot(self.gap, self._play_next)
             return
         self._play_next()
@@ -99,7 +99,8 @@ class TandaMasterPlayer(QMediaPlayer):
         else:
             self.stop()
 
-    gap = 3000
+    #gap = 3000
+    gap = 0
 
     fadeout_step = 5
     fadeout_timeout = 200

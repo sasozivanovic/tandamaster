@@ -120,6 +120,10 @@ class TandaMasterWindow(QMainWindow):
             QIcon('icons/iconfinder/32pxmania/delete.png'),
             self.tr('&Delete'), self, triggered = self.playtree_delete,
             shortcut = QKeySequence(QKeySequence.Delete))
+        self.action_group = QAction(
+            QIcon('icons/iconfinder/farm-fresh/group.png'),
+            self.tr('&Gropu'), self, triggered = self.playtree_group,
+            shortcut = QKeySequence('Ctrl+g'))
         self.action_move_up = QAction(
             QIcon('icons/iconfinder/32pxmania/up.png'),
             self.tr('Move &up'), self, triggered = self.playtree_move_up,
@@ -163,6 +167,7 @@ class TandaMasterWindow(QMainWindow):
         self.playtreemenu.addSeparator()
         self.playtreemenu.addAction(self.action_insert)
         self.playtreemenu.addAction(self.action_delete)
+        self.playtreemenu.addAction(self.action_group)
         self.playtreemenu.addAction(self.action_move_home)
         self.playtreemenu.addAction(self.action_move_up)
         self.playtreemenu.addAction(self.action_move_down)
@@ -209,6 +214,7 @@ class TandaMasterWindow(QMainWindow):
         toolbar.addSeparator()
         toolbar.addAction(self.action_insert)
         toolbar.addAction(self.action_delete)
+        toolbar.addAction(self.action_group)
         toolbar.addAction(self.action_move_home)
         toolbar.addAction(self.action_move_up)
         toolbar.addAction(self.action_move_down)
@@ -295,6 +301,11 @@ class TandaMasterWindow(QMainWindow):
         ptv = app.focusWidget()
         if not isinstance(ptv, PlayTreeView): return
         ptv.insert()
+
+    def playtree_group(self):
+        ptv = app.focusWidget()
+        if not isinstance(ptv, PlayTreeView): return
+        ptv.group()
 
     def playtree_move_up(self):
         ptv = app.focusWidget()
@@ -660,39 +671,41 @@ class PlayTreeView(QTreeView):
         model = self.model()
         selection_model = self.selectionModel()
         item_selection = selection_model.selection()
-        if not item_selection: return (False,)*6
+        if not item_selection: return (False,)*7
         parent_index = item_selection[0].parent()
         parent = model.item(parent_index)
-        if not parent.are_children_manually_set: return (False,)*6
+        if not parent.are_children_manually_set: return (False,)*7
         for range in item_selection:
             if range.parent() != parent_index:
-                return (False,)*6
+                return (False,)*7
         ranges = sorted([(range.top(), range.bottom()) for range in item_selection])
         if len(item_selection) > 1:
             for bottom, top in zip([range[1] for range in ranges[1:]],
                                    [range[0] for range in ranges[:-1]]):
                 if bottom != top + 1: 
-                    return (False,)*6
+                    return (False,)*7
         top = ranges[0][0]
         bottom = ranges[-1][1]
         top_index = model.index(top, 0, parent_index)
         bottom_index = model.index(bottom, 0, parent_index)
         grandparent_index = model.parent(parent_index)
         grandparent_item = model.item(grandparent_index)
+        can_group = bottom!=top
         can_move_up = top_index.row() != 0 or (parent_index.isValid() and parent_index.row() != 0 and model.item(model.index(parent_index.row()-1,0,grandparent_index)).are_children_manually_set)
         can_move_down = bottom_index.row() != model.rowCount(parent_index)-1 or (parent_index.isValid() and parent_index.row() != model.rowCount(grandparent_index)-1 and model.item(model.index(parent_index.row()+1,0,grandparent_index)).are_children_manually_set)
         can_move_left = parent_index.isValid()
         can_move_right = model.rowCount(parent_index) > ranges[-1][1]+1 and model.item(model.index(ranges[-1][1]+1, 0, parent_index)).are_children_manually_set
         can_move_home = top != 0 or (parent_index.isValid() and model.root_item.are_children_manually_set)
         can_move_end = bottom != model.rowCount(parent_index)-1 or (parent_index.isValid() and model.root_item.are_children_manually_set)
-        return can_move_up, can_move_down, can_move_left, can_move_right, can_move_home, can_move_end
+        return can_group, can_move_up, can_move_down, can_move_left, can_move_right, can_move_home, can_move_end
 
     def on_selection_changed(self):
         can_cut = self.can_cut()
         self.window().action_cut.setEnabled(can_cut)
         self.window().action_delete.setEnabled(can_cut)
         self.window().action_copy.setEnabled(self.can_copy())
-        can_move_up, can_move_down, can_move_left, can_move_right, can_move_home, can_move_end = self.can_move()
+        can_group, can_move_up, can_move_down, can_move_left, can_move_right, can_move_home, can_move_end = self.can_move()
+        self.window().action_group.setEnabled(can_group)
         self.window().action_move_up.setEnabled(can_move_up)
         self.window().action_move_down.setEnabled(can_move_down)
         self.window().action_move_left.setEnabled(can_move_left)
@@ -859,6 +872,38 @@ class PlayTreeView(QTreeView):
         for item in selected_items:
             selection_model.select(item.index(model),QItemSelectionModel.Select|QItemSelectionModel.Rows)
         selection_model.setCurrentIndex(current_item.index(model), QItemSelectionModel.NoUpdate)
+
+    def group(self):
+        model = self.model()
+        selection_model = self.selectionModel()
+        selected_indexes = selection_model.selectedRows()
+        selected_items = [model.item(index) for index in selected_indexes]
+        parent_index = selected_indexes[0].parent()
+        parent_item = model.item(parent_index)
+        top = min(index.row() for index in selected_indexes)
+        top_index = model.index(top, 0, parent_index)
+        top_item = model.item(top_index)
+        common_tags = self.common_tags(selected_items)
+        name = 'Tanda: ' + ", ".join(v for t,v  in common_tags)
+        new_item = PlayTreeList(name)
+        group_command = TMPlayTreeItemsCommand(selected_items, command_prefix = 'Group')
+        InsertPlayTreeItemsCommand([new_item], parent_item, top_item, command_parent = group_command, push = False)
+        MovePlayTreeItemsCommand(selected_items, new_item, None, command_parent = group_command, push = False)
+        undo_stack.push(group_command)
+        for item in selected_items:
+            selection_model.select(item.index(model),QItemSelectionModel.Select|QItemSelectionModel.Rows)
+        selection_model.setCurrentIndex(model.index(0,0,parent_index), QItemSelectionModel.NoUpdate)
+        self.setExpanded(new_item.index(model), True)
+
+    def common_tags(self, items):
+        if not items: return []
+        tags = ['ARTIST', 'PERFORMER:VOCALS', 'GENRE', 'QUODLIBET::RECORDINGDATE']
+        values = dict((tag, items[0].get_tag(tag)) for tag in tags)
+        for item in items[1:]:
+            for tag in tags:
+                if values[tag] != item.get_tag(tag):
+                    values[tag] = None
+        return [(tag,values[tag]) for tag in tags if values[tag]] 
 
     def dragEnterEvent(self, event):
         if event.source() == self:

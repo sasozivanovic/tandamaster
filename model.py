@@ -32,7 +32,10 @@ class PlayTreeItem:
         return cls.xml_tag_registry[element.tag]._create_from_xml(element, parent)
 
     def to_xml(self):
-        return etree.Element(self.xml_tag, id = str(self.Id))
+        if self.Id is not None:
+            return etree.Element(self.xml_tag, id = str(self.Id))
+        else:
+            return etree.Element(self.xml_tag)
 
     def save(self, filename):
         document = etree.ElementTree(self.to_xml())
@@ -403,7 +406,7 @@ class PlayTreeLibraryFile(PlayTreeFile):
     def to_xml(self):
         element = super().to_xml()
         element.set('library', self.library)
-        element.set('song_id', self.song_id)
+        element.set('song_id', str(self.song_id))
         return element
 
     def __init__(self, library_name, song_id, Id = None, parent = None):
@@ -597,10 +600,12 @@ class PlayTreeBrowse(PlayTreeItem):
         return self.children[model].index(child)
 
     def __str__(self):
-        return app.tr('Browse') + ' ' + \
-            " -> ".join([self.library]+[str(v) for t,v in self.fixed_tags]) + \
-            ' ' + app.tr('by') + ' ' + \
-            ", ".join(tag.lower() for tag in self.browse_by_tags)
+        return " -> ".join([self.library]+[str(v) for t,v in self.fixed_tags])
+        # app.tr('Browse') + ' ' + \
+        ###
+        # + \
+            # ' ' + app.tr('by') + ' ' + \
+            # ", ".join(tag.lower() for tag in self.browse_by_tags)
 
 
     icons = { None: 'library.png', 'ARTIST': 'personal.png', 'ALBUM': 'image_album.png' }
@@ -726,7 +731,7 @@ class PlayTreeModel(QAbstractItemModel):
         return index.internalPointer() if index.isValid() else self.root_item
 
     # column "" provides browsing info (folder name, file name, ...)
-    _columns = ('', 'ARTIST', 'ALBUM', 'TITLE', '_length')
+    _columns = ('', 'ARTIST', 'TITLE', '_length', 'PERFORMER:VOCALS', 'QUODLIBET::RECORDINGDATE')
     #_columns = ('',)
 
     def index(self, row, column, parent):
@@ -931,7 +936,7 @@ class PlayTreeModel(QAbstractItemModel):
 from app import app
 def save_playtree():
     playtree.save(playtree_xml_filename)
-#app.aboutToQuit.connect(save_playtree)
+app.aboutToQuit.connect(save_playtree)
 
 class PlayTreeMimeData(QMimeData):
     def __init__(self, model, items, action):

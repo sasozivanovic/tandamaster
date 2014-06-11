@@ -41,6 +41,10 @@ class TandaMasterWindow(QMainWindow):
             self.tr("&Update library"), self,
             triggered = self.update_library)
         self.musicmenu.addAction(self.action_update_library)
+        action_save_playtree_to_folder = QAction(
+            self.tr("&Save playtree files to folder in order"), self,
+            triggered=self.save_playtree_to_folder)
+        self.musicmenu.addAction(action_save_playtree_to_folder)
         action_adhoc = QAction(
             self.tr("&AdHoc"), self,
             statusTip="Adhoc action", triggered=self.adhoc)
@@ -391,6 +395,18 @@ class TandaMasterWindow(QMainWindow):
         import subprocess
         subprocess.Popen(['/usr/bin/audacity', filename])
         
+    def save_playtree_to_folder(self):
+        ptv = app.focusWidget()
+        if not isinstance(ptv, PlayTreeView): return
+        import shutil
+        for item in ptv.model().root_item.iter_depth(
+                ptv.model(),
+                lambda item: isinstance(item, PlayTreeFile),
+                lambda item: isinstance(item, PlayTreeList)):
+            p = "-".join("{:03}".format(part) 
+                         for part in ptv.model().index_to_path(item.index(ptv.model())))
+            new_fn = "/home/alja/temp/milonga_backup/" + p + "-" + os.path.basename(item.filename)
+            shutil.copyfile(item.filename, new_fn)
 
 class TMWidget:
     xml_tag_registry = {}

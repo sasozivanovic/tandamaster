@@ -111,6 +111,14 @@ class PlayTreeItem:
     def function(self):
         return None
 
+    def iter_depth(self, model, condition_yield, condition_propagate):
+        if condition_yield(self):
+            yield(self)
+        if condition_propagate(self):
+            for child in self.children[model]:
+                for item in child.iter_depth(model, condition_yield, condition_propagate):
+                    yield item
+            
 @register_xml_tag_handler('list')
 class PlayTreeList(PlayTreeItem):
 
@@ -189,6 +197,7 @@ class PlayTreeList(PlayTreeItem):
             if condition_propagate(item):
                 item.populate(model)
                 items.extend(item.children[model])
+
 
     def insert(self, new_items, row):
         children = self.children[None]
@@ -900,9 +909,9 @@ class PlayTreeModel(QAbstractItemModel):
     def mimeData(self, indexes, action = 'copy'):
         return PlayTreeMimeData(
             self, 
-            [self.item(index) for index in set(
+            [self.item(index) for index in sorted(set(
                 index.sibling(index.row(), 0) for index in indexes
-            )], 
+            ),key=lambda index: self.index_to_path(index))], 
             action)
 
     def mimeTypes(self):

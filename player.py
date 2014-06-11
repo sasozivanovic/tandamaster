@@ -107,7 +107,6 @@ class TandaMasterPlayer(QMediaPlayer):
     def fadeout_to_next(self):
         if not self.fadeout_timer:
             return
-        print(self.volume())
         if self.volume() == 0:
             self.play_next(no_fadeout = True)
         else:

@@ -731,7 +731,7 @@ class PlayTreeView(QTreeView):
 
     def other(self):
         for w in self.window().findChildren(PlayTreeView):
-            if w != self:
+            if w != self and w.isVisibleTo(self.window()):
                 return w
 
     def focusNextPrevChild(self, next):

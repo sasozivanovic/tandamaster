@@ -92,7 +92,7 @@ class TandaMasterPlayer(QMediaPlayer):
         self._play_next()
 
     def _play_next(self):
-        self.setVolume(100)
+        self.setVolume(self._volume)
         n = self.current_model.next_song(self.current_index)
         if n.isValid():
             self.play_index(n)
@@ -125,4 +125,6 @@ class TandaMasterPlayer(QMediaPlayer):
         if state == QMediaPlayer.EndOfMedia:
             self.play_next()
 
-        
+    def set_volume(self, volume):
+        self._volume = volume
+        self.setVolume(volume)

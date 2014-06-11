@@ -195,10 +195,18 @@ class TandaMasterWindow(QMainWindow):
 
         self.addToolBarBreak(Qt.BottomToolBarArea)
 
+        volume_control = QSlider(Qt.Horizontal)
+        volume_control.setMaximumWidth(100)
+        volume_control.setMinimum(0)
+        volume_control.setMaximum(100)
+        volume_control.setValue(self.player.volume())
+        volume_control.valueChanged.connect(self.player.set_volume)
+
         toolbar = QToolBar('Play controls', self)
         toolbar.setAllowedAreas(Qt.TopToolBarArea | Qt.BottomToolBarArea)
         toolbar.setFloatable(False)
         #toolbar.setIconSize(2*toolbar.iconSize())
+        toolbar.addWidget(volume_control)
         toolbar.addAction(self.action_back)
         toolbar.addAction(self.action_play)
         toolbar.addAction(self.action_pause)

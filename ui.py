@@ -41,6 +41,10 @@ class TandaMasterWindow(QMainWindow):
             self.tr("&Update library"), self,
             triggered = self.update_library)
         self.musicmenu.addAction(self.action_update_library)
+        action_adhoc = QAction(
+            self.tr("&AdHoc"), self,
+            statusTip="Adhoc action", triggered=self.adhoc)
+        self.musicmenu.addAction(action_adhoc)
         action_quit = QAction(
             self.tr("&Quit"), self, shortcut=QKeySequence.Quit,
             statusTip="Quit the program", triggered=self.close)
@@ -364,6 +368,29 @@ class TandaMasterWindow(QMainWindow):
         ptv.model().beginResetModel()
         ptv.model().set_root_item(item)
         ptv.model().endResetModel()
+
+    def adhoc(self):
+        ptv = app.focusWidget()
+        if not isinstance(ptv, PlayTreeView): return
+        current_index = ptv.currentIndex()
+        model = ptv.model()
+        current_item = model.item(current_index)
+        filename = current_item.filename
+        path = os.path.dirname(filename)
+        config = [line.strip() for line in open('/home/alja/.audacity-data/audacity.cfg')]
+        in_export = False
+        for n, line in enumerate(config):
+            if line == '[Export]':
+                in_export = True
+            elif in_export and line.startswith('Path='):
+                config[n] = 'Path=' + path
+                break
+        with open('/home/alja/.audacity-data/audacity.cfg', 'w') as f:
+            for line in config:
+                print(line, file = f)
+        import subprocess
+        subprocess.Popen(['/usr/bin/audacity', filename])
+        
 
 class TMWidget:
     xml_tag_registry = {}

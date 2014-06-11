@@ -602,11 +602,10 @@ class PlayTreeView(QTreeView):
     def delete(self):
         model = self.model()
         selection_model = self.selectionModel()
-        item_selection = selection_model.selection() #QItemSelection
         current_index = self.currentIndex()
         current_path = model.index_to_path(current_index)
         DeletePlayTreeItemsCommand(
-            [model.item(index) for index in item_selection.indexes()])
+            [model.item(index) for index in selection_model.selectedRows()])
         current_index = model.path_to_index(current_path)
         if current_index.isValid():
             selection_model.setCurrentIndex(current_index, QItemSelectionModel.ClearAndSelect)
@@ -620,7 +619,7 @@ class PlayTreeView(QTreeView):
         current_index = self.currentIndex()
         current_path = model.index_to_path(current_index)
         parent_item, row, column = (model.item(current_index).parent, current_index.row(), current_index.column()) if current_index.isValid() else (QModelIndex(), -1, -1)
-        new_items = parent_item.dropMimeData(QApplication.clipboard().mimeData(), Qt.CopyAction, row, column, command_prefix = 'Paste')
+        new_items = parent_item.dropMimeData(QApplication.clipboard().mimeData(), Qt.CopyAction, row, command_prefix = 'Paste')
         inserted_items = [item for item in new_items
                           if item in item.parent.children[model]]
         selection_model = self.selectionModel()

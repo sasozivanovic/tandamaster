@@ -913,6 +913,8 @@ class PlayTreeModel(QAbstractItemModel):
         ]
 
     def dropMimeData(self, mime_data, action, row, column, parent):
+        if action == Qt.MoveAction and not isinstance(mime_data, PlayTreeMimeData) or mime_data.model != self:
+            action = Qt.CopyAction
         parent_item = self.item(parent)
         new_items = parent_item.dropMimeData(
             mime_data, action, 

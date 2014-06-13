@@ -9,7 +9,7 @@ from util import *
 from app import *
 from commands import *
 
-import collections, weakref
+import collections, weakref, binascii
 
 class TandaMasterWindow(QMainWindow):
 
@@ -20,22 +20,23 @@ class TandaMasterWindow(QMainWindow):
         self.player = TandaMasterPlayer()
         #self.player2 = TandaMasterPlayer() # pre-listening
 
-        #splitter = QSplitter()
-        #splitter.addWidget(PlayTreeWidget(None, self.player))
-        #splitter.addWidget(PlayTreeWidget(None, self.player))
-        #self.setCentralWidget(splitter)
-        self.setCentralWidget(TMWidget.create_from_xml(
-            etree.parse('central_widget.xml').getroot(),
-            self
-        ))
+        try:
+            self.ui_xml = etree.parse('ui.xml')
+        except:
+            self.ui_xml = etree.ElementTree(etree.fromstring(b'<MainWindow><CentralWidget><Splitter><TabbedPlayTreesWidget tabPosition="2"><PlayTreeWidget/></TabbedPlayTreesWidget><TabbedPlayTreesWidget tabPosition="0"><PlayTreeWidget/></TabbedPlayTreesWidget></Splitter></CentralWidget></MainWindow>'))
+
+        geometry = self.ui_xml.getroot().get('geometry')
+        if geometry:
+            self.restoreGeometry(binascii.unhexlify(geometry))
+        self.setCentralWidget(TMWidget.create_from_xml(self.ui_xml.find('CentralWidget')[0],self))
 
         menubar = QMenuBar()
 
         self.musicmenu = QMenu(self.tr('&Music'))
         action_save_playtree = QAction(
-            self.tr("&Save playtree"), self,
+            self.tr("&Save"), self,
             shortcut=QKeySequence.Save,
-            triggered = save_playtree)
+            triggered = self.save)
         self.musicmenu.addAction(action_save_playtree)
         self.action_update_library = QAction(
             self.tr("&Update library"), self,
@@ -416,6 +417,22 @@ class TandaMasterWindow(QMainWindow):
             new_fn = "/home/alja/temp/milonga_backup/" + p + "-" + os.path.basename(item.filename)
             shutil.copyfile(item.filename, new_fn)
 
+    def closeEvent(self, event):
+        self.save()
+        super().closeEvent(event)
+
+    def save(self):
+        self.ui_xml.getroot().set(
+            'geometry', 
+            binascii.hexlify(self.saveGeometry().data()).decode())
+        cw = self.ui_xml.find('CentralWidget')
+        cw.clear()
+        cw.append(self.centralWidget().to_xml())
+        with open('ui.xml', 'w') as f:
+            self.ui_xml.write(f, encoding = 'unicode')
+        save_playtree()
+    
+
 class TMWidget:
     xml_tag_registry = {}
 
@@ -423,7 +440,7 @@ class TMWidget:
     def register_xml_tag_handler(cls, tag):
         def f(subcls):
             cls.xml_tag_registry[tag] = subcls
-            cls.xml_tag = tag
+            subcls.xml_tag = tag
             return subcls
         return f
 
@@ -432,27 +449,34 @@ class TMWidget:
         return cls.xml_tag_registry[element.tag]._create_from_xml(element, window, parent)
 
     def to_xml(self):
-        return etree.Element(self.xml_tag)
+        element = etree.Element(self.xml_tag)
+        try:
+            element.set('state', binascii.hexlify(self.saveState().data()).decode())
+        except:
+            pass
+        return element
 
-@TMWidget.register_xml_tag_handler('TMSplitter')
+@TMWidget.register_xml_tag_handler('Splitter')
 class TMSplitter(QSplitter, TMWidget):
     @classmethod
     def _create_from_xml(cls, element, window, parent):
         splitter = cls(parent = parent)
         for subelement in element:
             splitter.addWidget(cls.create_from_xml(subelement, window, splitter))
+        splitter.restoreState(binascii.unhexlify(element.get('state', '')))
         return splitter
 
     def to_xml(self):
         element = super().to_xml()
-        for child in self.children():
-            element.append(child.to_xml())
+        for i in range(self.count()):
+            element.append(self.widget(i).to_xml())
+        return element
 
 @TMWidget.register_xml_tag_handler('TabbedPlayTreesWidget')
 class TabbedPlayTreesWidget(QTabWidget, TMWidget):
     @classmethod
     def _create_from_xml(cls, element, window, parent):
-        tw = cls(parent = parent, tabPosition = int(element.get('tabPosition')))
+        tw = cls(parent = parent, tabPosition = int(element.get('tabPosition', 0)))
         #tw.setTabPosition(int(element.get('tabPosition')))
         for subelement in element:
             widget = cls.create_from_xml(subelement, window, None)
@@ -462,8 +486,9 @@ class TabbedPlayTreesWidget(QTabWidget, TMWidget):
     def to_xml(self):
         element = super().to_xml()
         element.set('tabPosition', str(self.tabPosition()))
-        for child in self.children():
-            element.append(child.to_xml())
+        for i in range(self.count()):
+            element.append(self.widget(i).to_xml())
+        return element
 
     def __init__(self, parent = None, **kwargs):
         super().__init__(parent, **kwargs)
@@ -501,14 +526,15 @@ class PlayTreeWidget(QWidget, TMWidget):
 
     @classmethod
     def _create_from_xml(cls, element, window, parent):
-        ptw = cls(element.get('id'), window.player, parent)
+        ptw = cls(element.get('id', 0), window.player, parent)
         if element.get('current'):
             window.player.set_current(model = ptw.ptv.model())
         return ptw
 
     def to_xml(self):
         element = super().to_xml()
-        element.set('id', self.ptv.model().root_item.Id)
+        element.set('id', str(self.ptv.model().root_item.Id))
+        return element
 
     def __init__(self, root_id, player, parent = None):
         super().__init__(parent)

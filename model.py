@@ -32,7 +32,7 @@ class PlayTreeItem:
         return cls.xml_tag_registry[element.tag]._create_from_xml(element, parent)
 
     def to_xml(self):
-        if self.Id is not None:
+        if self.Id:
             return etree.Element(self.xml_tag, id = str(self.Id))
         else:
             return etree.Element(self.xml_tag)
@@ -53,12 +53,19 @@ class PlayTreeItem:
     def __init__(self, Id = None, parent = None):
         super().__init__()
         if Id is None:
-            self.Id = None
+            self._Id = None
         else:
-            self.Id = int(Id)
-            self.__class__.max_id = max(self.max_id, self.Id)
+            self._Id = int(Id)
+            PlayTreeItem.max_id = max(PlayTreeItem.max_id, self._Id)
         self.parent = parent
         self.expanded = {}
+
+    @property
+    def Id(self):
+        if self._Id is None:
+            PlayTreeItem.max_id += 1
+            self._Id = PlayTreeItem.max_id
+        return self._Id
 
     isTerminal = False
     are_children_manually_set = False

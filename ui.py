@@ -428,8 +428,12 @@ class TandaMasterWindow(QMainWindow):
         cw = self.ui_xml.find('CentralWidget')
         cw.clear()
         cw.append(self.centralWidget().to_xml())
-        with open('ui.xml', 'w') as f:
-            self.ui_xml.write(f, encoding = 'unicode')
+        try:
+            with open('ui.xml.tmp', 'w') as f:
+                self.ui_xml.write(f, encoding = 'unicode')
+            os.rename('ui.xml.tmp', 'ui.xml')
+        except:
+            raise
         save_playtree()
     
 
@@ -527,6 +531,16 @@ class PlayTreeWidget(QWidget, TMWidget):
     @classmethod
     def _create_from_xml(cls, element, window, parent):
         ptw = cls(element.get('id', 0), window.player, parent)
+        xml_columns = element.findall('column')
+        if len(xml_columns):
+            ptw.ptv.model().columns = [
+                col.get('tag')
+                for col in xml_columns
+            ]
+            for i, column in enumerate(xml_columns):
+                width = column.get('width')
+                if width is not None:
+                    ptw.ptv.setColumnWidth(i, int(width))
         if element.get('current'):
             window.player.set_current(model = ptw.ptv.model())
         return ptw
@@ -534,6 +548,11 @@ class PlayTreeWidget(QWidget, TMWidget):
     def to_xml(self):
         element = super().to_xml()
         element.set('id', str(self.ptv.model().root_item.Id))
+        for i, column in enumerate(self.ptv.model().columns):
+            etree.SubElement(element, 
+                             'column', 
+                             tag = column, 
+                             width = str(self.ptv.columnWidth(i)))
         return element
 
     def __init__(self, root_id, player, parent = None):

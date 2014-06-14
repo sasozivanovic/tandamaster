@@ -325,6 +325,7 @@ class PlayTreeFile(PlayTreeItem):
         self.filename = filename
         file_reader.register_file(filename, self)
         file_reader.bg_get_fileinfo(FileInfo(filename, FileInfo.reason_NewPlayTreeFile))
+        print("add file", filename, fs_watcher.addPath(filename))
 
     def copy(self):
         return PlayTreeFile(self.filename)
@@ -531,6 +532,7 @@ class PlayTreeFolder(PlayTreeItem):
                    not file_reader.not_an_audio_file(fullfn):
                     self.children[None].append(
                         PlayTreeFile(filename=fullfn, parent = self))
+            print("add dir", self.filename, fs_watcher.addPath(self.filename))
         if self.children[model] is None:
             self.children[model] = [child for child in self.children[None] if child.filter(model) ]
             self.children[model] = self.children[None]
@@ -747,8 +749,8 @@ class PlayTreeModel(QAbstractItemModel):
         return index.internalPointer() if index.isValid() else self.root_item
 
     # column "" provides browsing info (folder name, file name, ...)
-    _columns = ('', 'ARTIST', 'TITLE', '_length', 'PERFORMER:VOCALS', 'QUODLIBET::RECORDINGDATE')
-    #_columns = ('',)
+    #columns = ('', 'ARTIST', 'TITLE', '_length', 'PERFORMER:VOCALS', 'QUODLIBET::RECORDINGDATE')
+    columns = ('',)
 
     def index(self, row, column, parent):
         if not self.hasIndex(row, column, parent):
@@ -776,7 +778,7 @@ class PlayTreeModel(QAbstractItemModel):
         return self.item(index).hasChildren(self)
 
     def columnCount(self, parent):
-        return len(self._columns)
+        return len(self.columns)
 
     currentindexroles = (Qt.ForegroundRole, Qt.FontRole)
     def data(self, index, role = Qt.DisplayRole):
@@ -790,11 +792,11 @@ class PlayTreeModel(QAbstractItemModel):
                     font.setWeight(QFont.Bold)
                     return font
         else:
-            return self.item(index).data(self, self._columns[index.column()], role)
+            return self.item(index).data(self, self.columns[index.column()], role)
 
     def headerData(self, section, orientation, role):
         if orientation == Qt.Horizontal and role == Qt.DisplayRole:
-            return self._columns[section].title()
+            return self.columns[section].title()
 
     def sibling(self, row, column, index):
         return super().sibling(
@@ -908,7 +910,7 @@ class PlayTreeModel(QAbstractItemModel):
                 item.expand_small_children(self)
 
     def flags(self, index):
-        return self.item(index).flags(self._columns[index.column()])
+        return self.item(index).flags(self.columns[index.column()])
 
     def supportedDropActions(self):
         return Qt.CopyAction | Qt.MoveAction

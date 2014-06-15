@@ -100,7 +100,7 @@ class PlayTreeItem:
                 for item in self.child(model, i).iter(model, condition_yield, condition_propagate):
                     yield item
 
-    def populate(self, model):
+    def populate(self, model, force = False):
         pass
 
     def delete(self, items):

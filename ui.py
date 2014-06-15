@@ -283,10 +283,19 @@ class TandaMasterWindow(QMainWindow):
         thread.started.connect(thread.library.connect)
         thread.started.connect(thread.library.refresh_all_libraries)
         thread.library.refresh_finished.connect(thread.exit)
+        thread.library.refresh_finished.connect(lambda: print('Finished updating library'))
+        thread.library.refresh_finished.connect(self.reset_all)
         thread.finished.connect(lambda: self.action_update_library.setEnabled(True))
-        thread.library.refreshing.connect(self.statusBar().showMessage)
+        #thread.library.refreshing.connect(self.statusBar().showMessage)
         self.action_update_library.setEnabled(False)
         thread.start()
+
+    def reset_all(self):
+        for w in self.window().findChildren(PlayTreeView):
+            model = w.model()
+            model.beginResetModel()
+            model.root_item.populate(model, force = True)
+            model.endResetModel()
 
     def playtree_cut(self):
         ptv = app.focusWidget()

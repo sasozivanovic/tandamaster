@@ -79,11 +79,13 @@ class Library(QObject):
                 self.queue.append((library_name, folder))
         self.dir_iterator = None
         self.cursor = self.connection.cursor()
+        self.n_in_transaction = 0
         self.refresh_next.connect(self.refresh_one_song, type = Qt.QueuedConnection)
         self.refresh_next.emit()
     def refresh_one_song(self):
         if not self.dir_iterator or not self.dir_iterator.hasNext():
             if not self.queue:
+                self.connection.commit()
                 self.refresh_finished.emit()
             else:
                 self.name, folder = self.queue.pop(0)
@@ -114,7 +116,7 @@ class Library(QObject):
                 .format(name=self.name),
                 (filename,)
             )
-            self.refreshing.emit(filename)
+            #self.refreshing.emit(filename)
             song = self.cursor.fetchone()
             if song:
                 song_id,mtime,filesize = song
@@ -153,7 +155,9 @@ class Library(QObject):
                           )))
                   for value in values )
             )
-            self.connection.commit()
+            if self.n_in_transaction >= 1000000:
+                self.connection.commit()
+                self.n_in_transaction = 0
             self.refresh_next.emit()
 
     def _cache_file(self, filename):
@@ -423,6 +427,9 @@ library_folders = {
     'tango': ['/home/saso/tango'],
     'glasba': ['/home/saso/glasba'],
 }
+
+for library_name in library_folders.keys():
+    library.create_library_table(library_name)
 
 fs_watcher = QFileSystemWatcher(app)
 fs_watcher.directoryChanged.connect(lambda path: print('dir changed', path))

@@ -11,6 +11,8 @@ from library import *
 from app import *
 from commands import *
 
+import bidict
+
 def register_xml_tag_handler(tag):
     def f(cls):
         PlayTreeItem.xml_tag_registry[tag] = cls
@@ -752,6 +754,14 @@ class PlayTreeModel(QAbstractItemModel):
     #columns = ('', 'ARTIST', 'TITLE', '_length', 'PERFORMER:VOCALS', 'QUODLIBET::RECORDINGDATE')
     columns = ('',)
 
+    column_display_names = bidict.bidict({
+        'ARTIST': 'Artist',
+        'ALBUM': 'Album',
+        'TITLE': 'Title',
+        'PERFORMER:VOCALS': 'Singer',
+        'QUODLIBET::RECORDINGDATE': 'Year',
+    })
+
     def index(self, row, column, parent):
         if not self.hasIndex(row, column, parent):
             return QModelIndex()
@@ -796,7 +806,8 @@ class PlayTreeModel(QAbstractItemModel):
 
     def headerData(self, section, orientation, role):
         if orientation == Qt.Horizontal and role == Qt.DisplayRole:
-            return self.columns[section].title()
+            tag = self.columns[section]
+            return self.column_display_names[tag] if tag in self.column_display_names else tag.title()
 
     def sibling(self, row, column, index):
         return super().sibling(

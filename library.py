@@ -7,6 +7,7 @@ import os, os.path
 from warnings import warn
 import functools, itertools, collections, weakref
 from app import app
+import config
 
 def _strip(tags):
     """Pulls single list items out of lists."""
@@ -74,7 +75,7 @@ class Library(QObject):
     refreshing = pyqtSignal(str)
     def refresh_all_libraries(self):
         self.queue = []
-        for library_name, folders in library_folders.items():
+        for library_name, folders in config.library_folders.items():
             for folder in folders:
                 self.queue.append((library_name, folder))
         self.dir_iterator = None
@@ -423,18 +424,14 @@ class FileReader(QObject):
 
 file_reader = FileReader()
 
-library_folders = {
-    'tango': ['/home/saso/tango'],
-    'glasba': ['/home/saso/glasba'],
-}
 
-for library_name in library_folders.keys():
+for library_name in config.library_folders.keys():
     library.create_library_table(library_name)
 
 fs_watcher = QFileSystemWatcher(app)
 fs_watcher.directoryChanged.connect(lambda path: print('dir changed', path))
 fs_watcher.fileChanged.connect(lambda path: print('file changed', path))
-for folders in library_folders.values():
+for folders in config.library_folders.values():
     for folder in folders:
         fs_watcher.addPath(folder)
         continue

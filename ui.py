@@ -437,12 +437,17 @@ class TandaMasterWindow(QMainWindow):
         cw = self.ui_xml.find('CentralWidget')
         cw.clear()
         cw.append(self.centralWidget().to_xml())
-        try:
-            with open('ui.xml.tmp', 'w') as f:
-                self.ui_xml.write(f, encoding = 'unicode')
-            os.rename('ui.xml.tmp', 'ui.xml')
-        except:
-            raise
+        filename = 'ui.xml'
+        with open(filename + '.tmp', 'w') as outfile:
+            self.ui_xml.write(outfile, encoding='unicode')
+            if filecmp.cmp(filename, filename + '.tmp'):
+                os.remove(filename + '.tmp')
+            else:
+                try:
+                    os.rename(filename, filename + '.' + _timestamp('_') + '.bak')
+                except:
+                    pass
+                os.rename(filename + '.tmp', filename)
         save_playtree()
     
 

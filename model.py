@@ -726,10 +726,10 @@ playtree = PlayTreeItem.create_from_xml(playtree_xml)
 
 class PlayTreeModel(QAbstractItemModel):
 
-    def __init__(self, root_id = None, parent = None):
+    def __init__(self, root_id = None, parent = None, root_item = None):
         super().__init__(parent)
         self.filter_string = ''
-        self.set_root_item(root_id = root_id)
+        self.set_root_item(root_id = root_id, root_item = root_item)
 
     def set_root_item(self, root_item = None, root_id = None):
         if not root_item:

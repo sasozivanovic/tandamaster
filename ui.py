@@ -523,10 +523,15 @@ class TabbedPlayTreesWidget(QTabWidget, TMWidget):
         self.tabBarDoubleClicked.connect(lambda: self.add_tab())
         self.tabCloseRequested.connect(self.removeTab)
         
+        self.setAcceptDrops(True)
+        
     def add_tab(self, widget = None, root_item = None):
+        self.insert_tab(-1, widget = widget, root_item = root_item)
+
+    def insert_tab(self, index, widget = None, root_item = None):
         if not widget:
-            widget = PlayTreeWidget(root_item, self.window().player)
-        tab_index = self.addTab(widget, '')
+            widget = PlayTreeWidget(root_id = None, player = self.window().player, root_item = root_item)
+        tab_index = self.insertTab(index, widget, '')
         self.update_tab_title(tab_index)
         widget.ptv.model().modelReset.connect(lambda: self.update_tab_title(self.indexOf(widget)))
 
@@ -538,6 +543,18 @@ class TabbedPlayTreesWidget(QTabWidget, TMWidget):
         self.setTabIcon(index, icon if icon else QIcon())
         self.setTabText(index, text)
         
+    def dragEnterEvent(self, event):
+        if isinstance(event.mimeData(), PlayTreeMimeData):
+            event.setAccepted(True)
+
+    def dropEvent(self, event):
+        index = self.tabBar().tabAt(event.pos())
+        if isinstance(event.mimeData(), PlayTreeMimeData):
+            for item in event.mimeData().items:
+                if not item.isTerminal:
+                    self.insert_tab(index, root_item = item)
+                    index += 1
+            
 
 @TMWidget.register_xml_tag_handler('PlayTreeWidget')
 class PlayTreeWidget(QWidget, TMWidget):
@@ -569,7 +586,7 @@ class PlayTreeWidget(QWidget, TMWidget):
                              width = str(self.ptv.columnWidth(i)))
         return element
 
-    def __init__(self, root_id, player, parent = None):
+    def __init__(self, root_id, player, parent = None, root_item = None):
         super().__init__(parent)
 
         self.current_model_button = QToolButton()
@@ -578,7 +595,7 @@ class PlayTreeWidget(QWidget, TMWidget):
         self.current_model_button.setIcon(QIcon('icons/iconfinder/32pxmania/current_playtree.png')),
         self.current_model_button.setCheckable(True)
         self.search = QLineEdit()
-        self.ptv = PlayTreeView(root_id, player, self)
+        self.ptv = PlayTreeView(root_id, player, self, root_item = root_item)
         self.current_model_button.toggled.connect(
             lambda checked: player.set_current(
                 model = self.ptv.model()) if checked else None)
@@ -618,11 +635,11 @@ class PlayTreeWidget(QWidget, TMWidget):
         
 class PlayTreeView(QTreeView):
 
-    def __init__(self, root_id, player, parent = None):
+    def __init__(self, root_id, player, parent = None, root_item = None):
         super().__init__(parent)
         self.setUniformRowHeights(True)
 
-        model = PlayTreeModel(root_id, self)
+        model = PlayTreeModel(root_id, self, root_item = root_item)
         self.setModel(model)
         model.view = self
 

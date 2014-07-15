@@ -12,6 +12,7 @@ class TandaMasterPlayer(QMediaPlayer):
         self.fadeout_timer = None
         self.mediaStatusChanged.connect(self.on_media_status_changed)
         #self.setNotifyInterval(200)
+        self.set_volume(100)
 
     @property
     def current_model(self):

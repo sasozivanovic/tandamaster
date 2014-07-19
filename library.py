@@ -439,18 +439,18 @@ file_reader = FileReader()
 for library_name in config.library_folders.keys():
     library.create_library_table(library_name)
 
-fs_watcher = QFileSystemWatcher(app)
-fs_watcher.directoryChanged.connect(lambda path: print('dir changed', path))
-fs_watcher.fileChanged.connect(lambda path: print('file changed', path))
-for folders in config.library_folders.values():
-    for folder in folders:
-        fs_watcher.addPath(folder)
-        continue
-        for dirpath, dirnames, filenames in os.walk(folder):
-            dirs = [os.path.join(dirpath,dirname) for dirname in dirnames]
-            if dirs:
-                fs_watcher.addPaths(dirs)
-            files = [os.path.join(dirpath,filename) for filename in filenames]
-            if files:
-                fs_watcher.addPaths(files)
-print(len(fs_watcher.directories()), len(fs_watcher.files()))
+#fs_watcher = QFileSystemWatcher(app)
+#fs_watcher.directoryChanged.connect(lambda path: print('dir changed', path))
+#fs_watcher.fileChanged.connect(lambda path: print('file changed', path))
+#for folders in config.library_folders.values():
+#    for folder in folders:
+#        fs_watcher.addPath(folder)
+#        continue
+#        for dirpath, dirnames, filenames in os.walk(folder):
+#            dirs = [os.path.join(dirpath,dirname) for dirname in dirnames]
+#            if dirs:
+#                fs_watcher.addPaths(dirs)
+#            files = [os.path.join(dirpath,filename) for filename in filenames]
+#            if files:
+#                fs_watcher.addPaths(files)
+#print(len(fs_watcher.directories()), len(fs_watcher.files()))

@@ -334,7 +334,7 @@ class PlayTreeFile(PlayTreeItem):
         self.filename = filename
         file_reader.register_file(filename, self)
         file_reader.bg_get_fileinfo(FileInfo(filename, FileInfo.reason_NewPlayTreeFile))
-        print("add file", filename, fs_watcher.addPath(filename))
+        #print("add file", filename, fs_watcher.addPath(filename))
 
     def copy(self):
         return PlayTreeFile(self.filename)
@@ -541,7 +541,7 @@ class PlayTreeFolder(PlayTreeItem):
                    not file_reader.not_an_audio_file(fullfn):
                     self.children[None].append(
                         PlayTreeFile(filename=fullfn, parent = self))
-            print("add dir", self.filename, fs_watcher.addPath(self.filename))
+            #print("add dir", self.filename, fs_watcher.addPath(self.filename))
         if self.children[model] is None:
             self.children[model] = [child for child in self.children[None] if child.filter(model) ]
             self.children[model] = self.children[None]

@@ -8,6 +8,7 @@ class TandaMasterPlayer(QMediaPlayer):
         super().__init__(*args, **kwargs)
         self._current_model = None
         self._current_item = None
+        self.stop_after = 0
         self._playback_start = None
         self.fadeout_timer = None
         self.mediaStatusChanged.connect(self.on_media_status_changed)
@@ -94,11 +95,19 @@ class TandaMasterPlayer(QMediaPlayer):
 
     def _play_next(self):
         self.setVolume(self._volume)
+        if self.stop_after == 1:
+            return
+        if self.stop_after:
+            self.stop_after -= 1
+            self.current_model.view.window().stopafter_spinbox.setValue(self.stop_after)
         n = self.current_model.next_song(self.current_index)
         if n.isValid():
             self.play_index(n)
         else:
             self.stop()
+
+    def set_stop_after(self, i):
+        self.stop_after = i
 
     #gap = 3000
     gap = 0

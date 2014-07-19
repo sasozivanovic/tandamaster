@@ -52,3 +52,8 @@ def hmsms_to_text(h,m,s,ms,include_ms=True):
         (':' + str(ms) if include_ms else '')
 
 
+import datetime
+def tm_timestamp(sep = ' '):
+    ts = datetime.datetime.now().isoformat(sep)
+    return ts[0:ts.index('.')]
+        

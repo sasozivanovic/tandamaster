@@ -20,10 +20,6 @@ def register_xml_tag_handler(tag):
         return cls
     return f
 
-def _timestamp(sep = ' '):
-    ts = datetime.datetime.now().isoformat(sep)
-    return ts[0:ts.index('.')]
-        
 
 class PlayTreeItem:
 
@@ -47,7 +43,7 @@ class PlayTreeItem:
                 os.remove(filename + '.tmp')
             else:
                 try:
-                    os.rename(filename, filename + '.' + _timestamp('_') + '.bak')
+                    os.rename(filename, filename + '.' + tm_timestamp('_') + '.bak')
                 except:
                     pass
                 os.rename(filename + '.tmp', filename)
@@ -312,13 +308,24 @@ class PlayTreeFile(PlayTreeItem):
 
     @classmethod
     def _create_from_xml(cls, element, parent):
+        library_name = element.get('library')
+        song_id = element.get('song_id')
+        filename = element.get('filename')
+        if song_id:
+            fn = library.filename_by_id(library_name, song_id)
+            if filename != fn:
+                song_id = None
+                filename = fn
+        if not song_id:
+            library_name, song_id = library.library_name_and_song_id_from_filename(filename)
         return PlayTreeLibraryFile(
-            library_name = element.get('library'),
-            song_id = element.get('song_id'),
+            library_name = library_name,
+            song_id = song_id,
             Id = element.get('id'),
             parent = parent
-        ) if element.get('song_id') else PlayTreeFile(
-            filename = element.get('filename'),
+        ) if song_id else PlayTreeFile(
+            filename = filename,
+            Id = element.get('id'),
             parent = parent
         )
 

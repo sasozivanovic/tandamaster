@@ -213,6 +213,17 @@ class Library(QObject):
         ).fetchone()
         return row[0] if row else None
 
+    def library_name_and_song_id_from_filename(self, filename, library_name = None):
+        for ln in ((library_name,) if library_name else config.library_folders):
+            row = self.connection.execute(
+                'SELECT id FROM files_{} WHERE filename=?'
+                .format(ln),
+                (filename,)
+            ).fetchone()
+            if row:
+                return ln, row[0]
+        return None, None
+
     def _build_join(self, table_alias_list):
         return "{} AS {} {}".format(
             table_alias_list[0][0], table_alias_list[0][1],

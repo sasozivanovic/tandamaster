@@ -444,7 +444,7 @@ class TandaMasterWindow(QMainWindow):
                 os.remove(filename + '.tmp')
             else:
                 try:
-                    os.rename(filename, filename + '.' + _timestamp('_') + '.bak')
+                    os.rename(filename, filename + '.' + tm_timestamp('_') + '.bak')
                 except:
                     pass
                 os.rename(filename + '.tmp', filename)

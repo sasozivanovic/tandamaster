@@ -8,6 +8,7 @@ from warnings import warn
 import functools, itertools, collections, weakref
 from app import app
 import config
+import unidecode
 
 def _strip(tags):
     """Pulls single list items out of lists."""
@@ -50,7 +51,7 @@ class Library(QObject):
         )
         self.connection.execute(
             'CREATE TABLE IF NOT EXISTS tags_{name}'
-            '(id INTEGER, tag TEXT, value TEXT)'
+            '(id INTEGER, tag TEXT, value TEXT, ascii TEXT)'
             .format(name=name)
         )
         self.connection.execute(
@@ -66,6 +67,11 @@ class Library(QObject):
         self.connection.execute(
             'CREATE INDEX IF NOT EXISTS tags_{name}_value ON tags_{name}'
             '(value)'
+            .format(name=name)
+        )
+        self.connection.execute(
+            'CREATE INDEX IF NOT EXISTS tags_{name}_ascii ON tags_{name}'
+            '(ascii)'
             .format(name=name)
         )
         self.connection.commit()
@@ -144,9 +150,9 @@ class Library(QObject):
                 )
                 song_id = self.cursor.lastrowid
             self.cursor.executemany(
-                'INSERT OR REPLACE INTO tags_{name} (id, tag, value) VALUES (?,?,?)'
+                'INSERT OR REPLACE INTO tags_{name} (id, tag, value, ascii) VALUES (?,?,?,?)'
                 .format(name = self.name),
-                ( (song_id, tag, value) 
+                ( (song_id, tag, value, unidecode.unidecode(value)) 
                   for tag, values in itertools.chain(
                           audiofile.tags.items(), iter((
                               ('_length', (audiofile.length,)),

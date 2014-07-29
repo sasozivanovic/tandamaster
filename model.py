@@ -21,7 +21,9 @@ def register_xml_tag_handler(tag):
     return f
 
 
+import weakref
 class PlayTreeItem:
+    weakrefs = weakref.WeakSet() # for debugging memory leaks
 
     max_id = 0
     xml_tag_registry = {}
@@ -57,6 +59,7 @@ class PlayTreeItem:
             PlayTreeItem.max_id = max(PlayTreeItem.max_id, self._Id)
         self.parent = parent
         self.expanded = {}
+        PlayTreeItem.weakrefs.add(self)
 
     @property
     def Id(self):
@@ -600,7 +603,6 @@ class PlayTreeBrowse(PlayTreeItem):
         self.children = {}
         self.value = {}
         self.song_count = {}
-        self.value_to_child = {}
 
     def copy(self):
         return PlayTreeBrowse(self.library, self.fixed_tags, self.browse_by_tags, self.tag)
@@ -659,11 +661,7 @@ class PlayTreeBrowse(PlayTreeItem):
         browse_by_tags = self.browse_by_tags[1:]        
         for value, count in rows:
             fixed_tags = self.fixed_tags + ((tag, value),)
-            if value in self.value_to_child:
-                child = self.value_to_child[value]
-            else:
-                child = PlayTreeBrowse(self.library, fixed_tags, browse_by_tags, tag = tag, parent = self)
-                self.value_to_child[value] = child
+            child = PlayTreeBrowse(self.library, fixed_tags, browse_by_tags, tag = tag, parent = self)
             child.value[model] = value
             child.song_count[model] = count
             children.append(child)
@@ -672,9 +670,7 @@ class PlayTreeBrowse(PlayTreeItem):
         self.children[model] = []
         children = self.children[model]
         for Id in rows:
-            if Id not in self.value_to_child:
-                self.value_to_child[Id] = PlayTreeLibraryFile(self.library, Id, parent = self)
-            children.append(self.value_to_child[Id])
+            children.append(PlayTreeLibraryFile(self.library, Id, parent = self))
 
     def populate(self, model, force = False):
         if force or model not in self.children or self.children[model] is None:

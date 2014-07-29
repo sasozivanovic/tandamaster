@@ -105,10 +105,9 @@ class Library(QObject):
                 self.refresh_next.emit()
         else:
             filename = self.dir_iterator.next()
-            try:
-                filestat = os.stat(filename)
-            except:
-                warn("Cannot stat {}".format(filename), RuntimeWarning)
+            fileinfo = QFileInfo(filename)
+            if not (fileinfo.exists() and fileinfo.isReadable()):
+                warn("Cannot read {}".format(filename), RuntimeWarning)
                 self.refresh_next.emit()
                 return
             try:
@@ -127,7 +126,7 @@ class Library(QObject):
             song = self.cursor.fetchone()
             if song:
                 song_id,mtime,filesize = song
-                if mtime is not None and filesize is not None and filestat.st_mtime <= mtime and filestat.st_size == filesize:
+                if mtime is not None and filesize is not None and fileinfo.lastModified().toTime_t() <= mtime and fileinfo.size() == filesize:
                     self.refresh_next.emit()
                     return
                 self.cursor.execute(
@@ -135,7 +134,7 @@ class Library(QObject):
                     'SET mtime=?, filesize=? '
                     'WHERE id=?'
                     .format(name=self.name),
-                    (filestat.st_mtime, filestat.st_size, song_id)
+                    (fileinfo.lastModified().toTime_t(), fileinfo.size(), song_id)
                 )
                 #self.cursor.execute(
                 #    'DELETE FROM tags_{name} WHERE id=?'
@@ -146,13 +145,13 @@ class Library(QObject):
                 self.cursor.execute(
                     'INSERT INTO files_{name} (filename, mtime, filesize) VALUES(?,?,?)'
                     .format(name = self.name),
-                    (filename, filestat.st_mtime, filestat.st_size)
+                    (filename, fileinfo.lastModified().toTime_t(), fileinfo.size())
                 )
                 song_id = self.cursor.lastrowid
             self.cursor.executemany(
                 'INSERT OR REPLACE INTO tags_{name} (id, tag, value, ascii) VALUES (?,?,?,?)'
                 .format(name = self.name),
-                ( (song_id, tag, value, unidecode.unidecode(value)) 
+                ( (song_id, tag, value, unidecode.unidecode(value).lower() if isinstance(value, str) else value) 
                   for tag, values in itertools.chain(
                           audiofile.tags.items(), iter((
                               ('_length', (audiofile.length,)),
@@ -252,7 +251,7 @@ class Library(QObject):
                 'NOT EXISTS (SELECT id FROM tags_{} WHERE id=tags_{}.id AND tag=?)'.format(name, n)
                 for n,tv in enumerate(fixed_tags)
             ),
-            "tags_filter.value LIKE ?" if filter_string else ""
+            "tags_filter.ascii LIKE ?" if filter_string else "" # todo: value OR ascii
         )))
         statement = 'SELECT DISTINCT {} FROM {} {} {}' \
             .format(

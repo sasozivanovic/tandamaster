@@ -11,7 +11,7 @@ from library import *
 from app import *
 from commands import *
 
-import bidict
+import bidict, shlex
 
 def register_xml_tag_handler(tag):
     def f(cls):
@@ -194,7 +194,7 @@ class PlayTreeList(PlayTreeItem):
         for child in self.children[None]:
             if child.filter(model):
                 return True
-        return model.filter_string in self.name.lower()
+        return all(filter_word in self.name.lower() for filter_word in model.filter_expr)
 
     def iter_width(self, model, condition_yield, condition_propagate):
         items = [self]
@@ -541,11 +541,11 @@ class PlayTreeFolder(PlayTreeItem):
 
     def filter(self, model):
         if self.children[None] is None or model not in self.children:
-            return model.filter_string in self.filename.lower()
+            return all(filter_word in self.filename.lower() for filter_word in model.filter_expr)
         for child in self.children[None]:
             if child.filter(model):
                 return True
-        return model.filter_string in self.filename.lower()
+        return all(filter_word in self.filename.lower() for filter_word in model.filter_expr)
 
     def expand_small_children(self, model):
         if model.view.isExpanded(self.index(model)):
@@ -669,25 +669,25 @@ class PlayTreeBrowse(PlayTreeItem):
             if self.browse_by_tags:
                 self.populate_tags(model, library.query_tags_iter(
                     self.library, self.browse_by_tags[0], self.fixed_tags,
-                    model.filter_string))
+                    model.filter_expr))
             else:
                 self.populate_songs(model, library.query_songs_iter(
                     self.library, self.fixed_tags,  
-                    model.filter_string))
+                    model.filter_expr))
                 
     def expand_small_children(self, model):
         if self.rowCount(model) == 0 or isinstance(self.child(model, 0), PlayTreeFile):
             return
-        filter_string = model.filter_string
+        filter_expr = model.filter_expr
         queries = BgQueries([], self.expand_small_children_callback, 
-                               lambda: model.filter_string == filter_string)
+                               lambda: model.filter_expr == filter_expr)
         for child in self.children[model]:
             if child.song_count[model] == 1:
                 query = BgQuery(Library.query_tags_all,
-                                (child.library, child.browse_by_tags[0], child.fixed_tags, filter_string)
+                                (child.library, child.browse_by_tags[0], child.fixed_tags, filter_expr)
                             ) if child.browse_by_tags else \
                     BgQuery(Library.query_songs_all,
-                            (child.library, child.fixed_tags, filter_string)
+                            (child.library, child.fixed_tags, filter_expr)
                         )
                 query.browse = child
                 queries.append(query)
@@ -721,7 +721,7 @@ class PlayTreeModel(QAbstractItemModel):
 
     def __init__(self, root_id = None, parent = None, root_item = None):
         super().__init__(parent)
-        self.filter_string = ''
+        self.filter_expr = []
         self.set_root_item(root_id = root_id, root_item = root_item)
 
     def set_root_item(self, root_item = None, root_id = None):
@@ -879,20 +879,33 @@ class PlayTreeModel(QAbstractItemModel):
         return index
 
     def refilter(self, string):
-        filter_string = string.lower()
-        self.filter_string = filter_string
+        print(string)
+        try:
+            filter_expr = [
+                word[1:-1] 
+                if (word[0]=='"' and word[-1]=='"')
+                else word
+                for word in
+                shlex.split(
+                    unidecode.unidecode(string).lower(),
+                    comments = False, posix = False)
+                ]
+        except:
+            return
+        self.filter_expr = filter_expr
+        print(filter_expr)
         queries = BgQueries([],
             self.refilter_update_model, 
-            lambda: self.filter_string == filter_string
+            lambda: self.filter_expr == filter_expr
         )
         for browse in self.root_item.iter(self,
                 lambda item: isinstance(item, PlayTreeBrowse),
                 lambda item: isinstance(item, PlayTreeList)):
             query = BgQuery(Library.query_tags_all,
-                            (browse.library, browse.browse_by_tags[0], browse.fixed_tags, filter_string)
+                            (browse.library, browse.browse_by_tags[0], browse.fixed_tags, filter_expr)
                         ) if browse.browse_by_tags else \
                  BgQuery(Library.query_songs_all,
-                         (browse.library, browse.fixed_tags, filter_string)
+                         (browse.library, browse.fixed_tags, filter_expr)
                      )
             query.browse = browse
             queries.append(query)
@@ -906,7 +919,7 @@ class PlayTreeModel(QAbstractItemModel):
             else: # query.method == Library.query_songs_all:
                 query.browse.populate_songs(self, query.result)
         self.endResetModel()
-        if self.filter_string:
+        if self.filter_expr:
             for item in self.root_item.iter(self,
                     lambda item: isinstance(item, PlayTreeBrowse) or 
                     isinstance(item, PlayTreeFolder),

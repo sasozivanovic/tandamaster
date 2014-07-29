@@ -235,14 +235,14 @@ class Library(QObject):
             " ".join("INNER JOIN {} AS {} USING(id)".format(t,a) for t,a in table_alias_list[1:])
         )
 
-    def _build_query_statement(self, name, fixed_tags, filter_string):
+    def _build_query_statement(self, name, fixed_tags, filter_words):
         def tables():
-            if not (fixed_tags or filter_string):
+            if not (fixed_tags or filter_words):
                 yield 'files_' + name, 'files'
             for i in range(len(fixed_tags)):
                 yield 'tags_' + name, 'tags_' + str(i)
-            if filter_string:
-                yield 'tags_' + name, 'tags_filter'
+            for i in range(len(filter_words)):
+                yield 'tags_' + name, 'tags_filter_' + str(i)
         join = self._build_join(list(tables()))
         where = " AND ".join(filter(None,(
             " AND ".join(
@@ -251,17 +251,19 @@ class Library(QObject):
                 'NOT EXISTS (SELECT id FROM tags_{} WHERE id=tags_{}.id AND tag=?)'.format(name, n)
                 for n,tv in enumerate(fixed_tags)
             ),
-            "tags_filter.ascii LIKE ?" if filter_string else "" # todo: value OR ascii
+            " AND ".join(# todo: value OR ascii
+                "tags_filter_{}.ascii LIKE ?".format(i) for i in range(len(filter_words))
+            )
         )))
         statement = 'SELECT DISTINCT {} FROM {} {} {}' \
             .format(
-                'tags_0.id' if fixed_tags else ('tags_filter.id' if filter_string else 'files.id'),
+                'tags_0.id' if fixed_tags else ('tags_filter_0.id' if filter_words else 'files.id'),
                 join, 
                 'WHERE' if where else '', 
                 where)
         return statement
 
-    def _query_tags(self, name, tag, fixed_tags, filter_string):
+    def _query_tags(self, name, tag, fixed_tags, filter_words):
         """Get all values of "tag" of songs having the given fixed tags, and the number of songs for each value.
 
         "fixed_tags" should be a list of pairs."""
@@ -269,7 +271,7 @@ class Library(QObject):
                     "LEFT JOIN tags_{} AS tags ON songs.id=tags.id AND tags.tag=? " \
                     "GROUP BY tags.value" \
                         .format(
-                            self._build_query_statement(name, fixed_tags, filter_string),
+                            self._build_query_statement(name, fixed_tags, filter_words),
                             name
                         )
         def params():
@@ -277,23 +279,23 @@ class Library(QObject):
                 yield t
                 if v is not None:
                     yield v
-            if filter_string:
-                yield '%' + filter_string + '%'
+            for filter_word in filter_words:
+                yield '%' + filter_word + '%'
             yield tag
         return self.connection.execute(statement, list(params()))
 
-    def query_tags_iter(self, name, tag, fixed_tags, filter_string):
-        cursor = self._query_tags(name, tag, fixed_tags, filter_string)
+    def query_tags_iter(self, name, tag, fixed_tags, filter_words):
+        cursor = self._query_tags(name, tag, fixed_tags, filter_words)
         row = cursor.fetchone()
         while row:
             yield row
             row = cursor.fetchone()
 
-    def query_tags_all(self, name, tag, fixed_tags, filter_string):
-        cursor = self._query_tags(name, tag, fixed_tags, filter_string)
+    def query_tags_all(self, name, tag, fixed_tags, filter_words):
+        cursor = self._query_tags(name, tag, fixed_tags, filter_words)
         return cursor.fetchall()
 
-    def _query_songs(self, name, fixed_tags, filter_string):
+    def _query_songs(self, name, fixed_tags, filter_words):
         """Get ids of songs having the given fixed tags.
 
         "fixed_tags" should be a list of pairs."""
@@ -303,20 +305,20 @@ class Library(QObject):
                 yield t
                 if v is not None:
                     yield v
-            if filter_string:
-                yield '%' + filter_string + '%'
-        statement = self._build_query_statement(name, fixed_tags, filter_string)
+            for filter_word in filter_words:
+                yield '%' + filter_word + '%'
+        statement = self._build_query_statement(name, fixed_tags, filter_words)
         return self.connection.execute(statement, list(params()))
 
-    def query_songs_iter(self, name, fixed_tags, filter_string):
-        cursor = self._query_songs(name, fixed_tags, filter_string)
+    def query_songs_iter(self, name, fixed_tags, filter_words):
+        cursor = self._query_songs(name, fixed_tags, filter_words)
         row = cursor.fetchone()
         while row:
             yield row[0]
             row = cursor.fetchone()
 
-    def query_songs_all(self, name, fixed_tags, filter_string):
-        cursor = self._query_songs(name, fixed_tags, filter_string)
+    def query_songs_all(self, name, fixed_tags, filter_words):
+        cursor = self._query_songs(name, fixed_tags, filter_words)
         return [row[0] for row in cursor.fetchall()]
 
     bg_queries_done = pyqtSignal(BgQueries)

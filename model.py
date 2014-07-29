@@ -311,16 +311,8 @@ class PlayTreeFile(PlayTreeItem):
 
     @classmethod
     def _create_from_xml(cls, element, parent):
-        library_name = element.get('library')
-        song_id = element.get('song_id')
         filename = element.get('filename')
-        if song_id:
-            fn = library.filename_by_id(library_name, song_id)
-            if filename != fn:
-                song_id = None
-                filename = fn
-        if not song_id:
-            library_name, song_id = library.library_name_and_song_id_from_filename(filename)
+        library_name, song_id = library.library_name_and_song_id_from_filename(filename)
         return PlayTreeLibraryFile(
             library_name = library_name,
             song_id = song_id,
@@ -338,6 +330,10 @@ class PlayTreeFile(PlayTreeItem):
         file_reader.register_file(filename, self)
         file_reader.bg_get_fileinfo(FileInfo(filename, FileInfo.reason_NewPlayTreeFile))
         #print("add file", filename, fs_watcher.addPath(filename))
+
+    @property
+    def Id(self):
+        return None
 
     def copy(self):
         return PlayTreeFile(self.filename)
@@ -432,12 +428,6 @@ class PlayTreeFile(PlayTreeItem):
 
 class PlayTreeLibraryFile(PlayTreeFile):
     
-    def to_xml(self):
-        element = super().to_xml()
-        element.set('library', self.library)
-        element.set('song_id', str(self.song_id))
-        return element
-
     def __init__(self, library_name, song_id, Id = None, parent = None):
         super(PlayTreeFile, self).__init__(Id, parent)
         self.library = library_name

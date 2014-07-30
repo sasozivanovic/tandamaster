@@ -397,6 +397,7 @@ class PlayTreeFile(PlayTreeItem):
     def filter(self, model):
         if not file_reader.have_tags(self.filename):
             return True
+        return True # temp!!!!
         for value in self.get_tags().values():
             if model.filter_string in str(value).lower():
                 return True
@@ -753,8 +754,8 @@ class PlayTreeModel(QAbstractItemModel):
         return index.internalPointer() if index.isValid() else self.root_item
 
     # column "" provides browsing info (folder name, file name, ...)
-    #columns = ('', 'ARTIST', 'TITLE', '_length', 'PERFORMER:VOCALS', 'QUODLIBET::RECORDINGDATE')
-    columns = ('',)
+    columns = ('', 'ARTIST', 'PERFORMER:VOCALS', 'QUODLIBET::RECORDINGDATE', '_length')
+    #columns = ('',)
 
     column_display_names = bidict.bidict({
         'ARTIST': 'Artist',

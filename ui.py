@@ -16,6 +16,7 @@ class TandaMasterWindow(QMainWindow):
     def __init__(self, parent = None):
         super().__init__(parent)
         self.setWindowTitle('TandaMaster')        
+        self.setWindowIcon(QIcon('icons/iconarchive/icons8/tandamaster-Sports-Dancing-icon.png'))
 
         self.player = TandaMasterPlayer()
         #self.player2 = TandaMasterPlayer() # pre-listening

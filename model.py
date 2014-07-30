@@ -37,6 +37,15 @@ class PlayTreeItem:
         else:
             return etree.Element(self.xml_tag)
 
+    @classmethod
+    def create_from_url(cls, url, parent = None, url_is_local_filename = False):
+        filename = url if url_is_local_filename else url.toLocalFile()
+        fileinfo = QFileInfo(filename)
+        if fileinfo.isDir():
+            return PlayTreeFolder(filename, parent = parent)
+        else:
+            return PlayTreeFile(filename, parent = parent)
+
     def save(self, filename):
         document = etree.ElementTree(self.to_xml())
         with open(filename + '.tmp', 'w') as outfile:
@@ -252,12 +261,12 @@ class PlayTreeList(PlayTreeItem):
                 new_items = [item.copy() for item in source_items]
         elif mime_data.hasFormat('audio/x-mpegurl'):
             new_items = [
-                PlayTreeFile(filename, parent = self)
+                PlayTreeItem.create_from_url(filename, parent = self, url_is_local_filename = True)
                 for filename in mime_data.text().split("\n")
             ]
         elif mime_data.hasUrls():
             new_items = [
-                PlayTreeFile(url.toLocalFile(), parent = self)
+                PlayTreeItem.create_from_url(url, parent = self)
                 for url in mime_data.urls()
                 if url.isLocalFile()
             ]
@@ -879,7 +888,6 @@ class PlayTreeModel(QAbstractItemModel):
         return index
 
     def refilter(self, string):
-        print(string)
         try:
             filter_expr = [
                 word[1:-1] 
@@ -893,7 +901,6 @@ class PlayTreeModel(QAbstractItemModel):
         except:
             return
         self.filter_expr = filter_expr
-        print(filter_expr)
         queries = BgQueries([],
             self.refilter_update_model, 
             lambda: self.filter_expr == filter_expr

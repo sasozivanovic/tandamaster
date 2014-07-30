@@ -167,6 +167,14 @@ class TandaMasterWindow(QMainWindow):
             app.tr('Set current as root'), 
             self,
             triggered = self.set_current_as_root)
+        self.action_columns_minimal = QAction(
+            app.tr('Columns: minimal'), 
+            self,
+            triggered = self.set_columns_minimal)
+        self.action_columns_singer_year = QAction(
+            app.tr('Columns: singer and year'), 
+            self,
+            triggered = self.set_columns_singer_year)
         self.playtreemenu.addAction(action_undo)
         self.playtreemenu.addAction(action_redo)
         self.playtreemenu.addSeparator()
@@ -185,6 +193,8 @@ class TandaMasterWindow(QMainWindow):
         self.playtreemenu.addAction(self.action_move_right)
         self.playtreemenu.addSeparator()
         self.playtreemenu.addAction(self.action_set_current_as_root)
+        self.playtreemenu.addAction(self.action_columns_minimal)
+        self.playtreemenu.addAction(self.action_columns_singer_year)  
         menubar.addMenu(self.playtreemenu)
 
         self.setMenuBar(menubar)
@@ -457,7 +467,16 @@ class TandaMasterWindow(QMainWindow):
                     pass
                 os.rename(filename + '.tmp', filename)
         save_playtree()
-    
+
+    def set_columns_minimal(self):
+        ptv = app.focusWidget()
+        if not isinstance(ptv, PlayTreeView): return
+        ptv.set_columns( ('',) )
+
+    def set_columns_singer_year(self):
+        ptv = app.focusWidget()
+        if not isinstance(ptv, PlayTreeView): return
+        ptv.set_columns( ('', 'ARTIST', 'TITLE', '_length', 'PERFORMER:VOCALS', 'QUODLIBET::RECORDINGDATE') )
 
 class TMWidget:
     xml_tag_registry = {}
@@ -1070,7 +1089,10 @@ class PlayTreeView(QTreeView):
                     return
         super().keyPressEvent(event)
             
-
+    def set_columns(self, columns):
+        self.model().beginResetModel()
+        self.model().columns = columns
+        self.model().endResetModel()
 
 class TMProgressBar(QProgressBar):
     def __init__(self, player, parent = None):

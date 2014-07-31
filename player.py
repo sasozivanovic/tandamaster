@@ -71,6 +71,12 @@ class TandaMasterPlayer(QMediaPlayer):
             self.setNotifyInterval(100)
 
     def play_index(self, playtree_index):
+        if self.current_model and self.current_item and self.current_model.view.window().action_lock.isChecked() and self.current_item.function() == 'cortina':
+            self._fadeout(self._play_index, playtree_index)
+        else:
+            self._play_index(playtree_index)
+
+    def _play_index(self, playtree_index):
         if not playtree_index.model() == self.current_model:
             self.set_current(model = playtree_index.model())
         if not self.current_model.item(playtree_index).isPlayable:
@@ -79,23 +85,13 @@ class TandaMasterPlayer(QMediaPlayer):
         self.setMedia(QMediaContent(QUrl.fromLocalFile(self.current_item.filename)))
         super().play()
 
-    def play_next(self, no_fadeout = False, no_gap = False):
-        if not no_fadeout and not self.fadeout_timer and self.current_model and self.current_item and self.current_model.view.window().action_lock.isChecked() and self.current_item.function() == 'cortina':
-            self.fadeout_timer = QTimer()
-            self.fadeout_timer.setTimerType(Qt.PreciseTimer)
-            self.fadeout_timer.timeout.connect(self.fadeout_to_next)
-            self.fadeout_timer.start(self.fadeout_timeout)
-            return
-        if self.fadeout_timer:
-            self.fadeout_timer.stop()
-            self.fadeout_timer = None
-        if not no_gap and self.gap and self.current_model and self.current_item and self.current_model.view.window().action_lock.isChecked():
-            QTimer.singleShot(self.gap, self._play_next)
-            return
-        self._play_next()
+    def play_next(self):
+        if self.current_model and self.current_item and self.current_model.view.window().action_lock.isChecked() and self.current_item.function() == 'cortina':
+            self._fadeout(self._play_next)
+        else:
+            self._play_next()    
 
     def _play_next(self):
-        self.setVolume(self._volume)
         if self.stop_after == 1:
             return
         if self.stop_after:
@@ -103,25 +99,40 @@ class TandaMasterPlayer(QMediaPlayer):
             self.current_model.view.window().stopafter_spinbox.setValue(self.stop_after)
         n = self.current_model.next_song(self.current_index)
         if n.isValid():
-            self.play_index(n)
+            self._play_index(n)
         else:
             self.stop()
 
     def set_stop_after(self, i):
         self.stop_after = i
 
-    #gap = 3000
-    gap = 0
+    gap = 3000
+    #gap = 0
 
     fadeout_step = 5
     fadeout_timeout = 200
-    def fadeout_to_next(self):
+
+    def _fadeout(self, method, *args, **kwargs):
         if not self.fadeout_timer:
-            return
-        if self.volume() == 0:
-            self.play_next(no_fadeout = True)
+            self.fadeout_timer = QTimer()
+            self.fadeout_timer.setTimerType(Qt.PreciseTimer)
+            self.fadeout_timer.timeout.connect(lambda: self._fadeout(method, *args, **kwargs))
+            self.fadeout_timer.start(self.fadeout_timeout)
         else:
-            self.setVolume(max(0,self.volume()-self.fadeout_step))
+            if self.volume() == 0:
+                self.fadeout_timer.stop()
+                self.fadeout_timer = None
+                self.pause()
+                self.setVolume(self._volume)
+                self._gap(method, *args, **kwargs)
+            else:
+                self.setVolume(max(0,self.volume()-self.fadeout_step))
+
+    def _gap(self, method,  *args, **kwargs):
+        if self.gap:
+            QTimer.singleShot(self.gap, lambda: method(*args, **kwargs))
+        else:
+            method(*args, **kwargs)
 
     def play_previous(self):
         n = self.current_model.previous_song(self.current_index)

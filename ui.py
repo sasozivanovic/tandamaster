@@ -1050,11 +1050,12 @@ class PlayTreeView(QTreeView):
         #MovePlayTreeItemsCommand(selected_items, new_item, None, command_parent = group_command, push = False)
         #self.setExpanded(new_item.index(model), True)
         undo_stack.push(group_command)
+        for new_item in new_items:
+            new_item.populate(model)
+            self.setExpanded(new_item.index(model), True)        
         for item in selected_items:
             selection_model.select(item.index(model),QItemSelectionModel.Select|QItemSelectionModel.Rows)
         selection_model.setCurrentIndex(model.index(0,0,parent_index), QItemSelectionModel.NoUpdate)
-        for new_item in new_items:
-            self.setExpanded(new_item.index(model), True)
 
     def group_into_tandas(self):
         model = self.model()
@@ -1083,15 +1084,16 @@ class PlayTreeView(QTreeView):
         new_items.extend(self._group(model, tanda_items, group_command))
         tanda_items = []
         undo_stack.push(group_command)
+        for new_item in new_items:
+            new_item.populate(model)
+            self.setExpanded(new_item.index(model), True)
         for item in selected_items:
             selection_model.select(item.index(model),QItemSelectionModel.Select|QItemSelectionModel.Rows)
         selection_model.setCurrentIndex(model.index(0,0,parent_index), QItemSelectionModel.NoUpdate)
-        for new_item in new_items:
-            self.setExpanded(new_item.index(model), True)
 
     def _group(self, model, items, group_command):
         if len(items) <= 1: 
-            return [items]
+            return [items] if items else []
         common_tags = dict(self.common_tags(items))
         if 'GENRE' in common_tags.keys():
             genre = common_tags['GENRE']

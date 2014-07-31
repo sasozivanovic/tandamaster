@@ -477,7 +477,7 @@ class TandaMasterWindow(QMainWindow):
     def set_columns_singer_year(self):
         ptv = app.focusWidget()
         if not isinstance(ptv, PlayTreeView): return
-        ptv.set_columns( ('TITLE', 'ARTIST', '_length', 'PERFORMER:VOCALS', 'QUODLIBET::RECORDINGDATE') )
+        ptv.set_columns( ('', 'ARTIST', 'PERFORMER:VOCALS', 'QUODLIBET::RECORDINGDATE', '_length') )
 
 class TMWidget:
     xml_tag_registry = {}

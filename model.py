@@ -763,6 +763,7 @@ class PlayTreeModel(QAbstractItemModel):
         'TITLE': 'Title',
         'PERFORMER:VOCALS': 'Singer',
         'QUODLIBET::RECORDINGDATE': 'Year',
+        '_Length': 'Length',
     })
 
     def index(self, row, column, parent):

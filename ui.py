@@ -648,7 +648,9 @@ class PlayTreeView(QTreeView):
 
     def __init__(self, root_id, player, parent = None, root_item = None):
         super().__init__(parent)
-        self.setUniformRowHeights(True)
+
+        self.setUniformRowHeights(True) 
+        # when using QTreeView::branch:selected, images dissapear!
 
         model = PlayTreeModel(root_id, self, root_item = root_item)
         self.setModel(model)
@@ -674,7 +676,6 @@ class PlayTreeView(QTreeView):
 
         self.setDragDropMode(QAbstractItemView.DragDrop)
         self.setEditTriggers(QAbstractItemView.EditKeyPressed)
-
 
     def on_expanded(self, index):
         model = self.model()
@@ -870,6 +871,14 @@ class PlayTreeView(QTreeView):
     def focusInEvent(self, event):
         r = super().focusInEvent(event)
         QWidget.setTabOrder(self, self.other())
+        self.setStyleSheet("")
+        self.on_selection_changed()
+        self.on_currentIndex_changed()
+        return r
+
+    def focusOutEvent(self, event):
+        r = super().focusInEvent(event)
+        self.setStyleSheet("""QTreeView::item:selected { background-color: lightgray; }""")
         return r
 
     def move_up(self):

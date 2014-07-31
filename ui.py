@@ -477,7 +477,7 @@ class TandaMasterWindow(QMainWindow):
     def set_columns_singer_year(self):
         ptv = app.focusWidget()
         if not isinstance(ptv, PlayTreeView): return
-        ptv.set_columns( ('', 'ARTIST', 'PERFORMER:VOCALS', 'QUODLIBET::RECORDINGDATE', '_length') )
+        ptv.set_columns( ('', 'ARTIST', 'PERFORMER:VOCALS', 'QUODLIBET::RECORDINGDATE', 'GENRE', '_length') )
 
 class TMWidget:
     xml_tag_registry = {}
@@ -1024,8 +1024,13 @@ class PlayTreeView(QTreeView):
         top = min(index.row() for index in selected_indexes)
         top_index = model.index(top, 0, parent_index)
         top_item = model.item(top_index)
-        common_tags = self.common_tags(selected_items)
-        name = 'Tanda: ' + ", ".join(v for t,v  in common_tags)
+        common_tags = dict(self.common_tags(selected_items))
+        if 'GENRE' in common_tags.keys():
+            genre = common_tags['GENRE']
+            del common_tags['GENRE']
+        else:
+            genre = 'Tanda'
+        name = genre + ': ' + ", ".join(common_tags.values())
         new_item = PlayTreeList(name)
         group_command = TMPlayTreeItemsCommand(selected_items, command_prefix = 'Group')
         InsertPlayTreeItemsCommand([new_item], parent_item, top_item, command_parent = group_command, push = False)

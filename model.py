@@ -754,16 +754,18 @@ class PlayTreeModel(QAbstractItemModel):
         return index.internalPointer() if index.isValid() else self.root_item
 
     # column "" provides browsing info (folder name, file name, ...)
-    columns = ('', 'ARTIST', 'PERFORMER:VOCALS', 'QUODLIBET::RECORDINGDATE', '_length')
+    columns = ('', 'ARTIST', 'PERFORMER:VOCALS', 'QUODLIBET::RECORDINGDATE', 'GENRE', '_length')
     #columns = ('',)
 
     column_display_names = bidict.bidict({
-        'ARTIST': 'Artist',
-        'ALBUM': 'Album',
-        'TITLE': 'Title',
+        '': 'Title',
+        #'ARTIST': 'Artist',
+        #'ALBUM': 'Album',
+        #'TITLE': 'Title',
         'PERFORMER:VOCALS': 'Singer',
         'QUODLIBET::RECORDINGDATE': 'Year',
-        '_Length': 'Length',
+        #'GENRE': 'Genre',
+        #'_Length': 'Length',
     })
 
     def index(self, row, column, parent):
@@ -811,7 +813,7 @@ class PlayTreeModel(QAbstractItemModel):
     def headerData(self, section, orientation, role):
         if orientation == Qt.Horizontal and role == Qt.DisplayRole:
             tag = self.columns[section]
-            return self.column_display_names[tag] if tag in self.column_display_names else tag.title()
+            return self.column_display_names[tag] if tag in self.column_display_names else tag.strip('_').title()
 
     def sibling(self, row, column, index):
         return super().sibling(

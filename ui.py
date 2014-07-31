@@ -164,10 +164,6 @@ class TandaMasterWindow(QMainWindow):
         action_redo.setIcon(QIcon('icons/iconfinder/32pxmania/redo.png'))
         action_undo.setShortcut(QKeySequence(QKeySequence.Undo))
         action_redo.setShortcut(QKeySequence(QKeySequence.Redo))
-        self.action_set_current_as_root = QAction(
-            app.tr('Set current as root'), 
-            self,
-            triggered = self.set_current_as_root)
         self.action_columns_minimal = QAction(
             app.tr('Columns: minimal'), 
             self,
@@ -193,7 +189,6 @@ class TandaMasterWindow(QMainWindow):
         self.playtreemenu.addAction(self.action_move_left)
         self.playtreemenu.addAction(self.action_move_right)
         self.playtreemenu.addSeparator()
-        self.playtreemenu.addAction(self.action_set_current_as_root)
         self.playtreemenu.addAction(self.action_columns_minimal)
         self.playtreemenu.addAction(self.action_columns_singer_year)  
         menubar.addMenu(self.playtreemenu)
@@ -396,15 +391,6 @@ class TandaMasterWindow(QMainWindow):
         if locked is None:
             locked = self.action_lock.isChecked()
         self.action_forward.setEnabled(not locked or self.player.current_item.function() == 'cortina')
-
-    def set_current_as_root(self):
-        ptv = app.focusWidget()
-        if not isinstance(ptv, PlayTreeView): return
-        item = ptv.model().item(ptv.currentIndex())
-        if item.isTerminal: return
-        ptv.model().beginResetModel()
-        ptv.model().set_root_item(item)
-        ptv.model().endResetModel()
 
     def adhoc(self):
         ptv = app.focusWidget()
@@ -869,7 +855,6 @@ class PlayTreeView(QTreeView):
     def on_currentIndex_changed(self):
         self.window().action_paste.setEnabled(self.can_paste())
         self.window().action_insert.setEnabled(self.can_insert())
-        self.window().action_set_current_as_root.setEnabled(not self.model().item(self.currentIndex()).isTerminal)
 
     def other(self):
         for w in self.window().findChildren(PlayTreeView):

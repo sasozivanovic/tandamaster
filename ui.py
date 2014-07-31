@@ -584,7 +584,9 @@ class PlayTreeWidget(QWidget, TMWidget):
 
     @classmethod
     def _create_from_xml(cls, element, window, parent):
-        ptw = cls(element.get('id', 0), window.player, parent)
+        # transitory:
+        root_id = element.get('root_id', element.get('id'))
+        ptw = cls(root_id, window.player, parent)
         xml_columns = element.findall('column')
         if len(xml_columns):
             ptw.ptv.model().columns = [
@@ -601,7 +603,7 @@ class PlayTreeWidget(QWidget, TMWidget):
 
     def to_xml(self):
         element = super().to_xml()
-        element.set('id', str(self.ptv.model().root_item.Id))
+        element.set('root_id', str(self.ptv.model().root_item.Id))
         for i, column in enumerate(self.ptv.model().columns):
             etree.SubElement(element, 
                              'column', 

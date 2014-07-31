@@ -189,10 +189,21 @@ class PlayTreeList(PlayTreeItem):
         return self.name if self.name is not None else ''
 
     def data(self, model, column_name, role):
-        if column_name:
-            return None
         if role in (Qt.DisplayRole, Qt.EditRole):
-            return str(self)
+            if column_name:
+                first = True
+                for child in self.children[model]:
+                    if not child.isPlayable:
+                        return
+                    child_data = child.data(model, column_name, role)
+                    if first:
+                        data = child_data
+                        first = False
+                    elif child_data != data:
+                        return
+                return data if not first else None
+            else:
+                return str(self)
 
     def populate(self, model, force = False):
         if force or model not in self.children or self.children[model] is None:

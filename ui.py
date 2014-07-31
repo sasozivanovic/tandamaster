@@ -522,8 +522,7 @@ class TMSplitter(QSplitter, TMWidget):
 class TabbedPlayTreesWidget(QTabWidget, TMWidget):
     @classmethod
     def _create_from_xml(cls, element, window, parent):
-        tw = cls(parent = parent, tabPosition = int(element.get('tabPosition', 0)))
-        #tw.setTabPosition(int(element.get('tabPosition')))
+        tw = cls(parent = parent, window = window, tabPosition = int(element.get('tabPosition', 0)))
         for subelement in element:
             widget = cls.create_from_xml(subelement, window, None)
             tw.add_tab(widget = widget)
@@ -536,7 +535,7 @@ class TabbedPlayTreesWidget(QTabWidget, TMWidget):
             element.append(self.widget(i).to_xml())
         return element
 
-    def __init__(self, parent = None, **kwargs):
+    def __init__(self, parent = None, window = None, **kwargs):
         super().__init__(parent, **kwargs)
         self.setTabsClosable(True)
         self.setUsesScrollButtons(True)
@@ -550,8 +549,8 @@ class TabbedPlayTreesWidget(QTabWidget, TMWidget):
         self.setCornerWidget(addtab_button, Qt.BottomLeftCorner if self.tabPosition() == QTabWidget.West else Qt.TopRightCorner)
         self.tabBarDoubleClicked.connect(lambda: self.add_tab())
         self.tabCloseRequested.connect(self.removeTab)
-        
         self.setAcceptDrops(True)
+        window.player.current_changed.connect(self.on_current_changed)
         
     def add_tab(self, widget = None, root_item = None):
         self.insert_tab(-1, widget = widget, root_item = root_item)
@@ -583,6 +582,16 @@ class TabbedPlayTreesWidget(QTabWidget, TMWidget):
                     self.insert_tab(index, root_item = item)
                     index += 1
             
+    def on_current_changed(self, old_model, old_index, model, index):
+        if old_model == model:
+            return
+        for i in range(self.count()):
+            m = self.widget(i).ptv.model()
+            if m == old_model:
+                self.tabBar().setTabTextColor(i, QColor())
+            elif m == model:
+                self.tabBar().setTabTextColor(i, QColor(Qt.darkGreen))
+
 
 @TMWidget.register_xml_tag_handler('PlayTreeWidget')
 class PlayTreeWidget(QWidget, TMWidget):
@@ -617,24 +626,10 @@ class PlayTreeWidget(QWidget, TMWidget):
     def __init__(self, root_id, player, parent = None, root_item = None):
         super().__init__(parent)
 
-        self.current_model_button = QToolButton()
-        #current_model_button.setIcon(self.style().standardIcon(QStyle.SP_DialogApplyButton))
-        #current_model_button.setIcon(QIcon('circle_green.png'))
-        self.current_model_button.setIcon(QIcon('icons/iconfinder/32pxmania/current_playtree.png')),
-        self.current_model_button.setCheckable(True)
         self.search = QLineEdit()
         self.ptv = PlayTreeView(root_id, player, self, root_item = root_item)
-        self.current_model_button.toggled.connect(
-            lambda checked: player.set_current(
-                model = self.ptv.model()) if checked else None)
-        player.current_changed.connect(
-            lambda old_model, old_index, model, index: 
-            self.current_model_button.setChecked(
-                self.ptv.model() == model))
-        self.current_model_button.setChecked(self.ptv.model() == player.current_model)
 
         controls = QToolBar()
-        controls.addWidget(self.current_model_button)
         controls.addWidget(self.search)
 
         widget_layout = QVBoxLayout()
@@ -724,16 +719,8 @@ class PlayTreeView(QTreeView):
                     index = model.parent(index)
 
     def on_activated(self, index):
-        if self.player.current_model == self.model():
-            if not self.window().action_lock.isChecked():
-                self.player.play_index(index)
-        else:
-            destination = self.other().model().root_item
-            if destination.are_children_manually_set:
-                InsertPlayTreeItemsCommand(
-                    [self.model().item(self.currentIndex()).copy()],
-                    destination,
-                    None)
+        if not self.window().action_lock.isChecked() or self.player.current_item.function() == 'cortina':
+            self.player.play_index(index)
 
     def autosize_columns(self):
         return

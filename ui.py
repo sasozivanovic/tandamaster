@@ -106,7 +106,7 @@ class TandaMasterWindow(QMainWindow):
         self.playbackmenu.addAction(self.action_lock)
         menubar.addMenu(self.playbackmenu)
 
-        self.playtreemenu = QMenu(self.tr('Play&tree'))
+        self.editmenu = QMenu(self.tr('&Edit'))
         self.action_cut = QAction(
             #MyIcon('Tango', 'actions', 'edit-cut'),
             QIcon('icons/tango/edit-cut'),
@@ -132,8 +132,12 @@ class TandaMasterWindow(QMainWindow):
             shortcut = QKeySequence(QKeySequence.Delete))
         self.action_group = QAction(
             QIcon('icons/iconfinder/farm-fresh/group.png'),
-            self.tr('&Gropu'), self, triggered = self.playtree_group,
+            self.tr('&Group'), self, triggered = self.playtree_group,
             shortcut = QKeySequence('Ctrl+g'))
+        self.action_group_into_tandas = QAction(
+            QIcon('icons/iconfinder/farm-fresh/group.png'),
+            self.tr('Group into tandas'), self, triggered = self.playtree_group_into_tandas,
+            shortcut = QKeySequence('Ctrl+Shift+g'))
         self.action_move_up = QAction(
             QIcon('icons/iconfinder/32pxmania/up.png'),
             self.tr('Move &up'), self, triggered = self.playtree_move_up,
@@ -164,6 +168,27 @@ class TandaMasterWindow(QMainWindow):
         action_redo.setIcon(QIcon('icons/iconfinder/32pxmania/redo.png'))
         action_undo.setShortcut(QKeySequence(QKeySequence.Undo))
         action_redo.setShortcut(QKeySequence(QKeySequence.Redo))
+        self.editmenu.addAction(action_undo)
+        self.editmenu.addAction(action_redo)
+        self.editmenu.addSeparator()
+        self.editmenu.addAction(self.action_cut)
+        self.editmenu.addAction(self.action_copy)
+        self.editmenu.addAction(self.action_paste)
+        self.editmenu.addSeparator()
+        self.editmenu.addAction(self.action_insert)
+        self.editmenu.addAction(self.action_delete)
+        self.editmenu.addAction(self.action_group)
+        self.editmenu.addAction(self.action_move_home)
+        self.editmenu.addAction(self.action_move_up)
+        self.editmenu.addAction(self.action_move_down)
+        self.editmenu.addAction(self.action_move_end)
+        self.editmenu.addAction(self.action_move_left)
+        self.editmenu.addAction(self.action_move_right)
+        self.editmenu.addSeparator()
+        self.editmenu.addAction(self.action_group_into_tandas)
+        menubar.addMenu(self.editmenu)
+
+        self.viewmenu = QMenu(self.tr('View'))
         self.action_columns_minimal = QAction(
             app.tr('Columns: minimal'), 
             self,
@@ -172,26 +197,10 @@ class TandaMasterWindow(QMainWindow):
             app.tr('Columns: singer and year'), 
             self,
             triggered = self.set_columns_singer_year)
-        self.playtreemenu.addAction(action_undo)
-        self.playtreemenu.addAction(action_redo)
-        self.playtreemenu.addSeparator()
-        self.playtreemenu.addAction(self.action_cut)
-        self.playtreemenu.addAction(self.action_copy)
-        self.playtreemenu.addAction(self.action_paste)
-        self.playtreemenu.addSeparator()
-        self.playtreemenu.addAction(self.action_insert)
-        self.playtreemenu.addAction(self.action_delete)
-        self.playtreemenu.addAction(self.action_group)
-        self.playtreemenu.addAction(self.action_move_home)
-        self.playtreemenu.addAction(self.action_move_up)
-        self.playtreemenu.addAction(self.action_move_down)
-        self.playtreemenu.addAction(self.action_move_end)
-        self.playtreemenu.addAction(self.action_move_left)
-        self.playtreemenu.addAction(self.action_move_right)
-        self.playtreemenu.addSeparator()
-        self.playtreemenu.addAction(self.action_columns_minimal)
-        self.playtreemenu.addAction(self.action_columns_singer_year)  
-        menubar.addMenu(self.playtreemenu)
+        self.viewmenu.addAction(self.action_columns_minimal)
+        self.viewmenu.addAction(self.action_columns_singer_year)  
+        menubar.addMenu(self.viewmenu)
+
 
         self.setMenuBar(menubar)
 
@@ -342,6 +351,11 @@ class TandaMasterWindow(QMainWindow):
         ptv = app.focusWidget()
         if not isinstance(ptv, PlayTreeView): return
         ptv.group()
+
+    def playtree_group_into_tandas(self):
+        ptv = app.focusWidget()
+        if not isinstance(ptv, PlayTreeView): return
+        ptv.group_into_tandas()
 
     def playtree_move_up(self):
         ptv = app.focusWidget()
@@ -1014,13 +1028,71 @@ class PlayTreeView(QTreeView):
         model = self.model()
         selection_model = self.selectionModel()
         selected_indexes = selection_model.selectedRows()
-        selected_items = [model.item(index) for index in selected_indexes]
+        selected_items = sorted((model.item(index) for index in selected_indexes),
+                                key = lambda ind: ind.row(model))
         parent_index = selected_indexes[0].parent()
-        parent_item = model.item(parent_index)
+        #parent_item = model.item(parent_index)
+        #top = min(index.row() for index in selected_indexes)
+        top_index = selected_indexes[0]
+        #top_index = model.index(top, 0, parent_index)
+        top_item = model.item(top_index)
+        #common_tags = dict(self.common_tags(selected_items))
+        #if 'GENRE' in common_tags.keys():
+        #    genre = common_tags['GENRE']
+        #    del common_tags['GENRE']
+        #else:
+        #    genre = 'Tanda'
+        #name = genre + ': ' + ", ".join(common_tags.values())
+        #new_item = PlayTreeList(name)
+        group_command = TMPlayTreeItemsCommand(selected_items, command_prefix = 'Group')
+        new_items = self._group(model, selected_items, group_command)
+        #InsertPlayTreeItemsCommand([new_item], parent_item, top_item, command_parent = group_command, push = False)
+        #MovePlayTreeItemsCommand(selected_items, new_item, None, command_parent = group_command, push = False)
+        #self.setExpanded(new_item.index(model), True)
+        undo_stack.push(group_command)
+        for item in selected_items:
+            selection_model.select(item.index(model),QItemSelectionModel.Select|QItemSelectionModel.Rows)
+        selection_model.setCurrentIndex(model.index(0,0,parent_index), QItemSelectionModel.NoUpdate)
+        for new_item in new_items:
+            self.setExpanded(new_item.index(model), True)
+
+    def group_into_tandas(self):
+        model = self.model()
+        selection_model = self.selectionModel()
+        selected_indexes = selection_model.selectedRows()
+        selected_items = sorted((model.item(index) for index in selected_indexes),
+                                key = lambda ind: ind.row(model))
+        parent_index = selected_indexes[0].parent()
         top = min(index.row() for index in selected_indexes)
         top_index = model.index(top, 0, parent_index)
         top_item = model.item(top_index)
-        common_tags = dict(self.common_tags(selected_items))
+        bottom = max(index.row() for index in selected_indexes)
+        group_command = TMPlayTreeItemsCommand(selected_items, command_prefix = 'Group tandas')
+        tanda_items = []
+        new_items = []
+        for item in selected_items:
+            if len(tanda_items) == 4:
+                new_items.extend(self._group(model, tanda_items, group_command))
+                tanda_items = []
+            index = item.index(model)
+            if not isinstance(item, PlayTreeFile) or item.function() != 'tanda':
+                new_items.extend(self._group(model, tanda_items, group_command))
+                tanda_items = []
+            else:
+                tanda_items.append(item)
+        new_items.extend(self._group(model, tanda_items, group_command))
+        tanda_items = []
+        undo_stack.push(group_command)
+        for item in selected_items:
+            selection_model.select(item.index(model),QItemSelectionModel.Select|QItemSelectionModel.Rows)
+        selection_model.setCurrentIndex(model.index(0,0,parent_index), QItemSelectionModel.NoUpdate)
+        for new_item in new_items:
+            self.setExpanded(new_item.index(model), True)
+
+    def _group(self, model, items, group_command):
+        if len(items) <= 1: 
+            return [items]
+        common_tags = dict(self.common_tags(items))
         if 'GENRE' in common_tags.keys():
             genre = common_tags['GENRE']
             del common_tags['GENRE']
@@ -1028,17 +1100,14 @@ class PlayTreeView(QTreeView):
             genre = 'Tanda'
         name = genre + ': ' + ", ".join(common_tags.values())
         new_item = PlayTreeList(name)
-        group_command = TMPlayTreeItemsCommand(selected_items, command_prefix = 'Group')
-        InsertPlayTreeItemsCommand([new_item], parent_item, top_item, command_parent = group_command, push = False)
-        MovePlayTreeItemsCommand(selected_items, new_item, None, command_parent = group_command, push = False)
-        undo_stack.push(group_command)
-        for item in selected_items:
-            selection_model.select(item.index(model),QItemSelectionModel.Select|QItemSelectionModel.Rows)
-        selection_model.setCurrentIndex(model.index(0,0,parent_index), QItemSelectionModel.NoUpdate)
-        self.setExpanded(new_item.index(model), True)
+        InsertPlayTreeItemsCommand([new_item], items[0].parent, items[0], command_parent = group_command, push = False)
+        MovePlayTreeItemsCommand(items, new_item, None, command_parent = group_command, push = False)
+        return [new_item]
+        
 
     def common_tags(self, items):
-        if not items: return []
+        if not items or any(not isinstance(item, PlayTreeFile) for item in items): 
+            return []
         tags = ['ARTIST', 'PERFORMER:VOCALS', 'GENRE', 'QUODLIBET::RECORDINGDATE']
         values = dict((tag, items[0].get_tag(tag)) for tag in tags)
         for item in items[1:]:

@@ -980,9 +980,7 @@ class PlayTreeModel(QAbstractItemModel):
         inserted_items = [item for item in new_items
                           if item in item.parent.children[self]]
         selection_model = self.view.selectionModel()
-        selection_model.clear()
-        for item in inserted_items:
-            selection_model.select(item.index(self),QItemSelectionModel.Select|QItemSelectionModel.Rows)
+        selection_model.select(QItemSelection(new_items[0].index(self),new_items[-1].index(self)), QItemSelectionModel.ClearAndSelect|QItemSelectionModel.Rows)
         selection_model.setCurrentIndex(inserted_items[0].index(self), QItemSelectionModel.NoUpdate)
         return bool(inserted_items)
 

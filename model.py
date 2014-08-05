@@ -159,9 +159,9 @@ class PlayTreeList(PlayTreeItem):
         self.name = name
         self.children = {None: list(*iterable)}
         
-    def copy(self):
-        copy = PlayTreeList(self.name)
-        copy.children = {None: [child.copy() for child in self.children[None]]}
+    def copy(self, parent = None):
+        copy = PlayTreeList(self.name, parent = parent)
+        copy.children = {None: [child.copy(parent = self) for child in self.children[None]]}
         return copy
 
     are_children_manually_set = True
@@ -192,7 +192,7 @@ class PlayTreeList(PlayTreeItem):
         if role in (Qt.DisplayRole, Qt.EditRole):
             if column_name:
                 first = True
-                for child in self.children[model]:
+                for child in self.children[None]:
                     if not child.isPlayable:
                         return
                     child_data = child.data(model, column_name, role)
@@ -355,8 +355,8 @@ class PlayTreeFile(PlayTreeItem):
     def Id(self):
         return None
 
-    def copy(self):
-        return PlayTreeFile(self.filename)
+    def copy(self, parent = None):
+        return PlayTreeFile(self.filename, parent = parent)
 
     def get_tag(self, tag):
         return file_reader.get_tag(self.filename, tag)
@@ -455,8 +455,8 @@ class PlayTreeLibraryFile(PlayTreeFile):
         self.song_id = song_id
         self.filename = library.filename_by_id(self.library, song_id)
 
-    def copy(self):
-        return PlayTreeLibraryFile(self.library, self.song_id)
+    def copy(self, parent = None):
+        return PlayTreeLibraryFile(self.library, self.song_id, parent = parent)
 
     def get_tag(self, tag):
         return library.tag_by_id(self.library, tag, self.song_id)
@@ -497,8 +497,8 @@ class PlayTreeFolder(PlayTreeItem):
         self.filename = filename
         self.children = {None: None}
 
-    def copy(self):
-        return PlayTreeFolder(self.filename)
+    def copy(self, parent = None):
+        return PlayTreeFolder(self.filename, parent = parent)
 
     def __repr__(self):
         return '{}({})'.format(type(self).__name__, self.filename)
@@ -615,8 +615,8 @@ class PlayTreeBrowse(PlayTreeItem):
         self.value = {}
         self.song_count = {}
 
-    def copy(self):
-        return PlayTreeBrowse(self.library, self.fixed_tags, self.browse_by_tags, self.tag)
+    def copy(self, parent = None):
+        return PlayTreeBrowse(self.library, self.fixed_tags, self.browse_by_tags, self.tag, parent = parent)
 
     def __repr__(self):
         return '{}({},fixed={},by={})'.format(type(self).__name__, self.library, self.fixed_tags, self.browse_by_tags)
@@ -750,16 +750,16 @@ class PlayTreeModel(QAbstractItemModel):
             root_item = playtree
             if root_id:
                 root_id = int(root_id)
-                for item in playtree.iter_width(self, 
+                for item in playtree.iter_width(None, 
                         lambda item: item.Id == root_id,
                         lambda item: isinstance(item, PlayTreeList)):
                     root_item = item
+                    break
         if not root_item.Id:
             PlayTreeItem.max_id += 1
             root_item.Id = PlayTreeItem.max_id
         self.root_item = root_item
         root_item.populate(self)
-            
 
     def item(self, index):
         return index.internalPointer() if index.isValid() else self.root_item

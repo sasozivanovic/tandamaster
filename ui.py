@@ -303,6 +303,7 @@ class TandaMasterWindow(QMainWindow):
         thread.started.connect(thread.library.refresh_all_libraries)
         thread.library.refresh_finished.connect(thread.exit)
         thread.library.refresh_finished.connect(lambda: print('Finished updating library'))
+        thread.library.refresh_finished.connect(lambda: self.statusBar().showMessage('Finished updating library'))
         thread.library.refresh_finished.connect(self.reset_all)
         thread.finished.connect(lambda: self.action_update_library.setEnabled(True))
         #thread.library.refreshing.connect(self.statusBar().showMessage)

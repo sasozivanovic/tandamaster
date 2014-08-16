@@ -51,7 +51,7 @@ class Library(QObject):
         )
         self.connection.execute(
             'CREATE TABLE IF NOT EXISTS tags_{name}'
-            '(id INTEGER, tag TEXT, value TEXT, ascii TEXT)'
+            '(id INTEGER, tag TEXT, value TEXT, ascii TEXT, PRIMARY KEY (id, tag))'
             .format(name=name)
         )
         self.connection.execute(

@@ -1047,16 +1047,17 @@ class PlayTreeView(QTreeView):
         #new_item = PlayTreeList(name)
         group_command = TMPlayTreeItemsCommand(selected_items, command_prefix = 'Group')
         new_items = self._group(model, selected_items, group_command)
+        if not new_items:
+            return
+        new_item = new_items[0]
         #InsertPlayTreeItemsCommand([new_item], parent_item, top_item, command_parent = group_command, push = False)
         #MovePlayTreeItemsCommand(selected_items, new_item, None, command_parent = group_command, push = False)
         #self.setExpanded(new_item.index(model), True)
         undo_stack.push(group_command)
-        for new_item in new_items:
-            new_item.populate(model)
-            self.setExpanded(new_item.index(model), True)        
-        for item in selected_items:
-            selection_model.select(item.index(model),QItemSelectionModel.Select|QItemSelectionModel.Rows)
-        selection_model.setCurrentIndex(model.index(0,0,parent_index), QItemSelectionModel.NoUpdate)
+        new_item.populate(model)
+        self.setExpanded(new_item.index(model), True)        
+        selection_model.select(new_item.index(model),QItemSelectionModel.Select|QItemSelectionModel.Rows)
+        selection_model.setCurrentIndex(new_item.index(model), QItemSelectionModel.NoUpdate)
 
     max_tanda_length = 0
     def group_into_tandas(self):

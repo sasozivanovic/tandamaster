@@ -1058,6 +1058,7 @@ class PlayTreeView(QTreeView):
             selection_model.select(item.index(model),QItemSelectionModel.Select|QItemSelectionModel.Rows)
         selection_model.setCurrentIndex(model.index(0,0,parent_index), QItemSelectionModel.NoUpdate)
 
+    max_tanda_length = 0
     def group_into_tandas(self):
         model = self.model()
         selection_model = self.selectionModel()
@@ -1073,7 +1074,7 @@ class PlayTreeView(QTreeView):
         tanda_items = []
         new_items = []
         for item in selected_items:
-            if len(tanda_items) == 4:
+            if self.max_tanda_length and len(tanda_items) == self.max_tanda_length:
                 new_items.extend(self._group(model, tanda_items, group_command))
                 tanda_items = []
             index = item.index(model)

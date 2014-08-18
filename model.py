@@ -318,7 +318,9 @@ class PlayTreeList(PlayTreeItem):
         return False
 
     def duration(self, model, mode = PlayTreeItem.duration_mode_all):
-        return sum(child.duration(model, mode) for child in self.children[model])
+        return sum(child.duration(model, mode) for child in self.children[model]) \
+            if model in self.children else 0
+
 
 @register_xml_tag_handler('file')
 class PlayTreeFile(PlayTreeItem):

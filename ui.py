@@ -835,7 +835,7 @@ class PlayTreeView(QTreeView):
         bottom_index = model.index(bottom, 0, parent_index)
         grandparent_index = model.parent(parent_index)
         grandparent_item = model.item(grandparent_index)
-        can_group = bottom!=top
+        can_group = True # bottom!=top
         can_move_up = top_index.row() != 0 or (parent_index.isValid() and parent_index.row() != 0 and model.item(model.index(parent_index.row()-1,0,grandparent_index)).are_children_manually_set)
         can_move_down = bottom_index.row() != model.rowCount(parent_index)-1 or (parent_index.isValid() and parent_index.row() != model.rowCount(grandparent_index)-1 and model.item(model.index(parent_index.row()+1,0,grandparent_index)).are_children_manually_set)
         can_move_left = parent_index.isValid()
@@ -1094,9 +1094,11 @@ class PlayTreeView(QTreeView):
         selection_model.setCurrentIndex(model.index(0,0,parent_index), QItemSelectionModel.NoUpdate)
 
     def _group(self, model, items, group_command):
-        if len(items) <= 1: 
-            return [items] if items else []
-        common_tags = dict(self.common_tags(items))
+        if not items:
+            return []
+        #if len(items) <= 1: 
+        #    return [items] if items else []
+        common_tags = collections.OrderedDict(self.common_tags(items))
         if 'GENRE' in common_tags.keys():
             genre = common_tags['GENRE']
             del common_tags['GENRE']
@@ -1112,7 +1114,7 @@ class PlayTreeView(QTreeView):
     def common_tags(self, items):
         if not items or any(not isinstance(item, PlayTreeFile) for item in items): 
             return []
-        tags = ['ARTIST', 'PERFORMER:VOCALS', 'GENRE', 'QUODLIBET::RECORDINGDATE']
+        tags = ['ARTIST', 'PERFORMER:VOCALS', 'GENRE'] #, 'QUODLIBET::RECORDINGDATE']
         values = dict((tag, items[0].get_tag(tag)) for tag in tags)
         for item in items[1:]:
             for tag in tags:

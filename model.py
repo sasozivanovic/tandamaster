@@ -44,7 +44,8 @@ class PlayTreeItem:
         if fileinfo.isDir():
             return PlayTreeFolder(filename, parent = parent)
         else:
-            return PlayTreeFile(filename, parent = parent)
+            library_name, song_id = library.library_name_and_song_id_from_filename(filename)
+            return PlayTreeLibraryFile(library_name = library_name, song_id = song_id, parent = parent) if song_id else PlayTreeFile(filename = filename, parent = parent)
 
     def save(self, filename):
         document = etree.ElementTree(self.to_xml())

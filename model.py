@@ -205,6 +205,8 @@ class PlayTreeList(PlayTreeItem):
                 return data if not first else None
             else:
                 return str(self)
+        elif not column_name and role == Qt.DecorationRole:
+            return QIcon('icons/iconfinder/silk/list.png')
 
     def populate(self, model, force = False):
         if force or model not in self.children or self.children[model] is None:

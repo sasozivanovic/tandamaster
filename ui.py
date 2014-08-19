@@ -630,6 +630,7 @@ class PlayTreeWidget(QWidget, TMWidget):
         super().__init__(parent)
 
         self.search = QLineEdit()
+        self.search.setClearButtonEnabled(True)
         self.ptv = PlayTreeView(root_id, player, self, root_item = root_item)
 
         controls = QToolBar()

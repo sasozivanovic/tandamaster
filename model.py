@@ -920,6 +920,7 @@ class PlayTreeModel(QAbstractItemModel):
         except:
             return
         self.filter_expr = filter_expr
+        self.root_item.filter(self)
         queries = BgQueries([],
             self.refilter_update_model, 
             lambda: self.filter_expr == filter_expr

@@ -25,9 +25,10 @@ class TandaMasterPlayer(QMediaPlayer):
 
     @property
     def current_index(self):
-        return self._current_item.index(self._current_model) \
-            if self._current_model and self._current_item is not None \
-               else QModelIndex()
+        try:
+            return self._current_item.index(self._current_model)
+        except:
+            return QModelIndex()
 
     current_changed = pyqtSignal(PlayTreeModel, QModelIndex, PlayTreeModel, QModelIndex)
 

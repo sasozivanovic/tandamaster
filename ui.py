@@ -267,7 +267,7 @@ class TandaMasterWindow(QMainWindow):
         self.player.stateChanged.connect(self.on_player_state_changed)
         self.on_player_state_changed(QMediaPlayer.StoppedState)
         QApplication.clipboard().changed.connect(self.on_clipboard_data_changed)
-        self.player.current_changed.connect(self.on_current_changed)
+        self.player.current_changed.connect(self.update_milonga_end)
 
     def sizeHint(self):
         return QSize(1800, 800)
@@ -491,7 +491,9 @@ class TandaMasterWindow(QMainWindow):
         msg = " | ".join([m for m in (self._status_bar_duration, self._status_bar_remaining) if m])
         self.window().statusBar().showMessage(msg)
 
-    def on_current_changed(self, old_model, old_index, model, index):
+    def update_milonga_end(self):
+        index = self.player.current_index
+        model = self.player.current_model
         if index and index.isValid():
             duration_after_current = 0
             mode = PlayTreeItem.duration_mode_cortinas
@@ -640,6 +642,9 @@ class PlayTreeWidget(QWidget, TMWidget):
                     ptw.ptv.setColumnWidth(i, int(width))
         if element.get('current'):
             window.player.set_current(model = ptw.ptv.model())
+        ptw.ptv.model().rowsInserted.connect(ptw.ptv.update_milonga_end)
+        ptw.ptv.model().rowsMoved.connect(ptw.ptv.update_milonga_end)
+        ptw.ptv.model().rowsRemoved.connect(ptw.ptv.update_milonga_end)
         return ptw
 
     def to_xml(self):
@@ -1200,6 +1205,10 @@ class PlayTreeView(QTreeView):
         self.model().beginResetModel()
         self.model().columns = columns
         self.model().endResetModel()
+
+    def update_milonga_end(self, parent_index, first, last, dest = QModelIndex(), dest_first = None, dest_last = None):
+        if self.player.current_model == self.model():
+            self.window().update_milonga_end()
 
 class TMProgressBar(QProgressBar):
     def __init__(self, player, parent = None):

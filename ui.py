@@ -9,7 +9,7 @@ from util import *
 from app import *
 from commands import *
 
-import collections, weakref, binascii
+import collections, weakref, binascii, datetime
 
 class TandaMasterWindow(QMainWindow):
 
@@ -267,6 +267,7 @@ class TandaMasterWindow(QMainWindow):
         self.player.stateChanged.connect(self.on_player_state_changed)
         self.on_player_state_changed(QMediaPlayer.StoppedState)
         QApplication.clipboard().changed.connect(self.on_clipboard_data_changed)
+        self.player.current_changed.connect(self.on_current_changed)
 
     def sizeHint(self):
         return QSize(1800, 800)
@@ -480,6 +481,31 @@ class TandaMasterWindow(QMainWindow):
         if not isinstance(ptv, PlayTreeView): return
         ptv.set_columns( ('', 'ARTIST', 'PERFORMER:VOCALS', 'QUODLIBET::RECORDINGDATE', 'GENRE', '_length') )
 
+    _status_bar_duration = ''
+    _status_bar_remaining = ''
+    def update_status_bar(self, duration = None, remaining = None):
+        if duration is not None:
+            self._status_bar_duration = duration
+        if remaining is not None:
+            self._status_bar_remaining = remaining
+        msg = " | ".join([m for m in (self._status_bar_duration, self._status_bar_remaining) if m])
+        self.window().statusBar().showMessage(msg)
+
+    def on_current_changed(self, old_model, old_index, model, index):
+        if index and index.isValid():
+            duration_after_current = 0
+            mode = PlayTreeItem.duration_mode_cortinas
+            ind = index
+            while ind.isValid():
+                duration_after_current += model.item(ind).duration(model, mode)
+                ind = model.next(ind, descend = False)
+            self.update_status_bar(remaining = 'Milonga ends at ' + 
+                                   (datetime.datetime.now() + datetime.timedelta(seconds = duration_after_current)).strftime('%H:%M'))
+        else:
+            self.update_status_bar(remaining = '')
+
+
+
 class TMWidget:
     xml_tag_registry = {}
 
@@ -502,6 +528,7 @@ class TMWidget:
         except:
             pass
         return element
+
 
 @TMWidget.register_xml_tag_handler('Splitter')
 class TMSplitter(QSplitter, TMWidget):
@@ -592,7 +619,6 @@ class TabbedPlayTreesWidget(QTabWidget, TMWidget):
                 self.tabBar().setTabTextColor(i, QColor())
             elif m == model:
                 self.tabBar().setTabTextColor(i, QColor(Qt.darkGreen))
-
 
 @TMWidget.register_xml_tag_handler('PlayTreeWidget')
 class PlayTreeWidget(QWidget, TMWidget):
@@ -858,18 +884,33 @@ class PlayTreeView(QTreeView):
         self.window().action_move_right.setEnabled(can_move_right)
         self.window().action_move_home.setEnabled(can_move_home)
         self.window().action_move_end.setEnabled(can_move_end)
-        duration = {}
-        for mode in (PlayTreeItem.duration_mode_all, PlayTreeItem.duration_mode_cortinas):
-            duration[mode] = sum(
-                    self.model().item(index).duration(self.model(), mode)
-                    for index in self.selectionModel().selectedRows()
-                ) if self.selectionModel().hasSelection() \
-                else 1000*self.model().root_item.duration(self.model(), mode)
-        self.window().statusBar().showMessage(
-            'Duration: {} ({} for {}s cortinas)'.format(
-                hmsms_to_text(*ms_to_hmsms(1000*duration[PlayTreeItem.duration_mode_all]),include_ms=False),
-                hmsms_to_text(*ms_to_hmsms(1000*duration[PlayTreeItem.duration_mode_cortinas]),include_ms=False),
-                PlayTreeFile.cortina_duration))
+        model = self.model()
+        mode = PlayTreeItem.duration_mode_cortinas
+        if self.selectionModel().hasSelection():
+            selected_indexes = self.selectionModel().selectedRows()
+            duration = sum(model.item(index).duration(model, mode) for index in selected_indexes)
+            if can_group:
+                parent_item = model.item(selected_indexes[0].parent())
+                duration_before = sum(parent_item.child(model, r).duration(model, mode)
+                                      for r in range(0, min(index.row() for index in selected_indexes)))
+                duration_after = sum(parent_item.child(model, r).duration(model, mode)
+                                      for r in range(
+                                              1+max(index.row() for index in selected_indexes),
+                                              parent_item.rowCount(model)))
+                msg = 'Duration before {}, selection {}, after {}'.format(
+                        hmsms_to_text(*ms_to_hmsms(1000*duration_before),include_ms=False),
+                        hmsms_to_text(*ms_to_hmsms(1000*duration),include_ms=False),
+                        hmsms_to_text(*ms_to_hmsms(1000*duration_after),include_ms=False))
+            else:
+                msg = 'Duration of the selection: {}'.format(
+                        hmsms_to_text(*ms_to_hmsms(1000*duration),include_ms=False))
+        else:
+            duration = model.root_item.duration(model, mode)
+            msg = 'Duration of the playtree: {}'.format(
+                    hmsms_to_text(*ms_to_hmsms(1000*duration),include_ms=False))
+        if mode == PlayTreeItem.duration_mode_cortinas:
+            msg += ' (cortina={}s)'.format(PlayTreeFile.cortina_duration)
+        self.window().update_status_bar(duration = msg)
 
     def on_currentIndex_changed(self):
         self.window().action_paste.setEnabled(self.can_paste())

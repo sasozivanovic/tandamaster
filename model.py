@@ -838,8 +838,7 @@ class PlayTreeModel(QAbstractItemModel):
             index
         )
         
-    def next(self, index):
-        descend  = True
+    def next(self, index, descend  = True):
         while descend or index.isValid():
             if descend:
                 self.item(index).populate(self)

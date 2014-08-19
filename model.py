@@ -191,6 +191,8 @@ class PlayTreeList(PlayTreeItem):
 
     def data(self, model, column_name, role):
         if role in (Qt.DisplayRole, Qt.EditRole):
+            if column_name == '_length':
+                return hmsms_to_text(*ms_to_hmsms(1000*self.duration(model)), include_ms=False)
             if column_name:
                 first = True
                 for child in self.children[None]:

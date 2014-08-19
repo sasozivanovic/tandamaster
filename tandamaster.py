@@ -2,6 +2,8 @@
 
 #import pyximport; pyximport.install(pyimport = True)
 
+import datetime
+print('Tandamaster', datetime.datetime.now())
 
 import sys
 import os, os.path

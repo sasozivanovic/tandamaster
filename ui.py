@@ -436,10 +436,6 @@ class TandaMasterWindow(QMainWindow):
         import subprocess
         subprocess.Popen(['/usr/bin/audacity', filename])
         
-    def adhoc(self):
-        print(PlayTreeItem.weakrefs)
-        print(len(PlayTreeItem.weakrefs))
-
     def save_playtree_to_folder(self):
         ptv = app.focusWidget()
         if not isinstance(ptv, PlayTreeView): return

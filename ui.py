@@ -104,6 +104,11 @@ class TandaMasterWindow(QMainWindow):
             self.tr('Un&locked'), self, toggled = self.lock)
         self.action_lock.setCheckable(True)
         self.playbackmenu.addAction(self.action_lock)
+        self.action_milonga_mode = QAction(
+            QIcon('icons/iconarchive/icons8/tandamaster-Sports-Dancing-icon.png'),
+            self.tr('&Milonga mode'), self)
+        self.action_milonga_mode.setCheckable(True)
+        self.playbackmenu.addAction(self.action_milonga_mode)
         menubar.addMenu(self.playbackmenu)
 
         self.editmenu = QMenu(self.tr('&Edit'))
@@ -230,6 +235,7 @@ class TandaMasterWindow(QMainWindow):
         toolbar.addAction(self.action_forward)
         toolbar.addSeparator()
         toolbar.addAction(self.action_lock)
+        toolbar.addAction(self.action_milonga_mode)
         self.stopafter_spinbox = QSpinBox()
         self.stopafter_spinbox.setMinimum(0)
         self.stopafter_spinbox.valueChanged.connect(self.player.set_stop_after)

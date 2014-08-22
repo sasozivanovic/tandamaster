@@ -72,7 +72,7 @@ class TandaMasterPlayer(QMediaPlayer):
             self.setNotifyInterval(100)
 
     def play_index(self, playtree_index):
-        if self.current_model and self.current_item and self.current_model.view.window().action_lock.isChecked() and self.current_item.function() == 'cortina':
+        if self.current_model and self.current_item and self.current_model.view.window().action_milonga_mode.isChecked() and self.current_item.function() == 'cortina':
             self._fadeout(self._play_index, playtree_index)
         else:
             self._play_index(playtree_index)
@@ -87,7 +87,7 @@ class TandaMasterPlayer(QMediaPlayer):
         super().play()
 
     def play_next(self):
-        if self.current_model and self.current_item and self.current_model.view.window().action_lock.isChecked() and self.current_item.function() == 'cortina':
+        if self.current_model and self.current_item and self.current_model.view.window().action_milonga_mode.isChecked() and self.current_item.function() == 'cortina':
             self._fadeout(self._play_next)
         else:
             self._play_next()    
@@ -107,8 +107,8 @@ class TandaMasterPlayer(QMediaPlayer):
     def set_stop_after(self, i):
         self.stop_after = i
 
-    gap = 3000
-    #gap = 0
+    #gap = 3000
+    gap = 0
 
     fadeout_step = 5
     fadeout_timeout = 200

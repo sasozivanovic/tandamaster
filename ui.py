@@ -467,8 +467,12 @@ class TandaMasterWindow(QMainWindow):
                 os.remove(filename + '.tmp')
             else:
                 try:
-                    os.rename(filename, filename + '.' + tm_timestamp('_') + '.bak')
-                except:
+                    os.mkdir('bak')
+                except OSError:
+                    pass
+                try:
+                    os.rename(filename, os.path.join('bak', filename + '.' + tm_timestamp('_') + '.bak'))
+                except OSError:
                     pass
                 os.rename(filename + '.tmp', filename)
         save_playtree()

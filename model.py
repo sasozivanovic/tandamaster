@@ -55,7 +55,11 @@ class PlayTreeItem:
                 os.remove(filename + '.tmp')
             else:
                 try:
-                    os.rename(filename, filename + '.' + tm_timestamp('_') + '.bak')
+                    os.mkdir('bak')
+                except OSError:
+                    pass
+                try:
+                    os.rename(filename, os.path.join('bak', filename + '.' + tm_timestamp('_') + '.bak'))
                 except:
                     pass
                 os.rename(filename + '.tmp', filename)

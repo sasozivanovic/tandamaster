@@ -154,6 +154,7 @@ class Library(QObject):
                 ( (song_id, tag, value, unidecode.unidecode(value).lower() if isinstance(value, str) else value) 
                   for tag, values in itertools.chain(
                           audiofile.tags.items(), iter((
+                              ('_filename', (fileinfo.fileName(),)),
                               ('_length', (audiofile.length,)),
                               ('_bitrate', (audiofile.bitrate,)),
                               ('_sample_rate', (audiofile.sampleRate,)),
@@ -171,6 +172,7 @@ class Library(QObject):
             try:
                 audiofile = taglib.File(filename)
                 tags = audiofile.tags
+                tags['_filename'] = os.path.basename(filename)
                 tags['_length'] = audiofile.length
                 tags['_bitrate'] = audiofile.bitrate
                 tags['_sample_rate'] = audiofile.sampleRate
@@ -379,6 +381,7 @@ class FileReaderWorker(QObject):
         try:
             audiofile = taglib.File(fileinfo.filename)
             fileinfo.tags = audiofile.tags
+            fileinfo.tags['_filename'] = os.path.basename(fileinfo.filename)
             fileinfo.tags['_length'] = audiofile.length
             fileinfo.tags['_bitrate'] = audiofile.bitrate
             fileinfo.tags['_sample_rate'] = audiofile.sampleRate

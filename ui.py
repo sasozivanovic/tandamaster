@@ -771,6 +771,16 @@ class PlayTreeView(QTreeView):
         if not self.window().action_lock.isChecked() or self.player.current_item.function() == 'cortina':
             self.player.play_index(index)
 
+    def currentChanged(self, current, previous):
+        super().currentChanged(current, previous)
+        self.update_current_song_from_file(current)
+
+    def update_current_song_from_file(self, current):
+        item = self.model().item(current)
+        if isinstance(item, PlayTreeFile):
+            librarian.bg_queries(BgQueries([BgQuery(Library.update_song, (item.library if isinstance(item, PlayTreeLibraryFile) else None, item.filename))], lambda qs: item.refresh_models(), relevant = lambda: self.currentIndex() == current))
+
+
     def autosize_columns(self):
         return
         columns = self.model().columnCount(QModelIndex())
@@ -949,6 +959,7 @@ class PlayTreeView(QTreeView):
         self.setStyleSheet("")
         self.on_selection_changed()
         self.on_currentIndex_changed()
+        self.update_current_song_from_file(self.currentIndex())
         return r
 
     def focusOutEvent(self, event):

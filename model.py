@@ -510,7 +510,6 @@ class PlayTreeLibraryFile(PlayTreeFile):
         library.set_tag(self.library, self.song_id, column_name, value)
         return True
 
-
 @register_xml_tag_handler('folder')
 class PlayTreeFolder(PlayTreeItem):
 

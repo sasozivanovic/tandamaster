@@ -90,7 +90,6 @@ class Library(QObject):
             for folder in folders:
                 self.queue.append((library_name, folder))
         self.dir_iterator = None
-        self.cursor = self.connection.cursor()
         self.n_in_transaction = 0
         self.refresh_next.connect(self.refresh_one_song, type = Qt.QueuedConnection)
         self.refresh_next.emit()
@@ -110,70 +109,71 @@ class Library(QObject):
                 self.refresh_next.emit()
         else:
             filename = self.dir_iterator.next()
-            fileinfo = QFileInfo(filename)
-            if not (fileinfo.exists() and fileinfo.isReadable()):
-                warn("Cannot read {}".format(filename), RuntimeWarning)
-                self.refresh_next.emit()
-                return
-            try:
-                audiofile = taglib.File(filename)
-                assert(audiofile)
-            except:
-                warn("Cannot read {}. Probably not an audio file".format(filename), RuntimeWarning)
-                self.refresh_next.emit()
-                return
-            self.cursor.execute(
-                'SELECT song_id,mtime,filesize FROM files_{name} WHERE filename=?'
-                .format(name=self.name),
-                (filename,)
-            )
-            #self.refreshing.emit(filename)
-            song = self.cursor.fetchone()
-            if song:
-                song_id,mtime,filesize = song
-                if mtime is not None and filesize is not None and fileinfo.lastModified().toTime_t() <= mtime and fileinfo.size() == filesize:
-                    self.refresh_next.emit()
-                    return
-                self.cursor.execute(
-                    'UPDATE files_{name} '
-                    'SET mtime=?, filesize=? '
-                    'WHERE song_id=?'
-                    .format(name=self.name),
-                    (fileinfo.lastModified().toTime_t(), fileinfo.size(), song_id)
-                )
-                #self.cursor.execute(
-                #    'DELETE FROM tags_{name} WHERE song_id=?'
-                #    .format(name = self.name),
-                #    (song_id,)
-                #)
-            else:
-                self.cursor.execute(
-                    'INSERT INTO files_{name} (filename, mtime, filesize) VALUES(?,?,?)'
-                    .format(name = self.name),
-                    (filename, fileinfo.lastModified().toTime_t(), fileinfo.size())
-                )
-                song_id = self.cursor.lastrowid
-            self.cursor.executemany(
-                'INSERT OR REPLACE INTO tags_{name} (song_id, tag, value, ascii) VALUES (?,?,?,?)'
-                .format(name = self.name),
-                ( (song_id, tag, value, unidecode.unidecode(value).lower() if isinstance(value, str) else value) 
-                  for tag, values in itertools.chain(
-                          audiofile.tags.items(), iter((
-                              ('_filename', (fileinfo.fileName(),)),
-                              ('_length', (audiofile.length,)),
-                              ('_bitrate', (audiofile.bitrate,)),
-                              ('_sample_rate', (audiofile.sampleRate,)),
-                              ('_channels', (audiofile.channels,)),
-                          )))
-                  for value in values )
-            )
+            self.update_song(self.name, filename, commit = False)
             if self.n_in_transaction >= 1000000:
                 self.connection.commit()
                 self.n_in_transaction = 0
             self.refresh_next.emit()
 
-    def _cache_file(self, filename):
-        if filename not in self._cache:
+    def update_song(self, library_name, filename, commit = True):
+        if library_name is None:
+            return self._cache_file(filename, force = True)
+        fileinfo = QFileInfo(filename)
+        if not (fileinfo.exists() and fileinfo.isReadable()):
+            warn("Cannot read {}".format(filename), RuntimeWarning)
+            return
+        try:
+            audiofile = taglib.File(filename)
+            assert(audiofile)
+        except:
+            warn("Cannot read {}. Probably not an audio file".format(filename), RuntimeWarning)
+            return
+        cursor = self.connection.cursor()
+        cursor.execute(
+            'SELECT song_id,mtime,filesize FROM files_{} WHERE filename=?'
+            .format(library_name),
+            (filename,)
+        )
+        song = cursor.fetchone()
+        if song:
+            song_id,mtime,filesize = song
+            if mtime is not None and filesize is not None and fileinfo.lastModified().toTime_t() <= mtime and fileinfo.size() == filesize:
+                return
+            cursor.execute(
+                'UPDATE files_{name} '
+                'SET mtime=?, filesize=? '
+                'WHERE song_id=?'
+                .format(name=library_name),
+                (fileinfo.lastModified().toTime_t(), fileinfo.size(), song_id)
+            )
+        else:
+            cursor.execute(
+                'INSERT INTO files_{name} (filename, mtime, filesize) VALUES(?,?,?)'
+                .format(name = library_name),
+                (filename, fileinfo.lastModified().toTime_t(), fileinfo.size())
+            )
+            song_id = cursor.lastrowid
+        # todo: 3-point diff: old_values, new_values, file
+        cursor.execute('DELETE FROM tags_{} WHERE song_id=?'.format(library_name), (song_id,))
+        cursor.executemany(
+            'INSERT INTO tags_{name} (song_id, tag, value, ascii) VALUES (?,?,?,?)'
+            .format(name = library_name),
+            ( (song_id, tag, value, unidecode.unidecode(value).lower() if isinstance(value, str) else value) 
+              for tag, values in itertools.chain(
+                      audiofile.tags.items(), iter((
+                          ('_filename', (fileinfo.fileName(),)),
+                          ('_length', (audiofile.length,)),
+                          ('_bitrate', (audiofile.bitrate,)),
+                          ('_sample_rate', (audiofile.sampleRate,)),
+                          ('_channels', (audiofile.channels,)),
+                      )))
+              for value in values )
+        )
+        if commit:
+            self.connection.commit()
+
+    def _cache_file(self, filename, force = False):
+        if force or filename not in self._cache:
             try:
                 audiofile = taglib.File(filename)
                 tags = audiofile.tags
@@ -273,6 +273,8 @@ class Library(QObject):
                     audiofile.save()
                     self.connection.execute('DELETE FROM tags_{} WHERE song_id=? AND dirty=1 AND value=NULL'.format(library_name), (song_id,))
                     self.connection.execute('UPDATE tags_{} SET dirty=0, old_value=NULL WHERE song_id=? AND dirty=1'.format(library_name), (song_id,))
+                    fileinfo = QFileInfo(filename)
+                    self.connection.execute('UPDATE files_{} SET mtime=?, filesize=? WHERE song_id=?'.format(library_name), (fileinfo.lastModified().toTime_t(), fileinfo.size(), song_id))
                     self.connection.commit()
 
     def _build_join(self, table_alias_list):

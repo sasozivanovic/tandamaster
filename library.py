@@ -208,6 +208,14 @@ class Library(QObject):
         )
         return list(row[0] for row in cursor.fetchall() )
 
+    def tag_old_value_by_song_id(self, name, key, song_id):
+        cursor = self.connection.execute(
+            'SELECT old_value FROM tags_{} WHERE song_id=? AND tag=? ORDER BY rowid'
+            .format(name),
+            (song_id, key)
+        )
+        return list(row[0] for row in cursor.fetchall() )
+
     def tags_by_filename(self, filename):
         self._cache_file(filename)
         return self._cache[filename]

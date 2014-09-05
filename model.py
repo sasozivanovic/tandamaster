@@ -370,10 +370,10 @@ class PlayTreeFile(PlayTreeItem):
         return PlayTreeFile(self.filename, parent = parent)
 
     def get_tag(self, tag):
-        return file_reader.get_tag(self.filename, tag)
+        return [file_reader.get_tag(self.filename, tag)]
 
     def get_tags(self):
-        return file_reader.get_tags(self.filename)
+        tags = file_reader.get_tags(self.filename)
 
     def __repr__(self):
         return '{}({})'.format(type(self).__name__, self.filename)
@@ -491,6 +491,8 @@ class PlayTreeLibraryFile(PlayTreeFile):
                 return titles[0] if titles else str(self)
         elif role == Qt. BackgroundRole:
             return QBrush(QColor(Qt.yellow)) if library.dirty(self.library, self.song_id, column_name if column_name else 'TITLE') else super().data(model, column_name, role)
+        elif role == Qt.ToolTipRole and library.dirty(self.library, self.song_id, column_name if column_name else 'TITLE'):
+            return app.tr('Original value') + ': ' + library.tag_old_value_by_song_id(self.library, column_name if column_name else 'TITLE', self.song_id)[0]
         else:
             return super().data(model, column_name, role)
 

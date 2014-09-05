@@ -22,7 +22,7 @@ class BgQuery:
 class BgQueries(list):
     def __init__(self, iterable, callback, relevant = lambda: True):
         super().__init__(iterable)
-        assert not [query for query in iterable if not isinstance(query, ByQuery)]
+        assert not [query for query in iterable if not isinstance(query, BgQuery)]
         self.callback = callback
         self.relevant = relevant
     
@@ -42,7 +42,7 @@ class Library(QObject):
     def create_library_table(self, name):
         self.connection.execute(
             'CREATE TABLE IF NOT EXISTS files_{name}'
-            '(id INTEGER PRIMARY KEY, filename BLOB, mtime INTEGER, filesize INTEGER)'
+            '(song_id INTEGER PRIMARY KEY, filename BLOB, mtime INTEGER, filesize INTEGER)'
             .format(name=name)
         )
         self.connection.execute(
@@ -51,12 +51,12 @@ class Library(QObject):
         )
         self.connection.execute(
             'CREATE TABLE IF NOT EXISTS tags_{name}'
-            '(id INTEGER, tag TEXT, value TEXT, ascii TEXT, dirty BOOLEAN, old_value TEXT)'
+            '(song_id INTEGER, tag TEXT, value TEXT, ascii TEXT, dirty BOOLEAN, old_value TEXT)'
             .format(name=name)
         )
         self.connection.execute(
-            'CREATE INDEX IF NOT EXISTS tags_{name}_id_tag ON tags_{name}'
-            '(id, tag)'
+            'CREATE INDEX IF NOT EXISTS tags_{name}_song_id_tag ON tags_{name}'
+            '(song_id, tag)'
             .format(name=name)
         )
         self.connection.execute(
@@ -76,7 +76,7 @@ class Library(QObject):
         )
         self.connection.execute(
             'CREATE INDEX IF NOT EXISTS tags_{name}_dirty ON tags_{name}'
-            '(dirty, id)'
+            '(dirty, song_id)'
             .format(name=name)
         )
         self.connection.commit()
@@ -123,7 +123,7 @@ class Library(QObject):
                 self.refresh_next.emit()
                 return
             self.cursor.execute(
-                'SELECT id,mtime,filesize FROM files_{name} WHERE filename=?'
+                'SELECT song_id,mtime,filesize FROM files_{name} WHERE filename=?'
                 .format(name=self.name),
                 (filename,)
             )
@@ -137,12 +137,12 @@ class Library(QObject):
                 self.cursor.execute(
                     'UPDATE files_{name} '
                     'SET mtime=?, filesize=? '
-                    'WHERE id=?'
+                    'WHERE song_id=?'
                     .format(name=self.name),
                     (fileinfo.lastModified().toTime_t(), fileinfo.size(), song_id)
                 )
                 #self.cursor.execute(
-                #    'DELETE FROM tags_{name} WHERE id=?'
+                #    'DELETE FROM tags_{name} WHERE song_id=?'
                 #    .format(name = self.name),
                 #    (song_id,)
                 #)
@@ -154,7 +154,7 @@ class Library(QObject):
                 )
                 song_id = self.cursor.lastrowid
             self.cursor.executemany(
-                'INSERT OR REPLACE INTO tags_{name} (id, tag, value, ascii) VALUES (?,?,?,?)'
+                'INSERT OR REPLACE INTO tags_{name} (song_id, tag, value, ascii) VALUES (?,?,?,?)'
                 .format(name = self.name),
                 ( (song_id, tag, value, unidecode.unidecode(value).lower() if isinstance(value, str) else value) 
                   for tag, values in itertools.chain(
@@ -177,34 +177,36 @@ class Library(QObject):
             try:
                 audiofile = taglib.File(filename)
                 tags = audiofile.tags
-                tags['_filename'] = os.path.basename(filename)
-                tags['_length'] = audiofile.length
-                tags['_bitrate'] = audiofile.bitrate
-                tags['_sample_rate'] = audiofile.sampleRate
-                tags['_channels'] = audiofile.channels
-                self._cache[filename] = _strip(tags)
+                tags['_filename'] = [os.path.basename(filename)]
+                tags['_length'] = [audiofile.length]
+                tags['_bitrate'] = [audiofile.bitrate]
+                tags['_sample_rate'] = [audiofile.sampleRate]
+                tags['_channels'] = [audiofile.channels]
+                #self._cache[filename] = _strip(tags)
             except OSError:
                 self._cache[filename] = None
 
-    def tags_by_id(self, name, Id):
+    def tags_by_song_id(self, name, song_id):
         cursor = self.connection.execute(
-            'SELECT tag, value FROM tags_{} WHERE id=?'
+            'SELECT tag, value FROM tags_{} WHERE song_id=? ORDER BY rowid'
             .format(name),
-            (Id,)
+            (song_id,)
         )
-        # todo: multiple values
-        tags = dict( (row[0], row[1]) for row in cursor.fetchall() )
+        tags = {}
+        for row in cursor.fetchall():
+            if row[0] not in tags:
+                tags[row[0]] = [row[1]]
+            else:
+                tags[row[0]].append(row[1])
         return tags
 
-    def tag_by_id(self, name, key, Id):
+    def tag_by_song_id(self, name, key, song_id):
         cursor = self.connection.execute(
-            'SELECT value FROM tags_{} WHERE id=? AND tag=?'
+            'SELECT value FROM tags_{} WHERE song_id=? AND tag=? ORDER BY rowid'
             .format(name),
-            (Id, key)
+            (song_id, key)
         )
-        values = list(row[0] for row in cursor.fetchall() )
-        if len(values):
-            return values[0] if len(values) == 1 else values
+        return list(row[0] for row in cursor.fetchall() )
 
     def tags_by_filename(self, filename):
         self._cache_file(filename)
@@ -217,18 +219,18 @@ class Library(QObject):
         except KeyError:
             return None
         
-    def filename_by_id(self, name, Id):
+    def filename_by_song_id(self, name, song_id):
         row = self.connection.execute(
-            'SELECT filename FROM files_{} WHERE id=?'
+            'SELECT filename FROM files_{} WHERE song_id=?'
             .format(name),
-            (Id,)
+            (song_id,)
         ).fetchone()
         return row[0] if row else None
 
     def library_name_and_song_id_from_filename(self, filename, library_name = None):
         for ln in ((library_name,) if library_name else config.library_folders):
             row = self.connection.execute(
-                'SELECT id FROM files_{} WHERE filename=?'
+                'SELECT song_id FROM files_{} WHERE filename=?'
                 .format(ln),
                 (filename,)
             ).fetchone()
@@ -236,25 +238,39 @@ class Library(QObject):
                 return ln, row[0]
         return None, None
 
-    def dirty(self, library_name, Id, tag):
-        row = self.connection.execute('SELECT dirty FROM tags_{} WHERE id=? and tag=?'.format(library_name), (Id, tag)).fetchone()
+    def dirty(self, library_name, song_id, tag):
+        row = self.connection.execute('SELECT dirty FROM tags_{} WHERE song_id=? and tag=?'.format(library_name), (song_id, tag)).fetchone()
         return bool(row[0]) if row else False
 
-    def set_tag(self, library_name, Id, tag, value, ignore_dirty = False, commit = True):
-        row = self.connection.execute('SELECT dirty, value FROM tags_{} WHERE id=? and tag=?'.format(library_name), (Id, tag)).fetchone()
-        dirty, old_value = row
-        if ignore_dirty or not dirty:
-            self.connection.execute('UPDATE tags_{} SET value=?, ascii=?, dirty=1, old_value=? WHERE id=? AND tag=?'.format(library_name), (value, unidecode.unidecode(value).lower() if isinstance(value, str) else value, old_value, Id, tag))
+    def set_tag(self, library_name, song_id, tag, value, n = 0, commit = True):
+        # n = nth occurrenct of song_id, tag in tags_{library_name}, first = 0
+        rowid, dirty, old_value, original_value = self.connection.execute('SELECT rowid, dirty, value, old_value FROM tags_{} WHERE song_id=? and tag=?'.format(library_name), (song_id, tag)).fetchall()[n]
+        if not dirty:
+            self.connection.execute('UPDATE tags_{} SET value=?, ascii=?, dirty=1, old_value=? WHERE rowid=?'.format(library_name), (value, unidecode.unidecode(value).lower() if isinstance(value, str) else value, old_value, rowid))
+        elif original_value == value:
+            self.connection.execute('UPDATE tags_{} SET value=?, ascii=?, dirty=0, old_value=NULL WHERE rowid=?'.format(library_name), (value, unidecode.unidecode(value).lower() if isinstance(value, str) else value, song_id, tag, rowid))
         else:
-            self.connection.execute('UPDATE tags_{} SET value=?, ascii=? WHERE id=? AND tag=?'.format(library_name), (value, unidecode.unidecode(value).lower() if isinstance(value, str) else value, Id, tag))
+            self.connection.execute('UPDATE tags_{} SET value=?, ascii=? WHERE rowid=?'.format(library_name), (value, unidecode.unidecode(value).lower() if isinstance(value, str) else value, rowid))
         if commit:
             self.connection.commit()
+        # todo: update views
         
+    def save_changed_tags(self):
+        for library_name in config.library_folders.keys():
+            for song_id, filename, mtime, filesize in self.connection.execute('SELECT DISTINCT song_id, filename, mtime, filesize FROM tags_{} NATURAL JOIN files_{} WHERE dirty=1'.format(library_name, library_name)):
+                fileinfo = QFileInfo(filename)
+                if fileinfo.lastModified().toTime_t() <= mtime and fileinfo.size() == filesize:
+                    audiofile = taglib.File(filename)
+                    audiofile.tags = self.tags_by_song_id(library_name, song_id)
+                    audiofile.save()
+                    self.connection.execute('DELETE FROM tags_{} WHERE song_id=? AND dirty=1 AND value=NULL'.format(library_name), (song_id,))
+                    self.connection.execute('UPDATE tags_{} SET dirty=0, old_value=NULL WHERE song_id=? AND dirty=1'.format(library_name), (song_id,))
+                    self.connection.commit()
 
     def _build_join(self, table_alias_list):
         return "{} AS {} {}".format(
             table_alias_list[0][0], table_alias_list[0][1],
-            " ".join("INNER JOIN {} AS {} USING(id)".format(t,a) for t,a in table_alias_list[1:])
+            " ".join("INNER JOIN {} AS {} USING(song_id)".format(t,a) for t,a in table_alias_list[1:])
         )
 
     def _build_query_statement(self, name, fixed_tags, filter_words):
@@ -270,7 +286,7 @@ class Library(QObject):
             " AND ".join(
                 "tags_{n}.tag=? AND tags_{n}.value=?".format(n=n)
                 if tv[1] is not None else
-                'NOT EXISTS (SELECT id FROM tags_{} WHERE id=tags_{}.id AND tag=?)'.format(name, n)
+                'NOT EXISTS (SELECT song_id FROM tags_{} WHERE song_id=tags_{}.song_id AND tag=?)'.format(name, n)
                 for n,tv in enumerate(fixed_tags)
             ),
             " AND ".join(# todo: value OR ascii
@@ -279,7 +295,7 @@ class Library(QObject):
         )))
         statement = 'SELECT DISTINCT {} FROM {} {} {}' \
             .format(
-                'tags_0.id' if fixed_tags else ('tags_filter_0.id' if filter_words else 'files.id'),
+                'tags_0.song_id' if fixed_tags else ('tags_filter_0.song_id' if filter_words else 'files.song_id'),
                 join, 
                 'WHERE' if where else '', 
                 where)
@@ -290,7 +306,7 @@ class Library(QObject):
 
         "fixed_tags" should be a list of pairs."""
         statement = "SELECT tags.value, COUNT(*) FROM ({}) AS songs " \
-                    "LEFT JOIN tags_{} AS tags ON songs.id=tags.id AND tags.tag=? " \
+                    "LEFT JOIN tags_{} AS tags ON songs.song_id=tags.song_id AND tags.tag=? " \
                     "GROUP BY tags.value" \
                         .format(
                             self._build_query_statement(name, fixed_tags, filter_words),
@@ -318,7 +334,7 @@ class Library(QObject):
         return cursor.fetchall()
 
     def _query_songs(self, name, fixed_tags, filter_words):
-        """Get ids of songs having the given fixed tags.
+        """Get song_ids of songs having the given fixed tags.
 
         "fixed_tags" should be a list of pairs."""
 
@@ -382,7 +398,7 @@ class Librarian(QObject):
         
     def bg_process_result(self, queries):
         self.processing = False
-        if queries.relevant():
+        if queries.relevant() and queries.callback:
             queries.callback(queries)
         self.do()
 
@@ -401,11 +417,11 @@ class FileReaderWorker(QObject):
         try:
             audiofile = taglib.File(fileinfo.filename)
             fileinfo.tags = audiofile.tags
-            fileinfo.tags['_filename'] = os.path.basename(fileinfo.filename)
-            fileinfo.tags['_length'] = audiofile.length
-            fileinfo.tags['_bitrate'] = audiofile.bitrate
-            fileinfo.tags['_sample_rate'] = audiofile.sampleRate
-            fileinfo.tags['_channels'] = audiofile.channels
+            fileinfo.tags['_filename'] = [os.path.basename(fileinfo.filename)]
+            fileinfo.tags['_length'] = [audiofile.length]
+            fileinfo.tags['_bitrate'] = [audiofile.bitrate]
+            fileinfo.tags['_sample_rate'] = [audiofile.sampleRate]
+            fileinfo.tags['_channels'] = [audiofile.channels]
         except:
             fileinfo.tags = None
         self.file_reading_done.emit(fileinfo)
@@ -443,7 +459,8 @@ class FileReader(QObject):
 
     def process_fileinfo(self, fileinfo):
         self.processing = False
-        self.tags[fileinfo.filename] = _strip(fileinfo.tags) if fileinfo.tags else None
+        #self.tags[fileinfo.filename] = _strip(fileinfo.tags) if fileinfo.tags else None
+        self.tags[fileinfo.filename] = fileinfo.tags
         for file_item in self.playtreefiles[fileinfo.filename]:
             file_item.refresh_models()
         self.do()
@@ -455,10 +472,13 @@ class FileReader(QObject):
         return filename in self.tags
 
     def get_tags(self, filename):
-        return self.tags[filename] if filename in self.tags else collections.defaultdict(lambda: '')
+        return self.tags[filename] if filename in self.tags else collections.defaultdict(lambda: [])
 
     def get_tag(self, filename, tag):
-        return self.tags[filename][tag] if filename in self.tags else ''
+        try:
+            return self.tags[filename][tag]
+        except KeyError:
+            return []
 
     def not_an_audio_file(self, filename):
         return filename in self.tags and self.tags[filename] is None

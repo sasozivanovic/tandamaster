@@ -39,6 +39,10 @@ class TandaMasterWindow(QMainWindow):
             shortcut=QKeySequence.Save,
             triggered = self.save)
         self.musicmenu.addAction(action_save_playtree)
+        action_save_tags = QAction(
+            self.tr("&Save tags"), self,
+            triggered = self.save_tags)
+        self.musicmenu.addAction(action_save_tags)
         self.action_update_library = QAction(
             self.tr("&Update library"), self,
             triggered = self.update_library)
@@ -477,6 +481,9 @@ class TandaMasterWindow(QMainWindow):
                 os.rename(filename + '.tmp', filename)
         save_playtree()
 
+    def save_tags(self):
+        librarian.bg_queries(BgQueries([BgQuery(Library.save_changed_tags, ())], lambda qs: self.statusBar().showMessage('Finished saving tags')))
+    
     def set_columns_minimal(self):
         ptv = app.focusWidget()
         if not isinstance(ptv, PlayTreeView): return

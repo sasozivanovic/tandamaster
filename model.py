@@ -395,7 +395,8 @@ class PlayTreeFile(PlayTreeItem):
             if column_name == '_length':
                 return hmsms_to_text(*ms_to_hmsms(1000*self.duration()), include_ms=False)
             elif column_name:
-                return self.get_tag(column_name)
+                value = self.get_tag(column_name)
+                return value[0] if value else None
             else:
                 return str(self)
         elif not column_name and role == Qt.DecorationRole:
@@ -420,12 +421,12 @@ class PlayTreeFile(PlayTreeItem):
         if not file_reader.have_tags(self.filename):
             return True
         return True # temp!!!!
-        for value in self.get_tags().values():
+        for value in self.get_tags().values(): ### to correct! multiple tag values!!!
             if model.filter_string in str(value).lower():
                 return True
 
     def refresh_models(self):
-        if self.get_tags() is None: # not an audio file: delete
+        if not self.get_tags(): # not an audio file: delete
             for model, children in self.parent.children.items():
                 if self in self.parent.children[model]:
                     i = self.parent.childs_row(model, self)
@@ -454,7 +455,7 @@ class PlayTreeFile(PlayTreeItem):
         if mode & self.duration_mode_cortinas and self.function() == 'cortina':
             return self.cortina_duration
         try:
-            return int(self.get_tag('_length'))
+            return int(self.get_tag('_length')[0])
         except:
             return 0
 
@@ -464,16 +465,16 @@ class PlayTreeLibraryFile(PlayTreeFile):
         super(PlayTreeFile, self).__init__(Id, parent)
         self.library = library_name
         self.song_id = song_id
-        self.filename = library.filename_by_id(self.library, song_id)
+        self.filename = library.filename_by_song_id(self.library, song_id)
 
     def copy(self, parent = None):
         return PlayTreeLibraryFile(self.library, self.song_id, parent = parent)
 
     def get_tag(self, tag):
-        return library.tag_by_id(self.library, tag, self.song_id)
+        return library.tag_by_song_id(self.library, tag, self.song_id)
 
     def get_tags(self):
-        return library.tags_by_id(self.library, self.song_id)
+        return library.tags_by_song_id(self.library, self.song_id)
         
     def __repr__(self):
         return '{}({},{},{})'.format(type(self).__name__, self.library, self.song_id, self.filename)
@@ -486,8 +487,8 @@ class PlayTreeLibraryFile(PlayTreeFile):
             if column_name:
                 return super().data(model, column_name, role)
             else:
-                title = self.get_tag('TITLE')
-                return title if title else str(self)
+                titles = self.get_tag('TITLE')
+                return titles[0] if titles else str(self)
         elif role == Qt. BackgroundRole:
             return QBrush(QColor(Qt.yellow)) if library.dirty(self.library, self.song_id, column_name if column_name else 'TITLE') else super().data(model, column_name, role)
         else:

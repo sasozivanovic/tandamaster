@@ -1196,17 +1196,17 @@ class PlayTreeView(QTreeView):
 
     def dragEnterEvent(self, event):
         if event.source() == self:
-            event.setDropAction(Qt.MoveAction)
+            event.setDropAction(Qt.MoveAction if event.keyboardModifiers() == Qt.NoModifier else event.proposedAction())
         super().dragEnterEvent(event)
 
     def dragMoveEvent(self, event):
         if event.source() == self:
-            event.setDropAction(Qt.MoveAction)
+            event.setDropAction(Qt.MoveAction if event.keyboardModifiers() == Qt.NoModifier else event.proposedAction())
         super().dragMoveEvent(event)
 
     def dropEvent(self, event):
         if event.source() == self:
-            event.setDropAction(Qt.MoveAction)
+            event.setDropAction(Qt.MoveAction if event.keyboardModifiers() == Qt.NoModifier else event.proposedAction())
         super().dropEvent(event)
 
     def keyPressEvent(self, event):

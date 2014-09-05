@@ -51,7 +51,7 @@ class Library(QObject):
         )
         self.connection.execute(
             'CREATE TABLE IF NOT EXISTS tags_{name}'
-            '(id INTEGER, tag TEXT, value TEXT, ascii TEXT, PRIMARY KEY (id, tag))'
+            '(id INTEGER, tag TEXT, value TEXT, ascii TEXT, dirty BOOLEAN, old_value TEXT)'
             .format(name=name)
         )
         self.connection.execute(
@@ -72,6 +72,11 @@ class Library(QObject):
         self.connection.execute(
             'CREATE INDEX IF NOT EXISTS tags_{name}_ascii ON tags_{name}'
             '(ascii)'
+            .format(name=name)
+        )
+        self.connection.execute(
+            'CREATE INDEX IF NOT EXISTS tags_{name}_dirty ON tags_{name}'
+            '(dirty, id)'
             .format(name=name)
         )
         self.connection.commit()
@@ -230,6 +235,21 @@ class Library(QObject):
             if row:
                 return ln, row[0]
         return None, None
+
+    def dirty(self, library_name, Id, tag):
+        row = self.connection.execute('SELECT dirty FROM tags_{} WHERE id=? and tag=?'.format(library_name), (Id, tag)).fetchone()
+        return bool(row[0]) if row else False
+
+    def set_tag(self, library_name, Id, tag, value, ignore_dirty = False, commit = True):
+        row = self.connection.execute('SELECT dirty, value FROM tags_{} WHERE id=? and tag=?'.format(library_name), (Id, tag)).fetchone()
+        dirty, old_value = row
+        if ignore_dirty or not dirty:
+            self.connection.execute('UPDATE tags_{} SET value=?, ascii=?, dirty=1, old_value=? WHERE id=? AND tag=?'.format(library_name), (value, unidecode.unidecode(value).lower() if isinstance(value, str) else value, old_value, Id, tag))
+        else:
+            self.connection.execute('UPDATE tags_{} SET value=?, ascii=? WHERE id=? AND tag=?'.format(library_name), (value, unidecode.unidecode(value).lower() if isinstance(value, str) else value, Id, tag))
+        if commit:
+            self.connection.commit()
+        
 
     def _build_join(self, table_alias_list):
         return "{} AS {} {}".format(

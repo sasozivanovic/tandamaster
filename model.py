@@ -125,7 +125,7 @@ class PlayTreeItem:
         return 'playtreeitem'
 
     def flags(self, column = ''):
-        return Qt.ItemIsSelectable | Qt.ItemIsDragEnabled | Qt.ItemIsEnabled
+        return Qt.ItemIsSelectable | Qt.ItemIsDragEnabled | Qt.ItemIsEnabled | (Qt.ItemIsEditable if not (column and column[0] == '_') else 0)
 
     duration_mode_all = 0
     duration_mode_cortinas = 1
@@ -140,6 +140,13 @@ class PlayTreeItem:
             for child in self.children[model]:
                 for item in child.iter_depth(model, condition_yield, condition_propagate):
                     yield item
+
+    def setData(self, model, column_name, value):
+        if column_name != '':
+            EditTagsCommand(model, [self], column_name, value)
+            return True
+        return False
+
             
 @register_xml_tag_handler('list')
 class PlayTreeList(PlayTreeItem):
@@ -318,15 +325,9 @@ class PlayTreeList(PlayTreeItem):
     def setData(self, model, column_name, value):
         if column_name == '':
             EditPlayTreeNameCommand(self, value)
-            #self.name = value
-            #for model in self.children.keys():
-            #    if model:
-            #        index = self.index(model, column)
-            #        model.dataChanged.emit(index, index, [Qt.EditRole])
             return True
         else:
-            EditTagsCommand(model, [self], column_name, value)
-        return False
+            return super().setData(model, column_name, value)
 
     def duration(self, model, mode = PlayTreeItem.duration_mode_all):
         return sum(child.duration(model, mode) for child in self.children[model]) \
@@ -506,11 +507,10 @@ class PlayTreeLibraryFile(PlayTreeFile):
 
     def setData(self, model, column_name, value):
         if not column_name:
-            column_name = 'TITLE'
-        elif column_name[0] == '_':
-            return False
-        EditTagsCommand(model, [self], column_name, value)
-        return True
+            EditTagsCommand(model, [self], 'TITLE', value)
+        else:
+            return super().setData(model, column_name, value)
+
 
 @register_xml_tag_handler('folder')
 class PlayTreeFolder(PlayTreeItem):

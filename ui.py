@@ -962,8 +962,8 @@ class PlayTreeView(QTreeView):
         self.window().action_move_end.setEnabled(can_move_end)
         model = self.model()
         mode = PlayTreeItem.duration_mode_cortinas
-        if self.selectionModel().hasSelection():
-            selected_indexes = self.selectionModel().selectedRows()
+        selected_indexes = self.selectionModel().selectedRows()
+        if selected_indexes:
             duration = sum(model.item(index).duration(model, mode) for index in selected_indexes)
             if can_group:
                 parent_item = model.item(selected_indexes[0].parent())

@@ -28,7 +28,7 @@ class BgQueries(list):
     
 class Library(QObject):
     _cache = {}
-    musicfile_extensions = ['.mp3', '.wav', '.ogg']
+    musicfile_extensions = ['.mp3', '.wav', '.ogg', '.m4a', '.mp3']
 
     def __init__(self, filename = 'tandamaster.db', connect = True):
         super().__init__()

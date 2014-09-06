@@ -294,7 +294,7 @@ class TandaMasterWindow(QMainWindow):
 
         self.autosave_timer = QTimer(self)
         self.autosave_timer.timeout.connect(self.save)
-        self.autosave_timer.start(10*60*1000)
+        self.autosave_timer.start(10*60*1000) # todo: config
 
     def sizeHint(self):
         return QSize(1800, 800)

@@ -171,6 +171,15 @@ class TandaMasterWindow(QMainWindow):
             QIcon('icons/iconfinder/momentum_glossy/move_bottom.png'),
             self.tr('Move to &bottom'), self, triggered = self.playtree_move_end,
             shortcut = QKeySequence('alt+end'))
+        self.action_edit_tag = QAction(
+            #QIcon('icons/iconfinder/32pxmania/up.png'),
+            self.tr('&Edit tag'), self, triggered = self.edit_tag)
+        self.action_save_tag = QAction(
+            #QIcon('icons/iconfinder/32pxmania/up.png'),
+            self.tr('&Save tag'), self, triggered = self.save_tag)
+        self.action_revert_tag = QAction(
+            #QIcon('icons/iconfinder/32pxmania/up.png'),
+            self.tr('&Revert tag'), self, triggered = self.revert_tag)
         action_undo = undo_stack.createUndoAction(self)
         action_redo = undo_stack.createRedoAction(self)
         action_undo.setIcon(QIcon('icons/iconfinder/32pxmania/undo.png'))
@@ -193,6 +202,10 @@ class TandaMasterWindow(QMainWindow):
         self.editmenu.addAction(self.action_move_end)
         self.editmenu.addAction(self.action_move_left)
         self.editmenu.addAction(self.action_move_right)
+        self.editmenu.addSeparator()
+        self.editmenu.addAction(self.action_edit_tag)
+        self.editmenu.addAction(self.action_save_tag)
+        self.editmenu.addAction(self.action_revert_tag)
         self.editmenu.addSeparator()
         self.editmenu.addAction(self.action_group_into_tandas)
         menubar.addMenu(self.editmenu)
@@ -278,6 +291,10 @@ class TandaMasterWindow(QMainWindow):
         self.on_player_state_changed(QMediaPlayer.StoppedState)
         QApplication.clipboard().changed.connect(self.on_clipboard_data_changed)
         self.player.current_changed.connect(self.update_milonga_end)
+
+        self.autosave_timer = QTimer(self)
+        self.autosave_timer.timeout.connect(self.save)
+        self.autosave_timer.start(10*60*1000)
 
     def sizeHint(self):
         return QSize(1800, 800)
@@ -398,6 +415,19 @@ class TandaMasterWindow(QMainWindow):
         ptv = app.focusWidget()
         if not isinstance(ptv, PlayTreeView): return
         ptv.move_end()
+
+    def edit_tag(self):
+        ptv = app.focusWidget()
+        if not isinstance(ptv, PlayTreeView): return
+        ptv.edit_tag()
+    def save_tag(self):
+        ptv = app.focusWidget()
+        if not isinstance(ptv, PlayTreeView): return
+        ptv.save_tag()
+    def revert_tag(self):
+        ptv = app.focusWidget()
+        if not isinstance(ptv, PlayTreeView): return
+        ptv.revert_tag()
 
     def lock(self, locked):
         if locked:
@@ -774,6 +804,10 @@ class PlayTreeView(QTreeView):
     def currentChanged(self, current, previous):
         super().currentChanged(current, previous)
         self.update_current_song_from_file(current)
+        current_item = self.model().item(current)
+        save_revert = isinstance(current_item, PlayTreeLibraryFile) and library.dirty(current_item.library, current_item.song_id, self.model().columns[current.column()])
+        self.window().action_save_tag.setEnabled(False) # todo: saving a SINGLE tag
+        self.window().action_revert_tag.setEnabled(save_revert)
 
     def update_current_song_from_file(self, current):
         item = self.model().item(current)
@@ -1233,6 +1267,17 @@ class PlayTreeView(QTreeView):
     def update_milonga_end(self, parent_index, first, last, dest = QModelIndex(), dest_first = None, dest_last = None):
         if self.player.current_model == self.model():
             self.window().update_milonga_end()
+
+    def edit_tag(self):
+        self.edit(self.currentIndex())
+    def save_tag(self):
+        pass
+    def revert_tag(self):
+        current_index = self.currentIndex()
+        item = self.model().item(current_index)
+        tag = self.model().columns[current_index.column()]
+        dirty, old_value = library.dirty(item.library, item.song_id, tag, get_old_value = True)
+        EditTagsCommand(self.model(), [item], tag, old_value, command_prefix = 'Revert')
 
 class TMProgressBar(QProgressBar):
     def __init__(self, player, parent = None):

@@ -246,9 +246,12 @@ class Library(QObject):
                 return ln, row[0]
         return None, None
 
-    def dirty(self, library_name, song_id, tag):
-        row = self.connection.execute('SELECT dirty FROM tags_{} WHERE song_id=? and tag=?'.format(library_name), (song_id, tag)).fetchone()
-        return bool(row[0]) if row else False
+    def dirty(self, library_name, song_id, tag, get_old_value = False):
+        row = self.connection.execute('SELECT dirty, old_value FROM tags_{} WHERE song_id=? and tag=?'.format(library_name), (song_id, tag)).fetchone()
+        if get_old_value:
+            return (bool(row[0]), row[1]) if row else (False, None)
+        else:
+            return bool(row[0]) if row else False
 
     def set_tag(self, library_name, song_id, tag, value, n = 0, commit = True):
         # n = nth occurrenct of song_id, tag in tags_{library_name}, first = 0

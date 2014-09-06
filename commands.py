@@ -115,7 +115,7 @@ class EditPlayTreeNameCommand(QUndoCommand):
 
 class EditTagsCommand(TMPlayTreeItemsCommand):
     def __init__(self, model, items, tag, value,
-                 command_prefix = None, command_suffix = '', command_text = None, 
+                 command_prefix = 'Change', command_suffix = '', command_text = None, 
                  command_parent = None, push = True):
         self.model = model
         self.tag = tag
@@ -125,7 +125,7 @@ class EditTagsCommand(TMPlayTreeItemsCommand):
                 old_value = it.get_tag(tag)
                 self.old_values[it] = old_value[0] if old_value else None
         self.value = value
-        command_prefix = 'change tag "{}" to "{}" for '.format(tag, value)
+        command_prefix = '{} tag "{}" to "{}" for '.format(command_prefix, tag, value)
         super().__init__(items, command_prefix = command_prefix, command_suffix = command_suffix, command_text = command_text, command_parent = command_parent)
         if push:
             undo_stack.push(self)

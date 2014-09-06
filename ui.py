@@ -8,6 +8,7 @@ from library import Library
 from util import *
 from app import *
 from commands import *
+import config
 
 import collections, weakref, binascii, datetime
 
@@ -294,7 +295,7 @@ class TandaMasterWindow(QMainWindow):
 
         self.autosave_timer = QTimer(self)
         self.autosave_timer.timeout.connect(self.save)
-        self.autosave_timer.start(10*60*1000) # todo: config
+        self.autosave_timer.start(config.autosave_interval*60*1000)
 
     def sizeHint(self):
         return QSize(1800, 800)

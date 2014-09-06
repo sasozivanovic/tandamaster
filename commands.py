@@ -3,6 +3,9 @@ from PyQt5.QtCore import pyqtRemoveInputHook; from IPython import embed; pyqtRem
 from PyQt5.Qt import *   # todo: import only what you need
 from app import *
 undo_stack = QUndoStack(app)
+from library import library
+
+import collections
 
 class TMPlayTreeItemsCommand(QUndoCommand):
     @staticmethod
@@ -109,4 +112,29 @@ class EditPlayTreeNameCommand(QUndoCommand):
                 index = self.item.index(model, 0)
                 model.dataChanged.emit(index, index, [Qt.EditRole])
         
+
+class EditTagsCommand(TMPlayTreeItemsCommand):
+    def __init__(self, model, items, tag, value,
+                 command_prefix = None, command_suffix = '', command_text = None, 
+                 command_parent = None, push = True):
+        self.model = model
+        self.tag = tag
+        self.old_values = collections.OrderedDict()
+        for item in items:
+            for it in item.iter_depth(model, lambda i: i.isTerminal, lambda i: not i.isTerminal):
+                old_value = it.get_tag(tag)
+                self.old_values[it] = old_value[0] if old_value else None
+        self.value = value
+        command_prefix = 'change tag "{}" to "{}" for '.format(tag, value)
+        super().__init__(items, command_prefix = command_prefix, command_suffix = command_suffix, command_text = command_text, command_parent = command_parent)
+        if push:
+            undo_stack.push(self)
+    def redo(self):
+        for item in self.old_values.keys():
+            library.set_tag(item.library, item.song_id, self.tag, self.value)
+            item.refresh_models()
+    def undo(self):
+        for item, old_value in self.old_values.items():
+            library.set_tag(item.library, item.song_id, self.tag, old_value)
+            item.refresh_models()
 

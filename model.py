@@ -315,8 +315,8 @@ class PlayTreeList(PlayTreeItem):
     def flags(self, column = ''):
         return Qt.ItemIsSelectable | Qt.ItemIsDragEnabled | Qt.ItemIsEnabled | Qt.ItemIsDropEnabled | (Qt.ItemIsEditable if not (column and column[0] == '_') else 0)
 
-    def setData(self, column_name, value):
-        if column == '':
+    def setData(self, model, column_name, value):
+        if column_name == '':
             EditPlayTreeNameCommand(self, value)
             #self.name = value
             #for model in self.children.keys():
@@ -324,6 +324,8 @@ class PlayTreeList(PlayTreeItem):
             #        index = self.index(model, column)
             #        model.dataChanged.emit(index, index, [Qt.EditRole])
             return True
+        else:
+            EditTagsCommand(model, [self], column_name, value)
         return False
 
     def duration(self, model, mode = PlayTreeItem.duration_mode_all):
@@ -502,12 +504,12 @@ class PlayTreeLibraryFile(PlayTreeFile):
         else:
             return super().flags(column)
 
-    def setData(self, column_name, value):
+    def setData(self, model, column_name, value):
         if not column_name:
-            column = 'TITLE'
+            column_name = 'TITLE'
         elif column_name[0] == '_':
             return False
-        library.set_tag(self.library, self.song_id, column_name, value)
+        EditTagsCommand(model, [self], column_name, value)
         return True
 
 @register_xml_tag_handler('folder')
@@ -1016,7 +1018,7 @@ class PlayTreeModel(QAbstractItemModel):
 
     def setData(self, index, value, role):
         if role == Qt.EditRole:
-            return self.item(index).setData(self.columns[index.column()], value)
+            return self.item(index).setData(self, self.columns[index.column()], value)
         return False
         
 from app import app

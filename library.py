@@ -256,7 +256,7 @@ class Library(QObject):
         if not dirty:
             self.connection.execute('UPDATE tags_{} SET value=?, ascii=?, dirty=1, old_value=? WHERE rowid=?'.format(library_name), (value, unidecode.unidecode(value).lower() if isinstance(value, str) else value, old_value, rowid))
         elif original_value == value:
-            self.connection.execute('UPDATE tags_{} SET value=?, ascii=?, dirty=0, old_value=NULL WHERE rowid=?'.format(library_name), (value, unidecode.unidecode(value).lower() if isinstance(value, str) else value, song_id, tag, rowid))
+            self.connection.execute('UPDATE tags_{} SET value=?, ascii=?, dirty=0, old_value=NULL WHERE rowid=?'.format(library_name), (value, unidecode.unidecode(value).lower() if isinstance(value, str) else value, rowid))
         else:
             self.connection.execute('UPDATE tags_{} SET value=?, ascii=? WHERE rowid=?'.format(library_name), (value, unidecode.unidecode(value).lower() if isinstance(value, str) else value, rowid))
         if commit:

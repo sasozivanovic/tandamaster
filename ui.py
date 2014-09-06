@@ -470,6 +470,19 @@ class TandaMasterWindow(QMainWindow):
                 print(line, file = f)
         import subprocess
         subprocess.Popen(['/usr/bin/audacity', filename])
+
+    def adhoc(self):
+        ptv = app.focusWidget()
+        if not isinstance(ptv, PlayTreeView): return
+        current_index = ptv.currentIndex()
+        model = ptv.model()
+        current_item = model.item(current_index)
+        print(current_item in current_item.parent.children[ptv.model()])
+        print(repr(current_item))
+        print(repr(current_item.parent))
+        print(current_item.parent.children[ptv.model()])
+        print(current_item.parent.children[None])        
+        print()
         
     def save_playtree_to_folder(self):
         ptv = app.focusWidget()

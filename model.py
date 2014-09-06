@@ -166,13 +166,13 @@ class PlayTreeList(PlayTreeItem):
         
     def copy(self, parent = None):
         copy = PlayTreeList(self.name, parent = parent)
-        copy.children = {None: [child.copy(parent = self) for child in self.children[None]]}
+        copy.children = {None: [child.copy(parent = copy) for child in self.children[None]]}
         return copy
 
     are_children_manually_set = True
 
     def __repr__(self):
-        return '{}(id={},name={})'.format(type(self).__name__, self.Id, self.name)
+        return '{}({},id={},name={})'.format(type(self).__name__, id(self), self.Id, self.name)
 
     def rowCount(self, model):
         self.populate(model)
@@ -309,7 +309,7 @@ class PlayTreeList(PlayTreeItem):
             else:
                 InsertPlayTreeItemsCommand(
                     new_items, self, None if row == -1 else self.child(None, row), 
-                    command_prefix = 'Drop')
+                    command_prefix = command_prefix)
         return new_items
         
     def flags(self, column = ''):
@@ -378,7 +378,7 @@ class PlayTreeFile(PlayTreeItem):
         tags = file_reader.get_tags(self.filename)
 
     def __repr__(self):
-        return '{}({})'.format(type(self).__name__, self.filename)
+        return '{}({},{})'.format(type(self).__name__, id(self), self.filename)
 
     def rowCount(self, model):
         return 0
@@ -479,7 +479,7 @@ class PlayTreeLibraryFile(PlayTreeFile):
         return library.tags_by_song_id(self.library, self.song_id)
         
     def __repr__(self):
-        return '{}({},{},{})'.format(type(self).__name__, self.library, self.song_id, self.filename)
+        return '{}({},{},{},{})'.format(type(self).__name__, id(self),self.library, self.song_id, self.filename)
 
     def __str__(self):
         return os.path.basename(self.filename)
@@ -533,7 +533,7 @@ class PlayTreeFolder(PlayTreeItem):
         return PlayTreeFolder(self.filename, parent = parent)
 
     def __repr__(self):
-        return '{}({})'.format(type(self).__name__, self.filename)
+        return '{}({},{})'.format(type(self).__name__, id(self), self.filename)
 
     def rowCount(self, model):
         self.populate(model)
@@ -651,7 +651,7 @@ class PlayTreeBrowse(PlayTreeItem):
         return PlayTreeBrowse(self.library, self.fixed_tags, self.browse_by_tags, self.tag, parent = parent)
 
     def __repr__(self):
-        return '{}({},fixed={},by={})'.format(type(self).__name__, self.library, self.fixed_tags, self.browse_by_tags)
+        return '{}({},{},fixed={},by={})'.format(type(self).__name__, id(self), self.library, self.fixed_tags, self.browse_by_tags)
 
     def rowCount(self, model):
         self.populate(model)

@@ -20,7 +20,6 @@ def register_xml_tag_handler(tag):
         return cls
     return f
 
-
 import weakref
 class PlayTreeItem:
     weakrefs = weakref.WeakSet() # for debugging memory leaks
@@ -215,7 +214,7 @@ class PlayTreeList(PlayTreeItem):
                         first = False
                     elif child_data != data:
                         return
-                return data if not first else None
+                return TMTag(column_name, data) if not first else None
             else:
                 return str(self)
         elif not column_name and role == Qt.DecorationRole:

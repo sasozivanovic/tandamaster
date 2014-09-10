@@ -754,7 +754,7 @@ class PlayTreeView(QTreeView):
         super().__init__(parent)
 
         self.setUniformRowHeights(True) 
-        # when using QTreeView::branch:selected, images dissapear!
+        # when using QTreeView::branch:selected, images disappear!
 
         model = PlayTreeModel(root_id, self, root_item = root_item)
         self.setModel(model)
@@ -1292,6 +1292,26 @@ class PlayTreeView(QTreeView):
         tag = self.model().columns[current_index.column()]
         dirty, old_value = library.dirty(item.library, item.song_id, tag, get_old_value = True)
         EditTagsCommand(self.model(), [item], tag, old_value, command_prefix = 'Revert')
+
+class QStandardItemEditorCreator(QItemEditorCreatorBase):
+    def __init__(self, cls):
+        super(QStandardItemEditorCreator, self).__init__()
+        self.propertyName = cls.staticMetaObject.userProperty().name()
+        self.cls = cls
+
+    def createWidget(self, parent):
+        return self.cls(parent)
+
+    def valuePropertyName(self):
+        return self.propertyName
+
+class TMTag(QVariant):
+    def __init__(self, tag, value):
+        super().__init__()
+        self.tag = tag
+
+embed()
+QItemEditorFactory.defaultFactory().registerEditor(TMTag, QStandardItemEditorCreator(QComboBox))
 
 class TMProgressBar(QProgressBar):
     def __init__(self, player, parent = None):

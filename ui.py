@@ -1296,33 +1296,17 @@ class PlayTreeView(QTreeView):
 
 class TMItemDelegate(QStyledItemDelegate):
     def createEditor(self, parent, option, index):
-        model = index.model()
-        tag = model.columns[index.column()]
+        editor = super().createEditor(parent, option, index)
+        tag = index.model().columns[index.column()]
         if tag:
-            editor = QComboBox(parent)
-            editor.setEditable(True)
-            #editor.completer().setCaseSensitivity(True)
-            editor.completer().setCompletionMode(QCompleter.PopupCompletion)
-            item = index.internalPointer()
-            if not item.isTerminal:
-                values = set()
-                for it in item.iter(model, lambda i: i.isTerminal, lambda i: not i.isTerminal):
-                    values.add(it.data(model, tag, Qt.EditRole))
-                if len(values) > 1:
-                    for v in sorted(values):
-                        editor.addItem(v, None)
-                    editor.insertSeparator(len(v))
-            for value, n in library.query_tags_iter('tango', tag, [], ''):
-                editor.addItem(value, None)
-            return editor
-        else:
-            return super().createEditor(parent, option, index)
+            completer = QCompleter()
+            completer.setCompletionMode(QCompleter.PopupCompletion)
+            completer.setCaseSensitivity(False)
+            completer.setModel(QStringListModel(
+                [v for v,n in library.query_tags_iter('tango', tag, [], '')]))
+            editor.setCompleter(completer)
+        return editor
 
-    def setEditorData(self, editor, index):
-        if index.column() > 0:
-            editor.setCurrentText(index.data(Qt.EditRole))
-        else:
-            return super().setEditorData(editor, index)
 
 class TMProgressBar(QProgressBar):
     def __init__(self, player, parent = None):

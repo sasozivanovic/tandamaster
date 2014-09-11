@@ -256,7 +256,9 @@ class Library(QObject):
     def set_tag(self, library_name, song_id, tag, value, n = 0, commit = True):
         # n = nth occurrenct of song_id, tag in tags_{library_name}, first = 0
         rowid, dirty, old_value, original_value = self.connection.execute('SELECT rowid, dirty, value, old_value FROM tags_{} WHERE song_id=? and tag=?'.format(library_name), (song_id, tag)).fetchall()[n]
-        if not dirty:
+        if not dirty and old_value == value:
+            pass
+        elif not dirty:
             self.connection.execute('UPDATE tags_{} SET value=?, ascii=?, dirty=1, old_value=? WHERE rowid=?'.format(library_name), (value, unidecode.unidecode(value).lower() if isinstance(value, str) else value, old_value, rowid))
         elif original_value == value:
             self.connection.execute('UPDATE tags_{} SET value=?, ascii=?, dirty=0, old_value=NULL WHERE rowid=?'.format(library_name), (value, unidecode.unidecode(value).lower() if isinstance(value, str) else value, rowid))

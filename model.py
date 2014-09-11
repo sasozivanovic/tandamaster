@@ -214,7 +214,7 @@ class PlayTreeList(PlayTreeItem):
                         first = False
                     elif child_data != data:
                         return
-                return TMTag(column_name, data) if not first else None
+                return data if not first else None
             else:
                 return str(self)
         elif not column_name and role == Qt.DecorationRole:
@@ -487,10 +487,12 @@ class PlayTreeLibraryFile(PlayTreeFile):
     def data(self, model, column_name, role):
         if role in (Qt.DisplayRole, Qt.EditRole):
             if column_name:
-                return super().data(model, column_name, role)
+                data= super().data(model, column_name, role)
             else:
+                column_name = 'TITLE'
                 titles = self.get_tag('TITLE')
-                return titles[0] if titles else str(self)
+                data = titles[0] if titles else str(self)
+            return data
         elif role == Qt. BackgroundRole:
             return QBrush(QColor(Qt.yellow)) if library.dirty(self.library, self.song_id, column_name if column_name else 'TITLE') else super().data(model, column_name, role)
         elif role == Qt.ToolTipRole and library.dirty(self.library, self.song_id, column_name if column_name else 'TITLE'):

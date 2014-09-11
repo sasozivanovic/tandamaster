@@ -780,6 +780,7 @@ class PlayTreeView(QTreeView):
 
         self.setDragDropMode(QAbstractItemView.DragDrop)
         self.setEditTriggers(QAbstractItemView.EditKeyPressed)
+        self.setItemDelegate(TMItemDelegate())
 
     def on_expanded(self, index):
         model = self.model()
@@ -1293,25 +1294,35 @@ class PlayTreeView(QTreeView):
         dirty, old_value = library.dirty(item.library, item.song_id, tag, get_old_value = True)
         EditTagsCommand(self.model(), [item], tag, old_value, command_prefix = 'Revert')
 
-class QStandardItemEditorCreator(QItemEditorCreatorBase):
-    def __init__(self, cls):
-        super(QStandardItemEditorCreator, self).__init__()
-        self.propertyName = cls.staticMetaObject.userProperty().name()
-        self.cls = cls
+class TMItemDelegate(QStyledItemDelegate):
+    def createEditor(self, parent, option, index):
+        model = index.model()
+        tag = model.columns[index.column()]
+        if tag:
+            editor = QComboBox(parent)
+            editor.setEditable(True)
+            #editor.completer().setCaseSensitivity(True)
+            editor.completer().setCompletionMode(QCompleter.PopupCompletion)
+            item = index.internalPointer()
+            if not item.isTerminal:
+                values = set()
+                for it in item.iter(model, lambda i: i.isTerminal, lambda i: not i.isTerminal):
+                    values.add(it.data(model, tag, Qt.EditRole))
+                if len(values) > 1:
+                    for v in sorted(values):
+                        editor.addItem(v, None)
+                    editor.insertSeparator(len(v))
+            for value, n in library.query_tags_iter('tango', tag, [], ''):
+                editor.addItem(value, None)
+            return editor
+        else:
+            return super().createEditor(parent, option, index)
 
-    def createWidget(self, parent):
-        return self.cls(parent)
-
-    def valuePropertyName(self):
-        return self.propertyName
-
-class TMTag(QVariant):
-    def __init__(self, tag, value):
-        super().__init__()
-        self.tag = tag
-
-embed()
-QItemEditorFactory.defaultFactory().registerEditor(TMTag, QStandardItemEditorCreator(QComboBox))
+    def setEditorData(self, editor, index):
+        if index.column() > 0:
+            editor.setCurrentText(index.data(Qt.EditRole))
+        else:
+            return super().setEditorData(editor, index)
 
 class TMProgressBar(QProgressBar):
     def __init__(self, player, parent = None):

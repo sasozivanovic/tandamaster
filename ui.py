@@ -1236,10 +1236,10 @@ class PlayTreeView(QTreeView):
         if not items or any(not isinstance(item, PlayTreeFile) for item in items): 
             return []
         tags = ['ARTIST', 'PERFORMER:VOCALS', 'GENRE'] #, 'QUODLIBET::RECORDINGDATE']
-        values = dict((tag, items[0].get_tag(tag)) for tag in tags)
+        values = dict((tag, first(items[0].get_tag(tag), default='')) for tag in tags)
         for item in items[1:]:
             for tag in tags:
-                if values[tag] != item.get_tag(tag):
+                if values[tag] != first(item.get_tag(tag),default=''):
                     values[tag] = None
         return [(tag,values[tag]) for tag in tags if values[tag]] 
 

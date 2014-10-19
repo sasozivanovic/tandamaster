@@ -56,3 +56,6 @@ def tm_timestamp(sep = ' '):
     ts = datetime.datetime.now().isoformat(sep)
     return ts[0:ts.index('.')]
         
+
+def first(lst, default = None):
+    return lst[0] if lst else default

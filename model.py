@@ -1015,6 +1015,7 @@ class PlayTreeModel(QAbstractItemModel):
         selection_model = self.view.selectionModel()
         selection_model.select(QItemSelection(new_items[0].index(self),new_items[-1].index(self)), QItemSelectionModel.ClearAndSelect|QItemSelectionModel.Rows)
         selection_model.setCurrentIndex(inserted_items[0].index(self), QItemSelectionModel.NoUpdate)
+        self.view.setFocus(Qt.OtherFocusReason)
         return bool(inserted_items)
 
     def setData(self, index, value, role):

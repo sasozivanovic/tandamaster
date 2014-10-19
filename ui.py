@@ -964,6 +964,7 @@ class PlayTreeView(QTreeView):
         model = self.model()
         mode = PlayTreeItem.duration_mode_cortinas
         selected_indexes = self.selectionModel().selectedRows()
+        duration_playtree = model.root_item.duration(model, mode)
         if selected_indexes:
             duration = sum(model.item(index).duration(model, mode) for index in selected_indexes)
             if can_group:
@@ -974,17 +975,18 @@ class PlayTreeView(QTreeView):
                                       for r in range(
                                               1+max(index.row() for index in selected_indexes),
                                               parent_item.rowCount(model)))
-                msg = 'Duration before {}, selection {}, after {}'.format(
-                        hmsms_to_text(*ms_to_hmsms(1000*duration_before),include_ms=False),
-                        hmsms_to_text(*ms_to_hmsms(1000*duration),include_ms=False),
-                        hmsms_to_text(*ms_to_hmsms(1000*duration_after),include_ms=False))
+                msg = 'Duration before {}, selection {}, after {}, playtree {}'.format(
+                    hmsms_to_text(*ms_to_hmsms(1000*duration_before),include_ms=False),
+                    hmsms_to_text(*ms_to_hmsms(1000*duration),include_ms=False),
+                    hmsms_to_text(*ms_to_hmsms(1000*duration_after),include_ms=False),
+                    hmsms_to_text(*ms_to_hmsms(1000*duration_playtree),include_ms=False))
             else:
                 msg = 'Duration of the selection: {}'.format(
-                        hmsms_to_text(*ms_to_hmsms(1000*duration),include_ms=False))
+                    hmsms_to_text(*ms_to_hmsms(1000*duration),include_ms=False),
+                    hmsms_to_text(*ms_to_hmsms(1000*duration_playtree),include_ms=False))
         else:
-            duration = model.root_item.duration(model, mode)
             msg = 'Duration of the playtree: {}'.format(
-                    hmsms_to_text(*ms_to_hmsms(1000*duration),include_ms=False))
+                hmsms_to_text(*ms_to_hmsms(1000*duration_playtree),include_ms=False))
         if mode == PlayTreeItem.duration_mode_cortinas:
             msg += ' (cortina={}s)'.format(PlayTreeFile.cortina_duration)
         self.window().update_status_bar(duration = msg)

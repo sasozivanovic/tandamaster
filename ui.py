@@ -511,7 +511,11 @@ class TandaMasterWindow(QMainWindow):
         filename = 'ui.xml'
         with open(filename + '.tmp', 'w') as outfile:
             self.ui_xml.write(outfile, encoding='unicode')
-            if filecmp.cmp(filename, filename + '.tmp'):
+            try:
+                same = filecmp.cmp(filename, filename + '.tmp')
+            except:
+                same = False
+            if same:
                 os.remove(filename + '.tmp')
             else:
                 try:

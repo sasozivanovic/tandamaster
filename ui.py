@@ -508,25 +508,8 @@ class TandaMasterWindow(QMainWindow):
         cw = self.ui_xml.find('CentralWidget')
         cw.clear()
         cw.append(self.centralWidget().to_xml())
-        filename = 'ui.xml'
-        with open(filename + '.tmp', 'w') as outfile:
+        with open_autobackup('ui.xml', 'w') as outfile:
             self.ui_xml.write(outfile, encoding='unicode')
-            try:
-                same = filecmp.cmp(filename, filename + '.tmp')
-            except:
-                same = False
-            if same:
-                os.remove(filename + '.tmp')
-            else:
-                try:
-                    os.mkdir('bak')
-                except OSError:
-                    pass
-                try:
-                    os.rename(filename, os.path.join('bak', filename + '.' + tm_timestamp('_') + '.bak'))
-                except OSError:
-                    pass
-                os.rename(filename + '.tmp', filename)
         save_playtree()
 
     def save_tags(self):

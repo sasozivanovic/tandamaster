@@ -48,20 +48,8 @@ class PlayTreeItem:
 
     def save(self, filename):
         document = etree.ElementTree(self.to_xml())
-        with open(filename + '.tmp', 'w') as outfile:
+        with open_autobackup(filename, 'w') as outfile:
             document.write(outfile, encoding='unicode')
-            if filecmp.cmp(filename, filename + '.tmp'):
-                os.remove(filename + '.tmp')
-            else:
-                try:
-                    os.mkdir('bak')
-                except OSError:
-                    pass
-                try:
-                    os.rename(filename, os.path.join('bak', filename + '.' + tm_timestamp('_') + '.bak'))
-                except:
-                    pass
-                os.rename(filename + '.tmp', filename)
 
     def __init__(self, Id = None, parent = None):
         super().__init__()

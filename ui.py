@@ -498,8 +498,11 @@ class TandaMasterWindow(QMainWindow):
             shutil.copyfile(item.filename, new_fn)
 
     def closeEvent(self, event):
-        self.save()
-        super().closeEvent(event)
+        if self.action_lock.isChecked():
+            event.ignore()
+        else:
+            self.save()
+            super().closeEvent(event)
 
     def save(self):
         self.ui_xml.getroot().set(

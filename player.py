@@ -134,7 +134,7 @@ class TandaMasterPlayer(QObject):
     #gap = 3000
     gap = 0
 
-    fadeout_step = 5
+    fadeout_step = 0.05
     fadeout_timeout = 200
 
     def _fadeout(self, method, *args, **kwargs):
@@ -144,14 +144,14 @@ class TandaMasterPlayer(QObject):
             self.fadeout_timer.timeout.connect(lambda: self._fadeout(method, *args, **kwargs))
             self.fadeout_timer.start(self.fadeout_timeout)
         else:
-            if self.volume() == 0:
+            if self.playbin.get_property('volume') == 0:
                 self.fadeout_timer.stop()
                 self.fadeout_timer = None
                 self.playbin.set_state(Gst.State.PAUSED)
                 self.playbin.set_property('volume', self._volume)
                 self._gap(method, *args, **kwargs)
             else:
-                self.setVolume(max(0,self.volume()-self.fadeout_step))
+                self.playbin.set_property('volume', max(0,self.playbin.get_property('volume')-self.fadeout_step))
 
     def _gap(self, method,  *args, **kwargs):
         if self.gap:

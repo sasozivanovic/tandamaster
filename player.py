@@ -1,8 +1,15 @@
 from PyQt5.Qt import *
+
+from gi.repository import GObject, Gst
+GObject.threads_init()
+Gst.init(None)
+
 from model import PlayTreeModel, PlayTreeItem
 from IPython import embed
 
-class TandaMasterPlayer(QMediaPlayer):
+class TandaMasterPlayer(QObject):
+
+    STOPPED, PAUSED, PLAYING = range(3)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -11,9 +18,23 @@ class TandaMasterPlayer(QMediaPlayer):
         self.stop_after = 0
         self._playback_start = None
         self.fadeout_timer = None
-        self.mediaStatusChanged.connect(self.on_media_status_changed)
-        #self.setNotifyInterval(200)
-        self.set_volume(100)
+        self.state = self.STOPPED
+        
+        self.playbin = Gst.ElementFactory.make("playbin", None)
+        fakesink = Gst.ElementFactory.make("fakesink", None)
+        self.playbin.set_property("video-sink", fakesink)
+
+        bus = self.playbin.get_bus()
+        bus.add_signal_watch()
+        bus.connect("message", self.on_message)
+
+        self.set_volume(1.0)
+
+        self.position_timer = QTimer()
+        self.position_timer.setTimerType(Qt.CoarseTimer)
+        self.position_timer.timeout.connect(self.on_position_timer)
+        self.position_timer.start(200)
+        
 
     @property
     def current_model(self):
@@ -68,8 +89,8 @@ class TandaMasterPlayer(QMediaPlayer):
         if not self.current_item.isPlayable:
             self.play_index(self.current_model.next_song(self.current_index))
         else:
-            super().play()
-            self.setNotifyInterval(100)
+            self.playbin.set_state(Gst.State.PLAYING)
+            #self.setNotifyInterval(100)
 
     def play_index(self, playtree_index):
         if self.current_model and self.current_item and self.current_model.view.window().action_milonga_mode.isChecked() and self.current_item.function() == 'cortina':
@@ -83,8 +104,11 @@ class TandaMasterPlayer(QMediaPlayer):
         if not self.current_model.item(playtree_index).isPlayable:
             playtree_index = self.current_model.next_song(playtree_index)
         self.set_current(index = playtree_index)
-        self.setMedia(QMediaContent(QUrl.fromLocalFile(self.current_item.filename)))
-        super().play()
+        self.playbin.set_state(Gst.State.READY)
+        self.playbin.set_property('uri', QUrl.fromLocalFile(self.current_item.filename).toString())
+        self.playbin.set_state(Gst.State.PLAYING)
+        self.current_media_changed.emit()
+    current_media_changed = pyqtSignal()
 
     def play_next(self):
         if self.current_model and self.current_item and self.current_model.view.window().action_milonga_mode.isChecked() and self.current_item.function() == 'cortina':
@@ -102,7 +126,7 @@ class TandaMasterPlayer(QMediaPlayer):
         if n.isValid():
             self._play_index(n)
         else:
-            self.stop()
+            self.playbin.set_state(Gst.State.PAUSED) # stop
 
     def set_stop_after(self, i):
         self.stop_after = i
@@ -123,8 +147,8 @@ class TandaMasterPlayer(QMediaPlayer):
             if self.volume() == 0:
                 self.fadeout_timer.stop()
                 self.fadeout_timer = None
-                self.pause()
-                self.setVolume(self._volume)
+                self.playbin.set_state(Gst.State.PAUSED)
+                self.playbin.set_property('volume', self._volume)
                 self._gap(method, *args, **kwargs)
             else:
                 self.setVolume(max(0,self.volume()-self.fadeout_step))
@@ -141,13 +165,43 @@ class TandaMasterPlayer(QMediaPlayer):
             self.play_index(n)
 
     def stop(self):
-        super().stop()
+        self.playbin.set_state(Gst.State.READY)
         self.set_current(item = None)
 
-    def on_media_status_changed(self, state):
-        if state == QMediaPlayer.EndOfMedia:
+    def on_message(self, bus, message):
+        t = message.type
+        if t == Gst.MessageType.EOS:
             self.play_next()
+        if t == Gst.MessageType.DURATION_CHANGED:
+            self.duration_changed.emit(self.playbin.query_duration(Gst.Format.TIME)[1]/1000000)
+        #if t == Gst.MessageType.POSITION_CHANGED:
+        #    self.position_changed.emit(self.playbin.query_position(Gst.Format.TIME))
+        if t == Gst.MessageType.STATE_CHANGED:
+            gst_state = self.playbin.get_state(0)[1]
+            state = self.PLAYING if gst_state == Gst.State.PLAYING else (self.PAUSED if gst_state == Gst.State.PAUSED else self.STOPPED)
+            self.state_changed.emit(state)
+            if gst_state == Gst.State.PAUSED:
+                self.on_position_timer(force = True)
+    duration_changed = pyqtSignal(int)
+    position_changed = pyqtSignal(int)
+    state_changed = pyqtSignal(int)
+
 
     def set_volume(self, volume):
         self._volume = volume
-        self.setVolume(volume)
+        self.playbin.set_property('volume', volume)
+
+    def volume(self):
+        return self._volume
+
+    def pause(self):
+        self.playbin.set_state(Gst.State.PAUSED)
+
+    def on_position_timer(self, force = True):
+        if force or self.playbin.get_state(0)[1] == Gst.State.PLAYING:
+            position = self.playbin.query_position(Gst.Format.TIME)
+            if position[0]:
+                self.position_changed.emit(position[1]/1000000)
+        
+    def seek(self, position):
+        self.playbin.seek_simple(Gst.Format.TIME, Gst.SeekFlags.FLUSH, position * 1000000)

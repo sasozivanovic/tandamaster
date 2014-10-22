@@ -286,9 +286,9 @@ class TandaMasterWindow(QMainWindow):
 
         self.setStatusBar(QStatusBar())
 
-        self.player.currentMediaChanged.connect(self.update_song_info)
-        self.player.currentMediaChanged.connect(lambda: self.lock_action_forward())
-        self.player.stateChanged.connect(self.on_player_state_changed)
+        self.player.current_media_changed.connect(self.update_song_info)
+        self.player.current_media_changed.connect(lambda: self.lock_action_forward())
+        self.player.state_changed.connect(self.on_player_state_changed)
         self.on_player_state_changed(QMediaPlayer.StoppedState)
         QApplication.clipboard().changed.connect(self.on_clipboard_data_changed)
         self.player.current_changed.connect(self.update_milonga_end)
@@ -301,7 +301,7 @@ class TandaMasterWindow(QMainWindow):
         return QSize(1800, 800)
 
     song_info_formatter = PartialFormatter()
-    def update_song_info(self, media):
+    def update_song_info(self):
         item = self.player.current_item
         if item:
             tags = item.get_tags()
@@ -314,7 +314,7 @@ class TandaMasterWindow(QMainWindow):
             self.song_info.setText("")
 
     def on_player_state_changed(self, state):
-        if state == QMediaPlayer.PlayingState:
+        if state == TandaMasterPlayer.PLAYING:
             self.action_play.setVisible(False)
             self.action_pause.setVisible(True)
             self.action_stop.setEnabled(not self.action_lock.isChecked())
@@ -1303,22 +1303,22 @@ class TMProgressBar(QProgressBar):
         self.setMinimum(0)
         self.setValue(-1)
         self.player = player
-        player.durationChanged.connect(self.on_durationChanged)
-        player.positionChanged.connect(self.on_positionChanged)
-        player.stateChanged.connect(self.on_stateChanged)
+        player.duration_changed.connect(self.on_duration_changed)
+        player.position_changed.connect(self.on_position_changed)
+        player.state_changed.connect(self.on_state_changed)
         self.hours, self.minutes, self.seconds, self.milliseconds = 0,0,0,0
-        self.on_stateChanged(QMediaPlayer.StoppedState)
+        self.on_state_changed(QMediaPlayer.StoppedState)
         self.update()
 
         self.in_seek = False
         self.setMouseTracking(True)
         self.installEventFilter(TMProgressBar_Interaction(self))
 
-    def on_durationChanged(self, duration):
+    def on_duration_changed(self, duration):
         self.setMaximum(duration)
         self.update()
         
-    def on_positionChanged(self, position):
+    def on_position_changed(self, position):
         self.setValue(position)
         self.hours, self.minutes, self.seconds, self.milliseconds = ms_to_hmsms(position)
         self.update()
@@ -1327,7 +1327,7 @@ class TMProgressBar(QProgressBar):
         return hmsms_to_text(self.hours, self.minutes, self.seconds, self.milliseconds,
                              include_ms = self.player.state == QMediaPlayer.PausedState)
         
-    def on_stateChanged(self, state):
+    def on_state_changed(self, state):
         self.player_state = state
         self.setTextVisible(state != QMediaPlayer.StoppedState)
         self.update()
@@ -1336,7 +1336,7 @@ class TMProgressBar_Interaction(QObject):
     def eventFilter(self, obj, event):
         if event.type() == QEvent.MouseMove:   
             if obj.in_seek:
-                obj.player.setPosition(obj.maximum() * event.x() / obj.width())
+                obj.player.seek(obj.maximum() * event.x() / obj.width())
             if obj.player_state != QMediaPlayer.StoppedState:
                 QToolTip.showText(event.globalPos(),
                                   hmsms_to_text(*ms_to_hmsms(int(
@@ -1347,7 +1347,7 @@ class TMProgressBar_Interaction(QObject):
             if obj.window().action_lock.isChecked():
                 return False
             obj.in_seek = True
-            obj.player.setPosition(obj.maximum() * event.x() / obj.width())
+            obj.player.seek(obj.maximum() * event.x() / obj.width())
         elif event.type() == QEvent.MouseButtonRelease and event.button() == Qt.LeftButton:
             if obj.window().action_lock.isChecked():
                 return False

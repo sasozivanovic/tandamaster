@@ -785,7 +785,7 @@ class PlayTreeModel(QAbstractItemModel):
         return index.internalPointer() if index.isValid() else self.root_item
 
     # column "" provides browsing info (folder name, file name, ...)
-    columns = ('', 'ARTIST', 'PERFORMER:VOCALS', 'QUODLIBET::RECORDINGDATE', 'GENRE', '_length')
+    columns = ('', 'ARTIST', 'PERFORMER:VOCALS', 'QUODLIBET::RECORDINGDATE', 'GENRE', '_length', 'TM::STARTSILENCE', 'TM::ENDSILENCE')
     #columns = ('',)
 
     column_display_names = bidict.bidict({
@@ -797,6 +797,8 @@ class PlayTreeModel(QAbstractItemModel):
         'QUODLIBET::RECORDINGDATE': 'Year',
         #'GENRE': 'Genre',
         #'_Length': 'Length',
+        'TM::STARTSILENCE': 'Cut start',
+        'TM::ENDSILENCE': 'Cut end',
     })
 
     def index(self, row, column, parent):

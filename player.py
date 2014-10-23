@@ -121,6 +121,23 @@ class TandaMasterPlayer(QObject):
         self.set_current(index = playtree_index)
         self.playbin.set_state(Gst.State.READY)
         self.playbin.set_property('uri', QUrl.fromLocalFile(self.current_item.filename).toString())
+        self.playbin.set_state(Gst.State.PAUSED)
+        try:
+            self.cut_start = float(self.current_item.get_tag('TM::STARTSILENCE')[0])
+        except:
+            self.cut_start = 0.0
+        try:
+            self.cut_end = float(self.current_item.get_tag('TM::ENDSILENCE')[0])
+        except:
+            self.cut_end = 0.0
+        state = self.playbin.get_state(Gst.CLOCK_TIME_NONE)
+        if state[0] == Gst.StateChangeReturn.SUCCESS and state[1] == Gst.State.PAUSED:
+            duration = self.playbin.query_duration(Gst.Format.TIME)
+            self.playbin.seek(
+                1.0, Gst.Format.TIME,
+                Gst.SeekFlags.FLUSH,
+                Gst.SeekType.SET, int(self.cut_start * 1000000000),
+                Gst.SeekType.SET if duration[1] else Gst.SeekType.NONE, duration[1]-self.cut_end*1000000000)
         self.playbin.set_state(Gst.State.PLAYING)
         self.current_media_changed.emit()
     current_media_changed = pyqtSignal()
@@ -188,7 +205,14 @@ class TandaMasterPlayer(QObject):
         if t == Gst.MessageType.EOS:
             self.play_next()
         if t == Gst.MessageType.DURATION_CHANGED:
-            self.duration_changed.emit(self.playbin.query_duration(Gst.Format.TIME)[1]/1000000)
+            duration = self.playbin.query_duration(Gst.Format.TIME)
+            if self.cut_end:
+                self.playbin.seek(
+                    1.0, Gst.Format.TIME,
+                    Gst.SeekFlags.FLUSH,
+                    Gst.SeekType.NONE, 0,
+                    Gst.SeekType.SET, int(duration[1]-self.cut_end * 1000000000))
+            self.duration_changed.emit(duration[1]/1000000)
         #if t == Gst.MessageType.POSITION_CHANGED:
         #    self.position_changed.emit(self.playbin.query_position(Gst.Format.TIME))
         if t == Gst.MessageType.STATE_CHANGED:
@@ -218,5 +242,14 @@ class TandaMasterPlayer(QObject):
             if position[0]:
                 self.position_changed.emit(position[1]/1000000)
         
-    def seek(self, position):
-        self.playbin.seek_simple(Gst.Format.TIME, Gst.SeekFlags.FLUSH, position * 1000000)
+    def seek(self, position): # position in ms
+        if self.cut_end and self.playbin.query_duration(Gst.Format.TIME)[0]:
+            self.playbin.seek(
+                1.0, Gst.Format.TIME,
+                Gst.SeekFlags.FLUSH,
+                Gst.SeekType.SET, position * 1000000,
+                Gst.SeekType.SET, int(self.playbin.query_duration(Gst.Format.TIME)[1]-self.cut_end * 1000000000)
+            )
+        else:
+            self.playbin.seek_simple(Gst.Format.TIME, Gst.SeekFlags.FLUSH, position * 1000000)
+        

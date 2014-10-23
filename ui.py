@@ -533,7 +533,7 @@ class TandaMasterWindow(QMainWindow):
     def set_columns_singer_year(self):
         ptv = app.focusWidget()
         if not isinstance(ptv, PlayTreeView): return
-        ptv.set_columns( ('', 'ARTIST', 'PERFORMER:VOCALS', 'QUODLIBET::RECORDINGDATE', 'GENRE', '_length') )
+        ptv.set_columns( ('', 'ARTIST', 'PERFORMER:VOCALS', 'QUODLIBET::RECORDINGDATE', 'GENRE', '_length', 'TM::STARTSILENCE', 'TM::ENDSILENCE') )
 
     _status_bar_duration = ''
     _status_bar_remaining = ''

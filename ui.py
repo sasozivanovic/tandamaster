@@ -291,6 +291,7 @@ class TandaMasterWindow(QMainWindow):
         self.addToolBar(toolbar)        
 
         self.setStatusBar(QStatusBar())
+        app.info.connect(self.status_bar_message)
 
         self.player.current_media_changed.connect(self.update_song_info)
         self.player.current_media_changed.connect(lambda: self.lock_action_forward())
@@ -544,6 +545,9 @@ class TandaMasterWindow(QMainWindow):
         msg = " | ".join([m for m in (self._status_bar_duration, self._status_bar_remaining) if m])
         self.window().statusBar().showMessage(msg)
 
+    def status_bar_message(self, msg):
+        self.update_status_bar(remaining = msg)
+        
     def update_milonga_end(self):
         index = self.player.current_index
         model = self.player.current_model

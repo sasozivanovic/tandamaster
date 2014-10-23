@@ -1,5 +1,5 @@
 import sys
-from PyQt5.Qt import QApplication, QUndoStack
+from PyQt5.Qt import QApplication, QUndoStack, pyqtSignal
 class TandaMasterApplication(QApplication):
-    pass
+    info = pyqtSignal(str)
 app = TandaMasterApplication(sys.argv)

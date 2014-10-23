@@ -1,0 +1,96 @@
+from IPython import embed; from PyQt5.QtCore import pyqtRemoveInputHook
+from PyQt5.Qt import *   # todo: import only what you need
+from gi.repository import GObject, Gst
+import taglib
+
+from app import *
+
+class TMReplayGain(QObject):
+    def __init__(self, model):
+        super().__init__()
+        self.bg_thread = QThread()
+        app.aboutToQuit.connect(self.bg_thread.exit)
+        self.worker = TMReplayGainWorker([item for item in model.root_item.iter(model, lambda it: it.isPlayable, lambda it: not it.isTerminal)])
+        self.worker.moveToThread(self.bg_thread)
+        self.bg_thread.started.connect(self.worker.setup)
+        self.keepalive = self
+        self.bg_thread.finished.connect(self.finish)
+        self.bg_thread.start()
+        #self.bg_library = Library(connect = False)
+        #self.bg_library.moveToThread(self.bg_thread)
+        #self.bg_thread.started.connect(self.bg_library.connect)
+        #self.bg_queries_start.connect(self.bg_library.bg_queries)
+
+    def finish(self):
+        self.keepalive = False
+
+class TMReplayGainWorker(QObject):
+    def __init__(self, items):
+        super().__init__()        
+        self.items = items
+
+    def setup(self):
+        self.playbin = Gst.ElementFactory.make("playbin", None)
+        fakesink = Gst.ElementFactory.make("fakesink", None)
+        self.playbin.set_property("video-sink", fakesink)
+
+        rganalysis = Gst.ElementFactory.make("rganalysis", None)
+        fakesink = Gst.ElementFactory.make("fakesink", None)
+        bin = Gst.Bin.new("audio_sink_bin")
+        bin.add(rganalysis)
+        bin.add(fakesink)
+        rganalysis.link(fakesink)
+        ghost_pad = Gst.GhostPad.new('sink', rganalysis.get_static_pad('sink'))
+        ghost_pad.set_active(True)
+        bin.add_pad(ghost_pad)
+        self.playbin.set_property("audio-sink", bin)
+
+        bus = self.playbin.get_bus()
+        bus.add_signal_watch()
+        bus.connect("message", self.on_message)
+
+        self.item = None
+        self.taglist = None
+        self.signal_next.connect(self.next, type = Qt.QueuedConnection)
+        self.signal_next.emit()
+    
+    signal_next = pyqtSignal()
+    def next(self, force = False):
+        if self.item and self.taglist:
+            self.store_rg_info(self.taglist)
+        while self.items:
+            self.item = self.items.pop(0)
+            self.taglist = None
+            app.info.emit('Calculating ReplayGain for ' + self.item.filename)
+            if not force:
+                audiofile = taglib.File(self.item.filename)
+                ok = True
+                for tag in (Gst.TAG_TRACK_GAIN, Gst.TAG_TRACK_PEAK, Gst.TAG_REFERENCE_LEVEL):
+                    ok = ok and normalize_tag_name(tag) in audiofile.tags.keys()
+                if ok:
+                   continue
+            self.playbin.set_state(Gst.State.READY)
+            self.playbin.set_property('uri', QUrl.fromLocalFile(self.item.filename).toString())
+            self.playbin.set_state(Gst.State.PLAYING)
+            break
+        else:
+            app.info.emit('Finished calculating ReplayGain')
+            self.thread().exit()
+            
+    def on_message(self, bus, message):
+        if message.type == Gst.MessageType.TAG: # and message.src.name.startswith('rganalysis'):
+            taglist = message.parse_tag()
+            self.taglist = [(i[0], str(i[1][1]) + (' dB' if i[0]==Gst.TAG_TRACK_GAIN else '')) for i in [(t,taglist.get_double(t)) for t in (Gst.TAG_TRACK_GAIN, Gst.TAG_TRACK_PEAK, Gst.TAG_REFERENCE_LEVEL)] if i[1][0]]
+        elif message.type == Gst.MessageType.EOS:
+            self.signal_next.emit()
+
+    def store_rg_info(self, taglist):
+        audiofile = taglib.File(self.item.filename)
+        for tag, value in taglist:
+            audiofile.tags[normalize_tag_name(tag)] = [str(value)]
+        audiofile.save()
+        # todo: save into library
+
+
+def normalize_tag_name(tag):
+    return tag.upper().replace('-','_')

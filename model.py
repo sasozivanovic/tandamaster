@@ -133,7 +133,6 @@ class PlayTreeItem:
             EditTagsCommand(model, [self], column_name, value)
             return True
         return False
-
             
 @register_xml_tag_handler('list')
 class PlayTreeList(PlayTreeItem):

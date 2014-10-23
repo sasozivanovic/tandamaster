@@ -9,6 +9,7 @@ from util import *
 from app import *
 from commands import *
 import config
+from replay_gain import TMReplayGain
 
 import collections, weakref, binascii, datetime
 
@@ -224,7 +225,12 @@ class TandaMasterWindow(QMainWindow):
         self.viewmenu.addAction(self.action_columns_singer_year)  
         menubar.addMenu(self.viewmenu)
 
-
+        self.toolsmenu = QMenu(self.tr('Tools'))
+        self.action_calculate_replay_gain = QAction(
+            self.tr('Calculate replay gain'), self, triggered = self.calculate_replay_gain)
+        self.toolsmenu.addAction(self.action_calculate_replay_gain)
+        menubar.addMenu(self.toolsmenu)
+        
         self.setMenuBar(menubar)
 
         toolbar = QToolBar('ProgressBar', self)
@@ -553,7 +559,10 @@ class TandaMasterWindow(QMainWindow):
         else:
             self.update_status_bar(remaining = '')
 
-
+    def calculate_replay_gain(self):
+        ptv = app.focusWidget()
+        if not isinstance(ptv, PlayTreeView): return
+        TMReplayGain(ptv.model())
 
 class TMWidget:
     xml_tag_registry = {}

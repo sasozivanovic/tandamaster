@@ -24,6 +24,21 @@ class TandaMasterPlayer(QObject):
         fakesink = Gst.ElementFactory.make("fakesink", None)
         self.playbin.set_property("video-sink", fakesink)
 
+        if True:
+            rglimiter = Gst.ElementFactory.make("rglimiter", None)
+            rgvolume = Gst.ElementFactory.make("rgvolume", None)
+            autoaudiosink = Gst.ElementFactory.make("autoaudiosink", None)
+            bin = Gst.Bin.new("audio_sink_bin")
+            bin.add(rglimiter)
+            bin.add(rgvolume)
+            bin.add(autoaudiosink)
+            rglimiter.link(rgvolume)
+            rgvolume.link(autoaudiosink)
+            ghost_pad = Gst.GhostPad.new('sink', rglimiter.get_static_pad('sink'))
+            ghost_pad.set_active(True)
+            bin.add_pad(ghost_pad)
+            self.playbin.set_property("audio-sink", bin)
+
         bus = self.playbin.get_bus()
         bus.add_signal_watch()
         bus.connect("message", self.on_message)

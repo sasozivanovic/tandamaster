@@ -465,6 +465,9 @@ class PlayTreeLibraryFile(PlayTreeFile):
     def get_tags(self):
         return library.tags_by_song_id(self.library, self.song_id)
         
+    def set_tag(self, tag, value, n = 0):
+        library.set_tag(self.library, self.song_id, tag, value, n = n)
+        
     def __repr__(self):
         return '{}({},{},{},{})'.format(type(self).__name__, id(self),self.library, self.song_id, self.filename)
 

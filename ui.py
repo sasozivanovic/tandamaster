@@ -10,6 +10,7 @@ from app import *
 from commands import *
 import config
 from replay_gain import TMReplayGain
+from gi.repository import GObject, Gst
 
 import collections, weakref, binascii, datetime
 
@@ -115,6 +116,15 @@ class TandaMasterWindow(QMainWindow):
             self.tr('&Milonga mode'), self)
         self.action_milonga_mode.setCheckable(True)
         self.playbackmenu.addAction(self.action_milonga_mode)
+        self.playbackmenu.addSeparator()
+        self.action_mark_start_cut = QAction(
+            self.tr('Mark start cut'), self, triggered = self.mark_start_cut,
+            shortcut = QKeySequence('('))
+        self.action_mark_end_cut = QAction(
+            self.tr('Mark start cut'), self, triggered = self.mark_end_cut,
+            shortcut = QKeySequence(')'))
+        self.playbackmenu.addAction(self.action_mark_start_cut)
+        self.playbackmenu.addAction(self.action_mark_end_cut)
         menubar.addMenu(self.playbackmenu)
 
         self.editmenu = QMenu(self.tr('&Edit'))
@@ -456,6 +466,17 @@ class TandaMasterWindow(QMainWindow):
             locked = self.action_lock.isChecked()
         self.action_forward.setEnabled(not locked or self.player.current_item.function() == 'cortina')
 
+    def mark_start_cut(self):
+        position = self.player.playbin.query_position(Gst.Format.TIME)
+        if position[0]:
+            self.player.current_item.set_tag('TM::STARTSILENCE', float(position[1])/1000000000)                
+
+    def mark_end_cut(self):
+        position = self.player.playbin.query_position(Gst.Format.TIME)
+        duration = self.player.playbin.query_duration(Gst.Format.TIME)
+        if position[0] and duration[0]:
+            self.player.current_item.set_tag('TM::ENDSILENCE', float(duration[1]-position[1])/1000000000)
+        
     def adhoc(self):
         ptv = app.focusWidget()
         if not isinstance(ptv, PlayTreeView): return

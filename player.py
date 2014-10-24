@@ -151,7 +151,7 @@ class TandaMasterPlayer(QObject):
             print('seekA', 1.0, Gst.Format.TIME,Gst.SeekFlags.FLUSH|Gst.SeekFlags.ACCURATE,Gst.SeekType.SET, self.cut_start(),Gst.SeekType.SET if duration[0] else Gst.SeekType.NONE, duration[1]-self.cut_end())
             self.playbin.seek(
                 1.0, Gst.Format.TIME,
-                Gst.SeekFlags.FLUSH,
+                Gst.SeekFlags.FLUSH|Gst.SeekFlags.ACCURATE,
                 Gst.SeekType.SET if cut_start else Gst.SeekType.NONE, cut_start,
                 Gst.SeekType.SET if (cut_end and duration[0]) else Gst.SeekType.NONE, duration[1]-cut_end)
         self.playbin.set_state(Gst.State.PLAYING)
@@ -271,11 +271,11 @@ class TandaMasterPlayer(QObject):
             print('seekC',1.0, Gst.Format.TIME,Gst.SeekFlags.FLUSH|Gst.SeekFlags.ACCURATE,Gst.SeekType.SET, position * 1000000,Gst.SeekType.SET, self.duration-self.cut_end())
             self.playbin.seek(
                 1.0, Gst.Format.TIME,
-                Gst.SeekFlags.FLUSH,
+                Gst.SeekFlags.FLUSH|Gst.SeekFlags.ACCURATE,
                 Gst.SeekType.SET, position * 1000000,
                 Gst.SeekType.SET, self.duration-self.cut_end()
             )
         else:
             print('seekD',Gst.Format.TIME, Gst.SeekFlags.FLUSH, position * 1000000)
-            self.playbin.seek_simple(Gst.Format.TIME, Gst.SeekFlags.FLUSH, position * 1000000)
+            self.playbin.seek_simple(Gst.Format.TIME, Gst.SeekFlags.FLUSH|Gst.SeekFlags.ACCURATE, position * 1000000)
         

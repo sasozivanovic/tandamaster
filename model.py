@@ -416,6 +416,7 @@ class PlayTreeFile(PlayTreeItem):
 
     def refresh_models(self):
         if not self.get_tags(): # not an audio file: delete
+            return
             for model, children in self.parent.children.items():
                 if self in self.parent.children[model]:
                     i = self.parent.childs_row(model, self)

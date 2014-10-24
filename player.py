@@ -19,6 +19,8 @@ class TandaMasterPlayer(QObject):
         self._playback_start = None
         self.fadeout_timer = None
         self.state = self.STOPPED
+        self._cut_start = 0
+        self._cut_end = 0
         
         self.playbin = Gst.ElementFactory.make("playbin", None)
         fakesink = Gst.ElementFactory.make("fakesink", None)
@@ -100,6 +102,15 @@ class TandaMasterPlayer(QObject):
             if not silent:
                 self.current_changed.emit(old_model, old_index, model, index)
 
+    def milonga_mode(self):
+        return self.current_model.view.window().action_milonga_mode.isChecked()
+    def cut_start(self):
+        return self._cut_start if self.milonga_mode() else 0
+    def cut_end(self):
+        return max(0, self._cut_end - self._gap_ns) if self.milonga_mode() else 0
+    def gap(self):
+        return max(0, self._gap_ns - self._cut_end)
+        
     def play(self):
         if not self.current_item.isPlayable:
             self.play_index(self.current_model.next_song(self.current_index))
@@ -108,7 +119,7 @@ class TandaMasterPlayer(QObject):
             #self.setNotifyInterval(100)
 
     def play_index(self, playtree_index):
-        if self.current_model and self.current_item and self.current_model.view.window().action_milonga_mode.isChecked() and self.current_item.function() == 'cortina':
+        if self.current_model and self.current_item and self.milonga_mode() and self.current_item.function() == 'cortina':
             self._fadeout(self._play_index, playtree_index)
         else:
             self._play_index(playtree_index)
@@ -123,28 +134,32 @@ class TandaMasterPlayer(QObject):
         self.playbin.set_property('uri', QUrl.fromLocalFile(self.current_item.filename).toString())
         self.playbin.set_state(Gst.State.PAUSED)
         try:
-            self.cut_start = float(self.current_item.get_tag('TM::STARTSILENCE')[0])
+            self._cut_start = float(self.current_item.get_tag('TM::STARTSILENCE')[0])*1000000000
         except:
-            self.cut_start = 0.0
+            self._cut_start = 0
         try:
-            self.cut_end = float(self.current_item.get_tag('TM::ENDSILENCE')[0])
+            self._cut_end = float(self.current_item.get_tag('TM::ENDSILENCE')[0])*1000000000
         except:
-            self.cut_end = 0.0
+            self._cut_end = 0
         state = self.playbin.get_state(Gst.CLOCK_TIME_NONE)
-        if state[0] == Gst.StateChangeReturn.SUCCESS and state[1] == Gst.State.PAUSED:
-            duration = self.playbin.query_duration(Gst.Format.TIME)
+        duration = self.playbin.query_duration(Gst.Format.TIME)
+        self.duration = duration[1] if duration[0] else None
+        if self.milonga_mode() and state[0] == Gst.StateChangeReturn.SUCCESS and state[1] == Gst.State.PAUSED:
             self.playbin.seek(
                 1.0, Gst.Format.TIME,
                 Gst.SeekFlags.FLUSH,
-                Gst.SeekType.SET, int(self.cut_start * 1000000000),
-                Gst.SeekType.SET if duration[1] else Gst.SeekType.NONE, duration[1]-self.cut_end*1000000000)
+                Gst.SeekType.SET, self.cut_start(),
+                Gst.SeekType.SET if duration[0] else Gst.SeekType.NONE, duration[1]-self.cut_end())
         self.playbin.set_state(Gst.State.PLAYING)
         self.current_media_changed.emit()
     current_media_changed = pyqtSignal()
 
     def play_next(self):
-        if self.current_model and self.current_item and self.current_model.view.window().action_milonga_mode.isChecked() and self.current_item.function() == 'cortina':
-            self._fadeout(self._play_next)
+        if self.current_model and self.current_item and self.milonga_mode():
+            if self.current_item.function() == 'cortina':
+                self._fadeout(self._play_next)
+            else:
+                self._gap(self._play_next)
         else:
             self._play_next()    
 
@@ -163,8 +178,7 @@ class TandaMasterPlayer(QObject):
     def set_stop_after(self, i):
         self.stop_after = i
 
-    #gap = 3000
-    gap = 0
+    _gap_ns = 3  *1000000000
 
     fadeout_step = 0.05
     fadeout_timeout = 200
@@ -186,8 +200,8 @@ class TandaMasterPlayer(QObject):
                 self.playbin.set_property('volume', max(0,self.playbin.get_property('volume')-self.fadeout_step))
 
     def _gap(self, method,  *args, **kwargs):
-        if self.gap:
-            QTimer.singleShot(self.gap, lambda: method(*args, **kwargs))
+        if self.gap():
+            QTimer.singleShot(int(float(self.gap())/1000000), lambda: method(*args, **kwargs))
         else:
             method(*args, **kwargs)
 
@@ -206,13 +220,14 @@ class TandaMasterPlayer(QObject):
             self.play_next()
         if t == Gst.MessageType.DURATION_CHANGED:
             duration = self.playbin.query_duration(Gst.Format.TIME)
-            if self.cut_end:
+            self.duration = duration[1] if duration[0] else None
+            if self.cut_end():
                 self.playbin.seek(
                     1.0, Gst.Format.TIME,
                     Gst.SeekFlags.FLUSH,
                     Gst.SeekType.NONE, 0,
-                    Gst.SeekType.SET, int(duration[1]-self.cut_end * 1000000000))
-            self.duration_changed.emit(duration[1]/1000000)
+                    Gst.SeekType.SET, duration[1]-self.cut_end())
+            self.duration_changed.emit(int(duration[1]/1000000))
         #if t == Gst.MessageType.POSITION_CHANGED:
         #    self.position_changed.emit(self.playbin.query_position(Gst.Format.TIME))
         if t == Gst.MessageType.STATE_CHANGED:
@@ -240,15 +255,15 @@ class TandaMasterPlayer(QObject):
         if force or self.playbin.get_state(0)[1] == Gst.State.PLAYING:
             position = self.playbin.query_position(Gst.Format.TIME)
             if position[0]:
-                self.position_changed.emit(position[1]/1000000)
+                self.position_changed.emit(int(position[1]/1000000))
         
     def seek(self, position): # position in ms
-        if self.cut_end and self.playbin.query_duration(Gst.Format.TIME)[0]:
+        if self.cut_end() and self.duration is not None:
             self.playbin.seek(
                 1.0, Gst.Format.TIME,
                 Gst.SeekFlags.FLUSH,
                 Gst.SeekType.SET, position * 1000000,
-                Gst.SeekType.SET, int(self.playbin.query_duration(Gst.Format.TIME)[1]-self.cut_end * 1000000000)
+                Gst.SeekType.SET, self.duration-self.cut_end()
             )
         else:
             self.playbin.seek_simple(Gst.Format.TIME, Gst.SeekFlags.FLUSH, position * 1000000)

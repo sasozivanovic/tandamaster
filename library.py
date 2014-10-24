@@ -224,7 +224,7 @@ class Library(QObject):
         self._cache_file(filename)
         try:
             return self._cache[filename][key]
-        except KeyError:
+        except:
             return None
         
     def filename_by_song_id(self, name, song_id):
@@ -496,7 +496,7 @@ class FileReader(QObject):
     def get_tag(self, filename, tag):
         try:
             return self.tags[filename][tag]
-        except KeyError:
+        except:
             return []
 
     def not_an_audio_file(self, filename):

@@ -145,6 +145,7 @@ class TandaMasterPlayer(QObject):
         duration = self.playbin.query_duration(Gst.Format.TIME)
         self.duration = duration[1] if duration[0] else None
         if self.milonga_mode() and state[0] == Gst.StateChangeReturn.SUCCESS and state[1] == Gst.State.PAUSED:
+            print('seekA', 1.0, Gst.Format.TIME,Gst.SeekFlags.FLUSH,Gst.SeekType.SET, self.cut_start(),Gst.SeekType.SET if duration[0] else Gst.SeekType.NONE, duration[1]-self.cut_end())
             self.playbin.seek(
                 1.0, Gst.Format.TIME,
                 Gst.SeekFlags.FLUSH,
@@ -222,6 +223,7 @@ class TandaMasterPlayer(QObject):
             duration = self.playbin.query_duration(Gst.Format.TIME)
             self.duration = duration[1] if duration[0] else None
             if self.cut_end():
+                print('seekB',1.0, Gst.Format.TIME,Gst.SeekFlags.FLUSH,Gst.SeekType.NONE, 0,Gst.SeekType.SET, duration[1]-self.cut_end())
                 self.playbin.seek(
                     1.0, Gst.Format.TIME,
                     Gst.SeekFlags.FLUSH,
@@ -259,6 +261,7 @@ class TandaMasterPlayer(QObject):
         
     def seek(self, position): # position in ms
         if self.cut_end() and self.duration is not None:
+            print('seekC',1.0, Gst.Format.TIME,Gst.SeekFlags.FLUSH,Gst.SeekType.SET, position * 1000000,Gst.SeekType.SET, self.duration-self.cut_end())
             self.playbin.seek(
                 1.0, Gst.Format.TIME,
                 Gst.SeekFlags.FLUSH,
@@ -266,5 +269,6 @@ class TandaMasterPlayer(QObject):
                 Gst.SeekType.SET, self.duration-self.cut_end()
             )
         else:
+            print('seekD',Gst.Format.TIME, Gst.SeekFlags.FLUSH, position * 1000000)
             self.playbin.seek_simple(Gst.Format.TIME, Gst.SeekFlags.FLUSH, position * 1000000)
         

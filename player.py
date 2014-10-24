@@ -148,7 +148,7 @@ class TandaMasterPlayer(QObject):
         self.duration = duration[1] if duration[0] else None
         cut_start, cut_end = self.cut_start(), self.cut_end()
         if self.milonga_mode() and state[0] == Gst.StateChangeReturn.SUCCESS and state[1] == Gst.State.PAUSED and (cut_start or cut_end):
-            print('seekA', 1.0, Gst.Format.TIME,Gst.SeekFlags.FLUSH,Gst.SeekType.SET, self.cut_start(),Gst.SeekType.SET if duration[0] else Gst.SeekType.NONE, duration[1]-self.cut_end())
+            print('seekA', 1.0, Gst.Format.TIME,Gst.SeekFlags.FLUSH|GST_SEEK_FLAG_ACCURATE,Gst.SeekType.SET, self.cut_start(),Gst.SeekType.SET if duration[0] else Gst.SeekType.NONE, duration[1]-self.cut_end())
             self.playbin.seek(
                 1.0, Gst.Format.TIME,
                 Gst.SeekFlags.FLUSH,
@@ -230,10 +230,10 @@ class TandaMasterPlayer(QObject):
             print('message duration', duration, self.cut_end(), self.gap())
             self.duration = duration[1] if duration[0] else None
             if self.cut_end():
-                print('seekB',1.0, Gst.Format.TIME,Gst.SeekFlags.FLUSH,Gst.SeekType.NONE, 0,Gst.SeekType.SET, duration[1]-self.cut_end())
+                print('seekB',1.0, Gst.Format.TIME,Gst.SeekFlags.FLUSH|GST_SEEK_FLAG_ACCURATE,Gst.SeekType.NONE, 0,Gst.SeekType.SET, duration[1]-self.cut_end())
                 self.playbin.seek(
                     1.0, Gst.Format.TIME,
-                    Gst.SeekFlags.FLUSH,
+                    Gst.SeekFlags.FLUSH | GST_SEEK_FLAG_ACCURATE,
                     Gst.SeekType.NONE, 0,
                     Gst.SeekType.SET, duration[1]-self.cut_end())
             self.duration_changed.emit(int(duration[1]/1000000))
@@ -268,7 +268,7 @@ class TandaMasterPlayer(QObject):
         
     def seek(self, position): # position in ms
         if self.cut_end() and self.duration is not None:
-            print('seekC',1.0, Gst.Format.TIME,Gst.SeekFlags.FLUSH,Gst.SeekType.SET, position * 1000000,Gst.SeekType.SET, self.duration-self.cut_end())
+            print('seekC',1.0, Gst.Format.TIME,Gst.SeekFlags.FLUSH|GST_SEEK_FLAG_ACCURATE,Gst.SeekType.SET, position * 1000000,Gst.SeekType.SET, self.duration-self.cut_end())
             self.playbin.seek(
                 1.0, Gst.Format.TIME,
                 Gst.SeekFlags.FLUSH,

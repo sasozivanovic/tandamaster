@@ -144,13 +144,14 @@ class TandaMasterPlayer(QObject):
         state = self.playbin.get_state(Gst.CLOCK_TIME_NONE)
         duration = self.playbin.query_duration(Gst.Format.TIME)
         self.duration = duration[1] if duration[0] else None
-        if self.milonga_mode() and state[0] == Gst.StateChangeReturn.SUCCESS and state[1] == Gst.State.PAUSED:
+        cut_start, cut_end = self.cut_start(), self.cut_end()
+        if self.milonga_mode() and state[0] == Gst.StateChangeReturn.SUCCESS and state[1] == Gst.State.PAUSED and (cut_start or cut_end):
             print('seekA', 1.0, Gst.Format.TIME,Gst.SeekFlags.FLUSH,Gst.SeekType.SET, self.cut_start(),Gst.SeekType.SET if duration[0] else Gst.SeekType.NONE, duration[1]-self.cut_end())
             self.playbin.seek(
                 1.0, Gst.Format.TIME,
                 Gst.SeekFlags.FLUSH,
-                Gst.SeekType.SET, self.cut_start(),
-                Gst.SeekType.SET if duration[0] else Gst.SeekType.NONE, duration[1]-self.cut_end())
+                Gst.SeekType.SET if cut_start else Gst.SeekType.NONE, cut_start,
+                Gst.SeekType.SET if (cut_end and duration[0]) else Gst.SeekType.NONE, duration[1]-cut_end)
         self.playbin.set_state(Gst.State.PLAYING)
         self.current_media_changed.emit()
     current_media_changed = pyqtSignal()
@@ -221,6 +222,7 @@ class TandaMasterPlayer(QObject):
             self.play_next()
         if t == Gst.MessageType.DURATION_CHANGED:
             duration = self.playbin.query_duration(Gst.Format.TIME)
+            print('message duration', duration, self.cut_end())
             self.duration = duration[1] if duration[0] else None
             if self.cut_end():
                 print('seekB',1.0, Gst.Format.TIME,Gst.SeekFlags.FLUSH,Gst.SeekType.NONE, 0,Gst.SeekType.SET, duration[1]-self.cut_end())

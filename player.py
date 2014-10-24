@@ -131,6 +131,7 @@ class TandaMasterPlayer(QObject):
             playtree_index = self.current_model.next_song(playtree_index)
         self.set_current(index = playtree_index)
         self.playbin.set_state(Gst.State.READY)
+        print('setting uri to', self.current_item.filename)
         self.playbin.set_property('uri', QUrl.fromLocalFile(self.current_item.filename).toString())
         self.playbin.set_state(Gst.State.PAUSED)
         try:

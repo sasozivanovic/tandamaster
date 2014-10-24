@@ -223,7 +223,7 @@ class TandaMasterPlayer(QObject):
     def on_message(self, bus, message):
         t = message.type
         if t == Gst.MessageType.EOS:
-            print('EOS')
+            print('EOS at ', self.playbin.query_position(Gst.Format.TIME)[1])
             self.signal_play_next.emit()
         if t == Gst.MessageType.DURATION_CHANGED:
             duration = self.playbin.query_duration(Gst.Format.TIME)

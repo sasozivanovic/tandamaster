@@ -143,16 +143,21 @@ class TandaMasterPlayer(QObject):
             self._cut_end = float(self.current_item.get_tag('TM::ENDSILENCE')[0])*1000000000
         except:
             self._cut_end = 0
-        state = self.playbin.get_state(Gst.CLOCK_TIME_NONE)
-        duration = self.playbin.query_duration(Gst.Format.TIME)
+        while (True):
+            state = self.playbin.get_state(100000000)
+            duration = self.playbin.query_duration(Gst.Format.TIME)
+            if state[0] == Gst.StateChangeReturn.FAILURE:
+                return
+            if state[0] == Gst.StateChangeReturn.SUCCESS and duration[0]:
+                break
         self.duration = duration[1] if duration[0] else None
         cut_start, cut_end = self.cut_start(), self.cut_end()
         if self.milonga_mode() and state[0] == Gst.StateChangeReturn.SUCCESS and state[1] == Gst.State.PAUSED and (cut_start or cut_end):
-            print('seekA', 1.0, Gst.Format.TIME,Gst.SeekFlags.FLUSH|Gst.SeekFlags.ACCURATE,Gst.SeekType.SET, self.cut_start(),Gst.SeekType.SET if duration[0] else Gst.SeekType.NONE, duration[1]-self.cut_end())
+            print(cut_start, cut_end, self.duration, 'seekA', 1.0, Gst.Format.TIME,Gst.SeekFlags.FLUSH|Gst.SeekFlags.ACCURATE,Gst.SeekType.SET, self.cut_start(),Gst.SeekType.SET if duration[0] else Gst.SeekType.NONE, duration[1]-self.cut_end())
             self.playbin.seek(
                 1.0, Gst.Format.TIME,
                 Gst.SeekFlags.FLUSH|Gst.SeekFlags.ACCURATE,
-                Gst.SeekType.SET if cut_start else Gst.SeekType.NONE, cut_start,
+                Gst.SeekType.SET, cut_start,
                 Gst.SeekType.SET if (cut_end and duration[0]) else Gst.SeekType.NONE, duration[1]-cut_end)
         self.playbin.set_state(Gst.State.PLAYING)
         self.current_media_changed.emit()
@@ -229,7 +234,7 @@ class TandaMasterPlayer(QObject):
             duration = self.playbin.query_duration(Gst.Format.TIME)
             print('message duration', duration, self.cut_end(), self.gap())
             self.duration = duration[1] if duration[0] else None
-            if self.cut_end():
+            if False and self.cut_end():
                 print('seekB',1.0, Gst.Format.TIME,Gst.SeekFlags.FLUSH|Gst.SeekFlags.ACCURATE,Gst.SeekType.NONE, 0,Gst.SeekType.SET, duration[1]-self.cut_end())
                 self.playbin.seek(
                     1.0, Gst.Format.TIME,

@@ -51,7 +51,8 @@ class TandaMasterPlayer(QObject):
         self.position_timer.setTimerType(Qt.CoarseTimer)
         self.position_timer.timeout.connect(self.on_position_timer)
         self.position_timer.start(200)
-        
+
+        self.signal_play_next.connect(self.play_next, type = Qt.QueuedConnection)
 
     @property
     def current_model(self):
@@ -157,6 +158,7 @@ class TandaMasterPlayer(QObject):
         self.current_media_changed.emit()
     current_media_changed = pyqtSignal()
 
+    signal_play_next = pyqtSignal()
     def play_next(self):
         if self.current_model and self.current_item and self.milonga_mode():
             if self.current_item.function() == 'cortina':
@@ -220,7 +222,8 @@ class TandaMasterPlayer(QObject):
     def on_message(self, bus, message):
         t = message.type
         if t == Gst.MessageType.EOS:
-            self.play_next()
+            print('EOS')
+            self.signal_play_next.emit()
         if t == Gst.MessageType.DURATION_CHANGED:
             duration = self.playbin.query_duration(Gst.Format.TIME)
             print('message duration', duration, self.cut_end(), self.gap())

@@ -223,7 +223,7 @@ class TandaMasterPlayer(QObject):
             self.play_next()
         if t == Gst.MessageType.DURATION_CHANGED:
             duration = self.playbin.query_duration(Gst.Format.TIME)
-            print('message duration', duration, self.cut_end())
+            print('message duration', duration, self.cut_end(), self.gap())
             self.duration = duration[1] if duration[0] else None
             if self.cut_end():
                 print('seekB',1.0, Gst.Format.TIME,Gst.SeekFlags.FLUSH,Gst.SeekType.NONE, 0,Gst.SeekType.SET, duration[1]-self.cut_end())

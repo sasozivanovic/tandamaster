@@ -206,6 +206,7 @@ class TandaMasterPlayer(QObject):
 
     def _gap(self, method,  *args, **kwargs):
         if self.gap():
+            print("Doing a gap of", self.gap())
             QTimer.singleShot(int(float(self.gap())/1000000), Qt.PreciseTimer, lambda: method(*args, **kwargs))
         else:
             method(*args, **kwargs)

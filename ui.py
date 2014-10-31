@@ -227,12 +227,16 @@ class TandaMasterWindow(QMainWindow):
             app.tr('Columns: minimal'), 
             self,
             triggered = self.set_columns_minimal)
-        self.action_columns_singer_year = QAction(
-            app.tr('Columns: singer and year'), 
+        self.action_columns_normal = QAction(
+            app.tr('Columns: normal'), 
             self,
-            triggered = self.set_columns_singer_year)
+            triggered = self.set_columns_normal)
+        self.action_columns_all = QAction(
+            app.tr('Columns: all'), 
+            self,
+            triggered = self.set_columns_all)
         self.viewmenu.addAction(self.action_columns_minimal)
-        self.viewmenu.addAction(self.action_columns_singer_year)  
+        self.viewmenu.addAction(self.action_columns_all)  
         menubar.addMenu(self.viewmenu)
 
         self.toolsmenu = QMenu(self.tr('Tools'))
@@ -551,10 +555,15 @@ class TandaMasterWindow(QMainWindow):
         if not isinstance(ptv, PlayTreeView): return
         ptv.set_columns( ('',) )
 
-    def set_columns_singer_year(self):
+    def set_columns_all(self):
         ptv = app.focusWidget()
         if not isinstance(ptv, PlayTreeView): return
-        ptv.set_columns( ('', 'artist', 'performer:vocals', 'quodlibet::recordingdate', 'genre', '_length', 'tm::startsilence', 'tm::endsilence') )
+        ptv.set_columns( PlayTreeModel.columns )
+
+    def set_columns_normal(self):
+        ptv = app.focusWidget()
+        if not isinstance(ptv, PlayTreeView): return
+        ptv.set_columns( ('', 'artist', 'performer:vocals', 'date', 'genre', '_length') )
 
     _status_bar_duration = ''
     _status_bar_remaining = ''

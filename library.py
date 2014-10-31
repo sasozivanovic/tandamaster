@@ -6,6 +6,7 @@ import sqlite3
 import os, os.path
 from warnings import warn
 import functools, itertools, collections, weakref
+from fnmatch import fnmatch
 from app import app
 import config
 import unidecode
@@ -68,6 +69,12 @@ mutagen.easyid3.EasyID3.RegisterKey('performer:*', getter = id3_performer_get, s
 
 def mp4_freeform_key_atomid(name, mean="com.apple.iTunes"):
     return "----:" + mean + ":" + name
+def mp4_strip_freeform_atomid(atomid, mean="com.apple.iTunes"):
+    start = "----:" + mean + ":"
+    if atomid.startswith(start):
+        return atomid[len(start):]
+    else:
+        return atomid
 
 def mp4_performer_get(tags, key):
     return [s.decode("utf-8", "replace") for s in tags[mp4_freeform_key_atomid(key)]]
@@ -75,9 +82,7 @@ def mp4_performer_get(tags, key):
 def mp4_performer_set(tags, key, value):
     encoded = []
     for v in value:
-        if not isinstance(v, text_type):
-            if PY3:
-                raise TypeError("%r not str" % v)
+        if not isinstance(v, str):
             v = v.decode("utf-8")
         encoded.append(v.encode("utf-8"))
     tags[mp4_freeform_key_atomid(key)] = encoded
@@ -85,7 +90,13 @@ def mp4_performer_set(tags, key, value):
 def mp4_performer_delete(tags, key):
     del(tags[mp4_freeform_key_atomid(key)])
 
-mutagen.easymp4.EasyMP4.RegisterKey('performer:*', getter = mp4_performer_get, setter = mp4_performer_set, deleter = mp4_performer_delete)
+def mp4_performer_list(tags, key):
+    return [mp4_strip_freeform_atomid(k)
+            for k in tags.keys() 
+            if fnmatch(k, mp4_freeform_key_atomid(key))
+            ]
+    
+mutagen.easymp4.EasyMP4.RegisterKey('performer:*', getter = mp4_performer_get, setter = mp4_performer_set, deleter = mp4_performer_delete, lister = mp4_performer_list)
 
 
 
@@ -195,7 +206,7 @@ class Library(QObject):
                 self.refresh_next.emit()
         else:
             filename = self.dir_iterator.next()
-            self.update_song(self.name, filename, commit = False)
+            self.update_song(self.name, filename.encode().decode(), commit = False)
             if self.n_in_transaction >= 1000000:
                 self.connection.commit()
                 self.n_in_transaction = 0
@@ -272,7 +283,6 @@ class Library(QObject):
                 tags['_filename'] = [os.path.basename(filename)]
                 tags['_length'] = [audiofile.info.length]
                 tags['_bitrate'] = [audiofile.info.bitrate]
-                tags['_sample_rate'] = [audiofile.info.sample_rate]
                 tags['_sample_rate'] = [audiofile.info.sample_rate]
                 #tags['_channels'] = [audiofile.channels]
                 #self._cache[filename] = _strip(tags)

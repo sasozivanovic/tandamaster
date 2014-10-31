@@ -595,7 +595,7 @@ class PlayTreeFolder(PlayTreeItem):
     def expand_small_children(self, model):
         if model.view.isExpanded(self.index(model)):
             for child in self.children[model]:
-                if isinstance(child, PlayTreeFolder) and model in child.children and child.children[model] is not None and child.rowCount(model) == 1:
+                if True: #isinstance(child, PlayTreeFolder) and model in child.children and child.children[model] is not None and child.rowCount(model) == 1:
                     model.view.setExpanded(child.index(model), True)
                     child.expand_small_children(model)
 
@@ -727,7 +727,7 @@ class PlayTreeBrowse(PlayTreeItem):
         queries = BgQueries([], self.expand_small_children_callback, 
                                lambda: model.filter_expr == filter_expr)
         for child in self.children[model]:
-            if child.song_count[model] == 1:
+            if True: # child.song_count[model] == 1:
                 query = BgQuery(Library.query_tags_all,
                                 (child.library, child.browse_by_tags[0], child.fixed_tags, filter_expr)
                             ) if child.browse_by_tags else \
@@ -789,7 +789,9 @@ class PlayTreeModel(QAbstractItemModel):
         return index.internalPointer() if index.isValid() else self.root_item
 
     # column "" provides browsing info (folder name, file name, ...)
-    columns = ('', 'artist', 'performer:vocals', 'quodlibet::recordingdate', 'date', 'genre', '_length', 'tm::startsilence', 'tm::endsilence')
+    columns = ('', 'artist', 'performer:vocals',
+               #'quodlibet::recordingdate',
+               'date', 'genre', '_length', 'tm::startsilence', 'tm::endsilence')
     #columns = ('',)
 
     column_display_names = bidict.bidict({

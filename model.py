@@ -480,14 +480,14 @@ class PlayTreeLibraryFile(PlayTreeFile):
             if column_name:
                 data= super().data(model, column_name, role)
             else:
-                column_name = 'TITLE'
-                titles = self.get_tag('TITLE')
+                column_name = 'title'
+                titles = self.get_tag('title')
                 data = titles[0] if titles else str(self)
             return data
         elif role == Qt. BackgroundRole:
-            return QBrush(QColor(Qt.yellow)) if library.dirty(self.library, self.song_id, column_name if column_name else 'TITLE') else super().data(model, column_name, role)
-        elif role == Qt.ToolTipRole and library.dirty(self.library, self.song_id, column_name if column_name else 'TITLE'):
-            return app.tr('Original value') + ': ' + library.tag_old_value_by_song_id(self.library, column_name if column_name else 'TITLE', self.song_id)[0]
+            return QBrush(QColor(Qt.yellow)) if library.dirty(self.library, self.song_id, column_name if column_name else 'title') else super().data(model, column_name, role)
+        elif role == Qt.ToolTipRole and library.dirty(self.library, self.song_id, column_name if column_name else 'title'):
+            return app.tr('Original value') + ': ' + library.tag_old_value_by_song_id(self.library, column_name if column_name else 'title', self.song_id)[0]
         else:
             return super().data(model, column_name, role)
 
@@ -499,7 +499,7 @@ class PlayTreeLibraryFile(PlayTreeFile):
 
     def setData(self, model, column_name, value):
         if not column_name:
-            EditTagsCommand(model, [self], 'TITLE', value)
+            EditTagsCommand(model, [self], 'title', value)
         else:
             return super().setData(model, column_name, value)
 
@@ -672,7 +672,7 @@ class PlayTreeBrowse(PlayTreeItem):
             # ", ".join(tag.lower() for tag in self.browse_by_tags)
 
 
-    icons = { None: 'library.png', 'ARTIST': 'personal.png', 'ALBUM': 'image_album.png' }
+    icons = { None: 'library.png', 'artist': 'personal.png', 'album': 'image_album.png' }
     def data(self, model, column_name, role):
         if column_name:
             return None
@@ -789,20 +789,21 @@ class PlayTreeModel(QAbstractItemModel):
         return index.internalPointer() if index.isValid() else self.root_item
 
     # column "" provides browsing info (folder name, file name, ...)
-    columns = ('', 'ARTIST', 'PERFORMER:VOCALS', 'QUODLIBET::RECORDINGDATE', 'GENRE', '_length', 'TM::STARTSILENCE', 'TM::ENDSILENCE')
+    columns = ('', 'artist', 'performer:vocals', 'quodlibet::recordingdate', 'date', 'genre', '_length', 'tm::startsilence', 'tm::endsilence')
     #columns = ('',)
 
     column_display_names = bidict.bidict({
         '': 'Title',
-        #'ARTIST': 'Artist',
-        #'ALBUM': 'Album',
-        #'TITLE': 'Title',
-        'PERFORMER:VOCALS': 'Singer',
-        'QUODLIBET::RECORDINGDATE': 'Year',
+        #'artist': 'Artist',
+        #'album': 'Album',
+        #'title': 'Title',
+        'performer:vocals': 'Singer',
+        'quodlibet::recordingdate': 'Year (old)',
+        'date': 'Year',
         #'GENRE': 'Genre',
         #'_Length': 'Length',
-        'TM::STARTSILENCE': 'Cut start',
-        'TM::ENDSILENCE': 'Cut end',
+        'tm::startsilence': 'Cut start',
+        'tm::endsilence': 'Cut end',
     })
 
     def index(self, row, column, parent):

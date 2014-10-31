@@ -1,7 +1,7 @@
 from IPython import embed; from PyQt5.QtCore import pyqtRemoveInputHook
 from PyQt5.Qt import *   # todo: import only what you need
 from gi.repository import GObject, Gst
-import taglib
+import mutagen
 
 from app import *
 
@@ -63,7 +63,7 @@ class TMReplayGainWorker(QObject):
             self.taglist = None
             app.info.emit('Calculating ReplayGain for ' + self.item.filename)
             if not force:
-                audiofile = taglib.File(self.item.filename)
+                audiofile = mutagen.File(self.item.filename, easy = True)
                 ok = True
                 for tag in (Gst.TAG_TRACK_GAIN, Gst.TAG_TRACK_PEAK, Gst.TAG_REFERENCE_LEVEL):
                     ok = ok and normalize_tag_name(tag) in audiofile.tags.keys()
@@ -85,7 +85,7 @@ class TMReplayGainWorker(QObject):
             self.signal_next.emit()
 
     def store_rg_info(self, taglist):
-        audiofile = taglib.File(self.item.filename)
+        audiofile = mutagen.File(self.item.filename, easy = True)
         for tag, value in taglist:
             audiofile.tags[normalize_tag_name(tag)] = [str(value)]
         audiofile.save()

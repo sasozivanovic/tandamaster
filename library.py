@@ -1,7 +1,7 @@
 from IPython import embed; from PyQt5.QtCore import pyqtRemoveInputHook
 from PyQt5.Qt import *   # todo: import only what you need
 
-import taglib
+import mutagen, mutagen.easyid3, mutagen.easymp4
 import sqlite3
 import os, os.path
 from warnings import warn
@@ -9,6 +9,92 @@ import functools, itertools, collections, weakref
 from app import app
 import config
 import unidecode
+
+def id3_performer_get(id3, key):
+    people = []
+    wanted_role = key.split(":", 1)[1].lower()
+    try:
+        mcl = id3["TMCL"]
+    except KeyError:
+        raise KeyError(key)
+    for role, person in mcl.people:
+        if role.lower() == wanted_role:
+            people.append(person)
+    if people:
+        return people
+    else:
+        raise KeyError(key)
+
+
+def id3_performer_set(id3, key, value):
+    wanted_role = key.split(":", 1)[1].lower()
+    try:
+        mcl = id3["TMCL"]
+    except KeyError:
+        mcl = mutagen.id3.TMCL(encoding=3, people=[])
+        id3.add(mcl)
+    mcl.encoding = 3
+    people = [p for p in mcl.people if p[0].lower() != wanted_role]
+    for v in value:
+        people.append((wanted_role, v))
+    mcl.people = people
+
+
+def id3_performer_delete(id3, key):
+    wanted_role = key.split(":", 1)[1].lower()
+    try:
+        mcl = id3["TMCL"]
+    except KeyError:
+        raise KeyError(key)
+    people = [p for p in mcl.people if p[0].lower() != wanted_role]
+    if people == mcl.people:
+        raise KeyError(key)
+    elif people:
+        mcl.people = people
+    else:
+        del(id3["TMCL"])
+
+
+def id3_performer_list(id3, key):
+    try:
+        mcl = id3["TMCL"]
+    except KeyError:
+        return []
+    else:
+        return list(set("performer:" + p[0].lower() for p in mcl.people))
+
+mutagen.easyid3.EasyID3.RegisterKey('performer:*', getter = id3_performer_get, setter = id3_performer_set, deleter = id3_performer_delete, lister = id3_performer_list)
+
+
+def mp4_freeform_key_atomid(name, mean="com.apple.iTunes"):
+    return "----:" + mean + ":" + name
+
+def mp4_performer_get(tags, key):
+    return [s.decode("utf-8", "replace") for s in tags[mp4_freeform_key_atomid(key)]]
+
+def mp4_performer_set(tags, key, value):
+    encoded = []
+    for v in value:
+        if not isinstance(v, text_type):
+            if PY3:
+                raise TypeError("%r not str" % v)
+            v = v.decode("utf-8")
+        encoded.append(v.encode("utf-8"))
+    tags[mp4_freeform_key_atomid(key)] = encoded
+
+def mp4_performer_delete(tags, key):
+    del(tags[mp4_freeform_key_atomid(key)])
+
+mutagen.easymp4.EasyMP4.RegisterKey('performer:*', getter = mp4_performer_get, setter = mp4_performer_set, deleter = mp4_performer_delete)
+
+
+
+### transition from recordingdate to date ###
+
+
+
+
+### end of transition from recordingdate to date ###
 
 def _strip(tags):
     """Pulls single list items out of lists."""
@@ -123,8 +209,8 @@ class Library(QObject):
             warn("Cannot read {}".format(filename), RuntimeWarning)
             return
         try:
-            audiofile = taglib.File(filename)
-            assert(audiofile)
+            audiofile = mutagen.File(filename, easy = True)
+            assert(audiofile is not None)
         except:
             warn("Cannot read {}. Probably not an audio file".format(filename), RuntimeWarning)
             return
@@ -153,6 +239,11 @@ class Library(QObject):
                 (filename, fileinfo.lastModified().toTime_t(), fileinfo.size())
             )
             song_id = cursor.lastrowid
+        filedir = fileinfo.absolutePath()
+        for d in config.library_folders[library_name]:
+            if filedir.startswith(d):
+                filedir = filedir[len(d):].lstrip('/')
+                break
         # todo: 3-point diff: old_values, new_values, file
         cursor.execute('DELETE FROM tags_{} WHERE song_id=?'.format(library_name), (song_id,))
         cursor.executemany(
@@ -160,12 +251,13 @@ class Library(QObject):
             .format(name = library_name),
             ( (song_id, tag, value, unidecode.unidecode(value).lower() if isinstance(value, str) else value) 
               for tag, values in itertools.chain(
-                      audiofile.tags.items(), iter((
+                      audiofile.tags.items() if audiofile.tags is not None else {}.items(), iter((
                           ('_filename', (fileinfo.fileName(),)),
-                          ('_length', (audiofile.length,)),
-                          ('_bitrate', (audiofile.bitrate,)),
-                          ('_sample_rate', (audiofile.sampleRate,)),
-                          ('_channels', (audiofile.channels,)),
+                          ('_dir', (filedir,)),
+                          ('_length', (audiofile.info.length,)),
+                          ('_bitrate', (audiofile.info.bitrate,)),
+                          ('_sample_rate', (audiofile.info.sample_rate,)),
+                          #('_channels', (audiofile.channels,)),
                       )))
               for value in values )
         )
@@ -175,20 +267,21 @@ class Library(QObject):
     def _cache_file(self, filename, force = False):
         if force or filename not in self._cache:
             try:
-                audiofile = taglib.File(filename)
+                audiofile = mutagen.File(filename, easy = True)
                 tags = audiofile.tags
                 tags['_filename'] = [os.path.basename(filename)]
-                tags['_length'] = [audiofile.length]
-                tags['_bitrate'] = [audiofile.bitrate]
-                tags['_sample_rate'] = [audiofile.sampleRate]
-                tags['_channels'] = [audiofile.channels]
+                tags['_length'] = [audiofile.info.length]
+                tags['_bitrate'] = [audiofile.info.bitrate]
+                tags['_sample_rate'] = [audiofile.info.sample_rate]
+                tags['_sample_rate'] = [audiofile.info.sample_rate]
+                #tags['_channels'] = [audiofile.channels]
                 #self._cache[filename] = _strip(tags)
             except OSError:
                 self._cache[filename] = None
 
-    def tags_by_song_id(self, name, song_id):
+    def tags_by_song_id(self, name, song_id, internal = True):
         cursor = self.connection.execute(
-            'SELECT tag, value FROM tags_{} WHERE song_id=? ORDER BY rowid'
+            'SELECT tag, value FROM tags_{} WHERE song_id=? AND substr(tag,1,1)!="_" ORDER BY rowid'
             .format(name),
             (song_id,)
         )
@@ -277,8 +370,10 @@ class Library(QObject):
             for song_id, filename, mtime, filesize in self.connection.execute('SELECT DISTINCT song_id, filename, mtime, filesize FROM tags_{} NATURAL JOIN files_{} WHERE dirty=1'.format(library_name, library_name)):
                 fileinfo = QFileInfo(filename)
                 if fileinfo.lastModified().toTime_t() <= mtime and fileinfo.size() == filesize:
-                    audiofile = taglib.File(filename)
-                    audiofile.tags = self.tags_by_song_id(library_name, song_id)
+                    audiofile = mutagen.File(filename, easy = True)
+                    for t in list(audiofile.keys()):
+                        del audiofile[t]
+                    audiofile.update(self.tags_by_song_id(library_name, song_id, internal = False))
                     audiofile.save()
                     self.connection.execute('DELETE FROM tags_{} WHERE song_id=? AND dirty=1 AND value=NULL'.format(library_name), (song_id,))
                     self.connection.execute('UPDATE tags_{} SET dirty=0, old_value=NULL WHERE song_id=? AND dirty=1'.format(library_name), (song_id,))
@@ -434,13 +529,13 @@ class FileReaderWorker(QObject):
     def get_fileinfo(self, fileinfo):
         fileinfo.tags = {}
         try:
-            audiofile = taglib.File(fileinfo.filename)
+            audiofile = mutagen.File(fileinfo.filename, easy = True)
             fileinfo.tags = audiofile.tags
             fileinfo.tags['_filename'] = [os.path.basename(fileinfo.filename)]
-            fileinfo.tags['_length'] = [audiofile.length]
-            fileinfo.tags['_bitrate'] = [audiofile.bitrate]
-            fileinfo.tags['_sample_rate'] = [audiofile.sampleRate]
-            fileinfo.tags['_channels'] = [audiofile.channels]
+            fileinfo.tags['_length'] = [audiofile.info.length]
+            fileinfo.tags['_bitrate'] = [audiofile.info.bitrate]
+            fileinfo.tags['_sample_rate'] = [audiofile.info.sample_rate]
+            #fileinfo.tags['_channels'] = [audiofile.channels]
         except:
             fileinfo.tags = None
         self.file_reading_done.emit(fileinfo)

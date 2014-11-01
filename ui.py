@@ -44,6 +44,7 @@ class TandaMasterWindow(QMainWindow):
         self.musicmenu.addAction(action_save_playtree)
         action_save_tags = QAction(
             self.tr("&Save tags"), self,
+            shortcut=QKeySequence('ctrl+shift+s'),
             triggered = self.save_tags)
         self.musicmenu.addAction(action_save_tags)
         self.action_update_library = QAction(
@@ -191,7 +192,8 @@ class TandaMasterWindow(QMainWindow):
             self.tr('&Save tag'), self, triggered = self.save_tag)
         self.action_revert_tag = QAction(
             #QIcon('icons/iconfinder/32pxmania/up.png'),
-            self.tr('&Revert tag'), self, triggered = self.revert_tag)
+            self.tr('&Revert tag'), self, triggered = self.revert_tag,
+            shortcut=QKeySequence('ctrl+r'))
         self.action_is_milonga = QAction(
             self.tr('Is &milonga'), self, toggled = self.playtree_is_milonga)
         self.action_is_milonga.setCheckable(True)
@@ -727,8 +729,7 @@ class PlayTreeWidget(QWidget, TMWidget):
 
     @classmethod
     def _create_from_xml(cls, element, window, parent):
-        # transitory:
-        root_id = element.get('root_id', element.get('id'))
+        root_id = element.get('root_id')
         ptw = cls(root_id, window.player, parent)
         xml_columns = element.findall('column')
         if len(xml_columns):

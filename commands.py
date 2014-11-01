@@ -122,8 +122,7 @@ class EditTagsCommand(TMPlayTreeItemsCommand):
         self.old_values = collections.OrderedDict()
         for item in items:
             for it in item.iter_depth(model, lambda i: i.isTerminal, lambda i: not i.isTerminal):
-                old_value = it.get_tag(tag)
-                self.old_values[it] = old_value[0] if old_value else None
+                self.old_values[it] = it.get_tag(tag)
         self.value = value
         command_prefix = '{} tag "{}" to "{}" for '.format(command_prefix, tag, value)
         super().__init__(items, command_prefix = command_prefix, command_suffix = command_suffix, command_text = command_text, command_parent = command_parent)
@@ -131,7 +130,7 @@ class EditTagsCommand(TMPlayTreeItemsCommand):
             undo_stack.push(self)
     def redo(self):
         for item in self.old_values.keys():
-            library.set_tag(item.library, item.song_id, self.tag, self.value)
+            library.set_tag(item.library, item.song_id, self.tag, [self.value])
             item.refresh_models()
     def undo(self):
         for item, old_value in self.old_values.items():

@@ -473,13 +473,13 @@ class TandaMasterWindow(QMainWindow):
     def mark_start_cut(self):
         position = self.player.playbin.query_position(Gst.Format.TIME)
         if position[0]:
-            self.player.current_item.set_tag('TM::STARTSILENCE', float(position[1])/1000000000)                
+            self.player.current_item.set_tag('TM::STARTSILENCE', [float(position[1])/1000000000])
 
     def mark_end_cut(self):
         position = self.player.playbin.query_position(Gst.Format.TIME)
         duration = self.player.playbin.query_duration(Gst.Format.TIME)
         if position[0] and duration[0]:
-            self.player.current_item.set_tag('TM::ENDSILENCE', float(duration[1]-position[1])/1000000000)
+            self.player.current_item.set_tag('TM::ENDSILENCE', [float(duration[1]-position[1])/1000000000])
         
     def adhoc(self):
         ptv = app.focusWidget()
@@ -860,7 +860,7 @@ class PlayTreeView(QTreeView):
     def update_current_song_from_file(self, current):
         item = self.model().item(current)
         if isinstance(item, PlayTreeFile):
-            librarian.bg_queries(BgQueries([BgQuery(Library.update_song, (item.library if isinstance(item, PlayTreeLibraryFile) else None, item.filename))], lambda qs: item.refresh_models(), relevant = lambda: self.currentIndex() == current))
+            librarian.bg_queries(BgQueries([BgQuery(Library.update_song_from_file, (None, item.filename))], lambda qs: item.refresh_models(), relevant = lambda: self.currentIndex() == current))
 
 
     def autosize_columns(self):
@@ -1326,7 +1326,7 @@ class PlayTreeView(QTreeView):
         current_index = self.currentIndex()
         item = self.model().item(current_index)
         tag = self.model().columns[current_index.column()]
-        dirty, old_value = library.dirty(item.library, item.song_id, tag, get_old_value = True)
+        old_value = library.tag_by_song_id(item.song_id, tag, sources = ('file',))
         EditTagsCommand(self.model(), [item], tag, old_value, command_prefix = 'Revert')
 
 class TMItemDelegate(QStyledItemDelegate):
@@ -1338,7 +1338,7 @@ class TMItemDelegate(QStyledItemDelegate):
             completer.setCompletionMode(QCompleter.PopupCompletion)
             completer.setCaseSensitivity(False)
             completer.setModel(QStringListModel(
-                [v for v,n in library.query_tags_iter('tango', tag, [], '')]))
+                [v for v,n in library.query_tags_iter(tag, [('_library', 'tango')], '')])) # todo: 'tango' -> whatever lib
             editor.setCompleter(completer)
         return editor
 

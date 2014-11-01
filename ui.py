@@ -870,7 +870,7 @@ class PlayTreeView(QTreeView):
     def update_current_song_from_file(self, current):
         item = self.model().item(current)
         if isinstance(item, PlayTreeFile):
-            librarian.bg_queries(BgQueries([BgQuery(Library.update_song_from_file, (None, item.filename))], lambda qs: item.refresh_models(), relevant = lambda: self.currentIndex() == current))
+            librarian.bg_queries(BgQueries([BgQuery(Library.update_song_from_file, (None, item.filename))], item.maybe_refresh_models, relevant = lambda: self.currentIndex() == current))
 
 
     def autosize_columns(self):

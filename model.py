@@ -12,6 +12,7 @@ from app import *
 from commands import *
 
 import bidict, shlex
+import functools
 
 def register_xml_tag_handler(tag):
     def f(cls):
@@ -418,6 +419,10 @@ class PlayTreeFile(PlayTreeItem):
 
     def filter(self, model):
         return bool(library.query_songs_all([('song_id', self.song_id)], model.filter_expr)) if model.filter_expr else True
+
+    def maybe_refresh_models(self, queries):
+        if queries[0].result:
+            self.refresh_models()
     
     def refresh_models(self):
         for model, children in self.parent.children.items():

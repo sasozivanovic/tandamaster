@@ -23,6 +23,8 @@ class PartialFormatter(string.Formatter):
             else: raise
 
 from PyQt5.Qt import QIcon
+import functools
+@functools.lru_cache()
 def MyIcon(repository, category, name):
     return QIcon('/usr/share/icons/{}/scalable/{}/{}'.format(repository, category, name))
 

@@ -86,3 +86,7 @@ def open_autobackup(filename, *args, prepare = lambda: os.mkdir('bak'), tmp = la
         except OSError:
             pass
         os.rename(tmp(filename), filename)
+
+import unidecode
+def search_value(value):
+    return unidecode.unidecode(value).lower() if isinstance(value, str) else value

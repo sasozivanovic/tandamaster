@@ -1351,7 +1351,7 @@ class TMItemDelegate(QStyledItemDelegate):
             completer.setCompletionMode(QCompleter.PopupCompletion)
             completer.setCaseSensitivity(False)
             completer.setModel(QStringListModel(
-                [v for v,n in library.query_tags_iter(tag, (('_library', 'tango')), '')])) # todo: 'tango' -> whatever lib
+                [v for v,n in library.query_tags_iter(tag, (('_library', 'tango'),), '')])) # todo: 'tango' -> whatever lib
             editor.setCompleter(completer)
         return editor
 

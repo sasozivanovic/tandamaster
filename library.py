@@ -9,7 +9,7 @@ import functools, itertools, collections, weakref
 from fnmatch import fnmatch
 from app import app
 import config
-import unidecode
+from util import *
 
 def id3_performer_get(id3, key):
     people = []
@@ -185,7 +185,6 @@ class Library(QObject):
             self.refresh_next.emit()
 
     def update_song_from_file(self, library_name, filename, commit = True):
-        print('updating', filename)
         fileinfo = QFileInfo(filename)
         if not (fileinfo.exists() and fileinfo.isReadable()):
             warn("Cannot read {}".format(filename), RuntimeWarning)
@@ -209,7 +208,9 @@ class Library(QObject):
                     cursor.execute('INSERT INTO tags '
                                    '(song_id, source, tag, value, ascii) '
                                    'VALUES (?,?,?,?,?)',
-                                   (song_id, 'file', '_library', library_name, unidecode.unidecode(library_name).lower()))
+                                   (song_id, 'file', '_library', library_name, search_value(library_name)))
+                    if commit:
+                        self.connection.commit()
                 return
             cursor.execute(
                 'UPDATE files '
@@ -244,7 +245,7 @@ class Library(QObject):
             tags.update(audiofile.tags)
         cursor.executemany(
             'INSERT INTO tags (song_id, source, tag, value, ascii) VALUES (?,"file",?,?,?)',
-            ( (song_id, tag, value, unidecode.unidecode(value).lower() if isinstance(value, str) else value)
+            ( (song_id, tag, value, search_value(value))
               for tag, values in tags.items()
               for value in values )
         )
@@ -257,8 +258,8 @@ class Library(QObject):
         tags = {}
         for source in reversed(sources):
             cursor = self.connection.execute(
-                'SELECT tag, value FROM tags WHERE song_id=? AND source=?'
-                + ('AND substr(tag,1,1)!="_" ' if internal else '') + 
+                'SELECT tag, value FROM tags WHERE song_id=? AND source=? '
+                + ('AND substr(tag,1,1)!="_" ' if not internal else '') + 
                 'ORDER BY tag, rowid',
                 (song_id, source)
             )
@@ -299,25 +300,29 @@ class Library(QObject):
     def dirty(self, song_id, tag):
         return bool(self.tag_by_song_id(tag, song_id, sources = ('user',)))
 
-    def set_tag(self, song_id, tag, value, source = 'user', ref_source = 'file', commit = True):
+    def set_tag(self, song_id, tag, values, source = 'user', ref_source = 'file', commit = True):
         self.connection.execute(
             'DELETE FROM tags '
-            'WHERE song_id=? AND tag=? AND source=? '
+            'WHERE song_id=? AND tag=? AND source=? ',
+            (song_id, tag, source)
         )
-        ref_value = self.tag_by_song_id(tag, song_id, source = ref_source)
-        if value != ref_value:
-            self.connection.execute(
+        ref_values = self.tag_by_song_id(tag, song_id, sources = (ref_source,))
+        if values != ref_values:
+            self.connection.executemany(
                 'INSERT INTO tags '
-                '(song_id, source, tag, value, ascii)',
-                (song_id, source, tag, value, unidecode.unidecode(value).lower())
+                '(song_id, source, tag, value, ascii) '
+                'VALUES (?,?,?,?,?)',
+                [(song_id, source, tag, value, search_value(value))
+                 for value in values]
             )
         if commit:
             self.connection.commit()
         # todo: update views
         
     def save_changed_tags(self, update_source = 'file', from_source = 'user'):
-        for song_id in self.connection.execute(
-                'SELECT DISTINCT song_id, filename, mtime, filesize '
+        cursor = self.connection.cursor()
+        for song_id, filename, mtime, filesize in self.connection.execute(
+                'SELECT song_id, filename, mtime, filesize '
                 'FROM files NATURAL JOIN tags '
                 'WHERE source=?',
                 (from_source,)):
@@ -329,24 +334,33 @@ class Library(QObject):
                 new_tags = self.tags_by_song_id(song_id, sources = (from_source, update_source), internal = False)
                 audiofile.update(new_tags)
                 audiofile.save()
-                self.connection.execute(
+                cursor.execute(
                     'DELETE FROM tags '
-                    'WHERE song_id=? AND source IN (?,?)',
+                    'WHERE song_id=? AND substr(tag,1,1)!="_" AND source IN (?,?)',
                     (song_id, from_source, update_source))
-                self.connection.execute(
-                    'INSERT INTO tags '
-                    '(song_id, source, tag, value, ascii) ',
-                    'VALUES (?,?,?,?,?)',
-                    [(song_id, update_source, tag, value, unidecode.unidecode(value).lower())
+                bindings = [(song_id, update_source, tag, value, search_value(value))
                      for tag, values in new_tags.items()
                      for value in values
-                     if value is not None]
+                     if value]
+                cursor.executemany(
+                    'INSERT INTO tags '
+                    '(song_id, source, tag, value, ascii) '
+                    'VALUES (?,?,?,?,?)',
+                    bindings,
                 )
-                self.connection.commit()
+                fileinfo = QFileInfo(filename)
+                cursor.execute(
+                    'UPDATE files '
+                    'SET mtime=?, filesize=? '
+                    'WHERE song_id=?',
+                    (fileinfo.lastModified().toTime_t(), fileinfo.size(), song_id))
+                
             else:
+                print("update from file", song_id)
                 # update library from file
                 librarian.bg_queries(BgQueries([BgQuery(Library.update_song_from_file, (None, filename))], lambda qs: None, relevant = lambda: True))
                 # todo: notify ui
+        self.connection.commit() # must be here: if it's in the loop, all hell breaks loose
 
 
     def _build_join(self, table_alias_list):

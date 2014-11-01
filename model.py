@@ -130,7 +130,7 @@ class PlayTreeItem:
 
     def setData(self, model, column_name, value):
         if column_name != '':
-            EditTagsCommand(model, [self], column_name, value)
+            EditTagsCommand(model, [self], column_name, [value])
             return True
         return False
             
@@ -480,7 +480,7 @@ class PlayTreeFile(PlayTreeItem):
 
     def setData(self, model, column_name, value):
         if not column_name:
-            EditTagsCommand(model, [self], 'title', value)
+            EditTagsCommand(model, [self], 'title', [value])
         else:
             return super().setData(model, column_name, value)
 
@@ -915,7 +915,7 @@ class PlayTreeModel(QAbstractItemModel):
                 else word
                 for word in
                 shlex.split(
-                    unidecode.unidecode(string).lower(),
+                    search_value(string),
                     comments = False, posix = False)
                 ]
         except:

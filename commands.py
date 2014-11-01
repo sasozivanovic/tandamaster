@@ -4,6 +4,7 @@ from PyQt5.Qt import *   # todo: import only what you need
 from app import *
 undo_stack = QUndoStack(app)
 from library import library
+from util import *
 
 import collections
 
@@ -130,10 +131,10 @@ class EditTagsCommand(TMPlayTreeItemsCommand):
             undo_stack.push(self)
     def redo(self):
         for item in self.old_values.keys():
-            library.set_tag(item.library, item.song_id, self.tag, [self.value])
+            library.set_tag(item.song_id, self.tag, self.value)
             item.refresh_models()
     def undo(self):
         for item, old_value in self.old_values.items():
-            library.set_tag(item.library, item.song_id, self.tag, old_value)
+            library.set_tag(item.song_id, self.tag, old_value)
             item.refresh_models()
 

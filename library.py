@@ -139,11 +139,11 @@ class Library(QObject):
         # ascii = lowercase ascii approximation of the value, for searching
         self.connection.execute(
             'CREATE TABLE IF NOT EXISTS tags'
-            '(song_id INTEGER, source TEXT, tag TEXT, value TEXT, ascii TEXT'
+            '(song_id INTEGER, source TEXT, tag TEXT, value TEXT, ascii TEXT)'
         )
         self.connection.execute(
             'CREATE INDEX IF NOT EXISTS tags_gettag ON tags'
-            '(song_id, source, tag, rowid)'
+            '(song_id, source, tag)'
         )
         self.connection.execute(
             'CREATE INDEX IF NOT EXISTS tags_search ON tags'
@@ -206,7 +206,7 @@ class Library(QObject):
             if mtime is not None and filesize is not None and fileinfo.lastModified().toTime_t() <= mtime and fileinfo.size() == filesize:
                 if library_name is not None and library_name not in self.tag_by_song_id('_library', song_id):
                     cursor.execute('INSERT INTO tags '
-                                   '(song_id, source, tag, value, ascii) ',
+                                   '(song_id, source, tag, value, ascii) '
                                    'VALUES (?,?,?,?,?)',
                                    (song_id, 'file', '_library', library_name, unidecode.unidecode(library_name).lower()))
             cursor.execute(
@@ -230,7 +230,7 @@ class Library(QObject):
         cursor.execute('DELETE FROM tags WHERE song_id=? AND SOURCE="file"', (song_id,))
         tags = {
             '_filename': (fileinfo.fileName(),),
-            '_dir', (filedir,),
+            '_dir': (filedir,)
         }
         if library_name is not None:
             tags['_library'] = (library_name,)
@@ -243,7 +243,7 @@ class Library(QObject):
         cursor.executemany(
             'INSERT INTO tags (song_id, source, tag, value, ascii) VALUES (?,"file",?,?,?)',
             ( (song_id, tag, value, unidecode.unidecode(value).lower() if isinstance(value, str) else value)
-              for tag, values in tags
+              for tag, values in tags.items()
               for value in values )
         )
         if commit:
@@ -289,7 +289,7 @@ class Library(QObject):
 
     def song_id_from_filename(self, filename):
         row = self.connection.execute(
-            'SELECT song_id FROM files WHERE filename=?'
+            'SELECT song_id FROM files WHERE filename=?',
             (filename,)
         ).fetchone()
         return row[0] if row else None
@@ -314,7 +314,7 @@ class Library(QObject):
         # todo: update views
         
     def save_changed_tags(self, update_source = 'file', from_source = 'user'):
-        for song_id self.connection.execute(
+        for song_id in self.connection.execute(
                 'SELECT DISTINCT song_id, filename, mtime, filesize '
                 'FROM files NATURAL JOIN tags '
                 'WHERE source=?',
@@ -423,6 +423,7 @@ class Library(QObject):
             for filter_word in filter_words:
                 yield '%' + filter_word + '%'
         statement = self._build_query_statement(fixed_tags, filter_words)
+        print (statement, list(params()))
         return self.connection.execute(statement, list(params()))
 
     def query_songs_iter(self, fixed_tags, filter_words):

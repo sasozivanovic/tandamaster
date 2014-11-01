@@ -853,7 +853,7 @@ class PlayTreeView(QTreeView):
         super().currentChanged(current, previous)
         self.update_current_song_from_file(current)
         current_item = self.model().item(current)
-        save_revert = isinstance(current_item, PlayTreeLibraryFile) and library.dirty(current_item.library, current_item.song_id, self.model().columns[current.column()])
+        save_revert = isinstance(current_item, PlayTreeFile) and library.dirty(current_item.song_id, self.model().columns[current.column()])
         self.window().action_save_tag.setEnabled(False) # todo: saving a SINGLE tag
         self.window().action_revert_tag.setEnabled(save_revert)
 
@@ -1338,7 +1338,7 @@ class TMItemDelegate(QStyledItemDelegate):
             completer.setCompletionMode(QCompleter.PopupCompletion)
             completer.setCaseSensitivity(False)
             completer.setModel(QStringListModel(
-                [v for v,n in library.query_tags_iter(tag, [('_library', 'tango')], '')])) # todo: 'tango' -> whatever lib
+                [v for v,n in library.query_tags_iter(tag, (('_library', 'tango')), '')])) # todo: 'tango' -> whatever lib
             editor.setCompleter(completer)
         return editor
 

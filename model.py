@@ -43,8 +43,7 @@ class PlayTreeItem:
         if fileinfo.isDir():
             return PlayTreeFolder(filename, parent = parent)
         else:
-            song_id = library.song_id_from_filename(filename)
-            return PlayTreeLibraryFile(library_name = library_name, song_id = song_id, parent = parent) if song_id else PlayTreeFile(filename = filename, parent = parent)
+            return PlayTreeFile(filename = filename, parent = parent)
 
     def save(self, filename):
         document = etree.ElementTree(self.to_xml())
@@ -332,12 +331,12 @@ class PlayTreeFile(PlayTreeItem):
     @classmethod
     def _create_from_xml(cls, element, parent):
         return PlayTreeFile(
-            element.get('filename')
+            element.get('filename'),
             Id = element.get('id'),
             parent = parent
         )
 
-    def __init__(self, filename, song_id = None, Id = None, parent = None):
+    def __init__(self, filename = None, song_id = None, Id = None, parent = None):
         super().__init__(Id, parent)
         if song_id and filename:
             self.song_id = song_id
@@ -397,7 +396,7 @@ class PlayTreeFile(PlayTreeItem):
         return True
 
     def filter(self, model):
-        return bool(library.query_songs_all([('song_id', self.song_id)], model.filter_expr))
+        return bool(library.query_songs_all([('song_id', self.song_id)], model.filter_expr)) if model.filter_expr else True
     
     def refresh_models(self):
         for model, children in self.parent.children.items():
@@ -425,19 +424,27 @@ class PlayTreeFile(PlayTreeItem):
 
     def data(self, model, column_name, role):
         if role in (Qt.DisplayRole, Qt.EditRole):
-            if column_name:
-                data= super().data(model, column_name, role)
+            if column_name == '_length':
+                return hmsms_to_text(*ms_to_hmsms(1000*self.duration()), include_ms=False)
+            elif column_name:
+                value = self.get_tag(column_name)
+                return value[0] if value else None
             else:
                 column_name = 'title'
                 titles = self.get_tag('title')
                 data = titles[0] if titles else str(self)
             return data
-        elif role == Qt. BackgroundRole:
-            return QBrush(QColor(Qt.yellow)) if library.dirty(self.song_id, column_name if column_name else 'title') else super().data(model, column_name, role)
+        elif not column_name and role == Qt.DecorationRole:
+            #return tmSongIcon
+            #return QIcon('crazyeye_dance.png')
+            if self.function() == 'cortina':
+                return QIcon('icons/iconfinder/farm-fresh/curtain.png')
+            else:
+                return QIcon('icons/happy-dance.gif')
+        elif role == Qt. BackgroundRole and library.dirty(self.song_id, column_name if column_name else 'title'):
+            return QBrush(QColor(Qt.yellow))
         elif role == Qt.ToolTipRole and library.dirty(self.song_id, column_name if column_name else 'title'):
             return app.tr('Original value') + ': ' + library.tag_by_song_id(column_name if column_name else 'title', self.song_id, sources = ('file',))[0]
-        else:
-            return super().data(model, column_name, role)
 
     def flags(self, column = ''):
         if not (column and column[0] == '_'):
@@ -652,22 +659,20 @@ class PlayTreeBrowse(PlayTreeItem):
     def populate_songs(self, model, rows):
         self.children[model] = []
         children = self.children[model]
-        for Id in rows:
-            children.append(PlayTreeLibraryFile(self.library, Id, parent = self))
+        for song_id in rows:
+            children.append(PlayTreeFile(song_id = song_id, parent = self))
 
     def populate(self, model, force = False):
         if force or model not in self.children or self.children[model] is None:
             self.children[model] = None
-        fixed_tags = { '_library': self.library }
-        fixed_tags.update(self.fixed_tags)
         if self.children[model] is None:
             if self.browse_by_tags:
                 self.populate_tags(model, library.query_tags_iter(
-                    self.browse_by_tags[0], fixed_tags,
+                    self.browse_by_tags[0], (('_library', self.library),) + self.fixed_tags,
                     model.filter_expr))
             else:
                 self.populate_songs(model, library.query_songs_iter(
-                    self.library, fixed_tags,  
+                    (('_library', self.library),) + self.fixed_tags,  
                     model.filter_expr))
                 
     def expand_small_children(self, model):
@@ -678,13 +683,11 @@ class PlayTreeBrowse(PlayTreeItem):
                                lambda: model.filter_expr == filter_expr)
         for child in self.children[model]:
             if True: # child.song_count[model] == 1:
-                fixed_tags = { '_library': child.library }
-                fixed_tags.update(child.fixed_tags)
                 query = BgQuery(Library.query_tags_all,
-                                (child.browse_by_tags[0], fixed_tags, filter_expr)
+                                (child.browse_by_tags[0], (('_library', child.library),) + child.fixed_tags, filter_expr)
                             ) if child.browse_by_tags else \
                     BgQuery(Library.query_songs_all,
-                            (fixed_tags, filter_expr)
+                            ((('_library', child.library),) + child.fixed_tags, filter_expr)
                         )
                 query.browse = child
                 queries.append(query)
@@ -902,13 +905,11 @@ class PlayTreeModel(QAbstractItemModel):
         for browse in self.root_item.iter(self,
                 lambda item: isinstance(item, PlayTreeBrowse),
                 lambda item: isinstance(item, PlayTreeList)):
-            fixed_tags = { '_library': browse.library }
-            fixed_tags.update(browse.fixed_tags)
             query = BgQuery(Library.query_tags_all,
-                            (browse.library, browse.browse_by_tags[0], fixed_tags, filter_expr)
+                            (browse.browse_by_tags[0], (('_library', browse.library),) + browse.fixed_tags, filter_expr)
                         ) if browse.browse_by_tags else \
                  BgQuery(Library.query_songs_all,
-                         (browse.fixed_tags, filter_expr)
+                         ((('_library', browse.library),) + browse.fixed_tags, filter_expr)
                      )
             query.browse = browse
             queries.append(query)

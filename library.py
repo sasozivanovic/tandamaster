@@ -3,7 +3,7 @@ from PyQt5.Qt import *   # todo: import only what you need
 
 import mutagen, mutagen.easyid3, mutagen.easymp4
 import sqlite3
-import os, os.path
+import os, os.path, sys
 from warnings import warn
 import functools, itertools, collections, weakref
 from fnmatch import fnmatch
@@ -423,7 +423,6 @@ class Library(QObject):
             for filter_word in filter_words:
                 yield '%' + filter_word + '%'
         statement = self._build_query_statement(fixed_tags, filter_words)
-        print (statement, list(params()))
         return self.connection.execute(statement, list(params()))
 
     def query_songs_iter(self, fixed_tags, filter_words):
@@ -467,6 +466,7 @@ class Librarian(QObject):
 
     bg_queries_start = pyqtSignal(BgQueries)
     def do(self):
+        return
         if not self.processing:
             while self.queue:
                 queries = self.queue.pop(0)

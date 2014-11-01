@@ -192,6 +192,9 @@ class TandaMasterWindow(QMainWindow):
         self.action_revert_tag = QAction(
             #QIcon('icons/iconfinder/32pxmania/up.png'),
             self.tr('&Revert tag'), self, triggered = self.revert_tag)
+        self.action_is_milonga = QAction(
+            self.tr('Is &milonga'), self, toggled = self.playtree_is_milonga)
+        self.action_is_milonga.setCheckable(True)
         action_undo = undo_stack.createUndoAction(self)
         action_redo = undo_stack.createRedoAction(self)
         action_undo.setIcon(QIcon('icons/iconfinder/32pxmania/undo.png'))
@@ -218,6 +221,8 @@ class TandaMasterWindow(QMainWindow):
         self.editmenu.addAction(self.action_edit_tag)
         self.editmenu.addAction(self.action_save_tag)
         self.editmenu.addAction(self.action_revert_tag)
+        self.editmenu.addSeparator()
+        self.editmenu.addAction(self.action_is_milonga)
         self.editmenu.addSeparator()
         self.editmenu.addAction(self.action_group_into_tandas)
         menubar.addMenu(self.editmenu)
@@ -325,11 +330,11 @@ class TandaMasterWindow(QMainWindow):
     def update_song_info(self):
         item = self.player.current_item
         if item:
-            tags = item.get_tags()
+            tags = item.get_tags(only_first = True)
             self.setWindowTitle(self.song_info_formatter.format(
-                "{ARTIST} - {TITLE} | TandaMaster", **tags))
+                "{artist} - {title} | TandaMaster", **tags))
             self.song_info.setText(self.song_info_formatter.format(
-                "{ARTIST} <b>{TITLE}</b>", **tags))
+                "{artist} <b>{title}</b>", **tags))
         else:
             self.setWindowTitle("TandaMaster")
             self.song_info.setText("")
@@ -451,6 +456,11 @@ class TandaMasterWindow(QMainWindow):
         if not isinstance(ptv, PlayTreeView): return
         ptv.revert_tag()
 
+    def playtree_is_milonga(self):
+        ptv = app.focusWidget()
+        if not isinstance(ptv, PlayTreeView): return
+        ptv.model().root_item._function = 'milonga' if self.action_is_milonga.isChecked() else None
+        
     def lock(self, locked):
         if locked:
             self.action_lock.setIcon(QIcon('icons/iconfinder/iconza/locked.png'))
@@ -995,6 +1005,8 @@ class PlayTreeView(QTreeView):
         self.window().action_move_home.setEnabled(can_move_home)
         self.window().action_move_end.setEnabled(can_move_end)
         model = self.model()
+        if model.root_item.function() != 'milonga':
+            return
         mode = PlayTreeItem.duration_mode_cortinas
         selected_indexes = self.selectionModel().selectedRows()
         duration_playtree = model.root_item.duration(model, mode)
@@ -1044,6 +1056,7 @@ class PlayTreeView(QTreeView):
         self.on_selection_changed()
         self.on_currentIndex_changed()
         self.update_current_song_from_file(self.currentIndex())
+        self.window().action_is_milonga.setChecked(self.model().root_item.function() == 'milonga')
         return r
 
     def focusOutEvent(self, event):

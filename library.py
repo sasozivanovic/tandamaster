@@ -185,16 +185,17 @@ class Library(QObject):
             self.refresh_next.emit()
 
     def update_song_from_file(self, library_name, filename, commit = True):
+        print('updating', filename)
         fileinfo = QFileInfo(filename)
         if not (fileinfo.exists() and fileinfo.isReadable()):
             warn("Cannot read {}".format(filename), RuntimeWarning)
-            return
-        try:
-            audiofile = mutagen.File(filename, easy = True)
-            assert(audiofile is not None)
-        except:
-            warn("Cannot read {}. Probably not an audio file".format(filename), RuntimeWarning)
-            return
+            audiofile = None
+        else:
+            try:
+                audiofile = mutagen.File(filename, easy = True)
+            except:
+                warn("Cannot read {}. Probably not an audio file".format(filename), RuntimeWarning)
+                audiofile = None
         cursor = self.connection.cursor()
         cursor.execute(
             'SELECT song_id,mtime,filesize FROM files WHERE filename=?',
@@ -209,6 +210,7 @@ class Library(QObject):
                                    '(song_id, source, tag, value, ascii) '
                                    'VALUES (?,?,?,?,?)',
                                    (song_id, 'file', '_library', library_name, unidecode.unidecode(library_name).lower()))
+                return
             cursor.execute(
                 'UPDATE files '
                 'SET mtime=?, filesize=? '
@@ -238,7 +240,7 @@ class Library(QObject):
             tags['_length'] = (audiofile.info.length,)
         except:
             pass
-        if audiofile.tags:
+        if audiofile and audiofile.tags:
             tags.update(audiofile.tags)
         cursor.executemany(
             'INSERT INTO tags (song_id, source, tag, value, ascii) VALUES (?,"file",?,?,?)',
@@ -466,7 +468,6 @@ class Librarian(QObject):
 
     bg_queries_start = pyqtSignal(BgQueries)
     def do(self):
-        return
         if not self.processing:
             while self.queue:
                 queries = self.queue.pop(0)

@@ -347,9 +347,11 @@ class PlayTreeFile(PlayTreeItem):
         assert song_id is not None or filename is not None
         self._song_id = song_id
         self._filename = filename
+        self._querying = False
         
     def got_song_id(self, queries):
-        self.song_id = queries[0].result
+        self._song_id = queries[0].result
+        self._querying = False
         self.refresh_models()
 
     @property
@@ -357,7 +359,9 @@ class PlayTreeFile(PlayTreeItem):
         if self._song_id is None:
             self._song_id = library.song_id_from_filename(self._filename)
             if not self._song_id:
-                librarian.bg_queries(BgQueries([BgQuery(Library.update_song_from_file, (None, self._filename))], self.got_song_id, relevant = lambda: True))
+                if not self._querying:
+                    self._querying = True
+                    librarian.bg_queries(BgQueries([BgQuery(Library.update_song_from_file, (None, self._filename))], self.got_song_id, relevant = lambda: True))
         return self._song_id
 
     @property
@@ -547,11 +551,9 @@ class PlayTreeFolder(PlayTreeItem):
                 PlayTreeFolder(filename=fullfn, parent = self) for fn,fullfn in folders
             ]
             for fn,fullfn in files:
-                if os.path.splitext(fn)[1] in Library.musicfile_extensions and \
-                   not file_reader.not_an_audio_file(fullfn):
+                if os.path.splitext(fn)[1] in Library.musicfile_extensions:
                     self.children[None].append(
                         PlayTreeFile(filename=fullfn, parent = self))
-            #print("add dir", self.filename, fs_watcher.addPath(self.filename))
         if self.children[model] is None:
             self.children[model] = [child for child in self.children[None] if child.filter(model) ]
             self.children[model] = self.children[None]

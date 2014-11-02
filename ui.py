@@ -1436,7 +1436,10 @@ class GetFilesFromAlja(QRunnable):
             fileinfo = QFileInfo(target)
             if not fileinfo.exists():
                 app.info.emit('Downloading {} from Alja ...'.format(target))
-                os.makedirs(os.path.dirname(target))
+                try:
+                    os.makedirs(os.path.dirname(target))
+                except:
+                    pass
                 ftp.get(source, target)
         ssh_client.close()
         app.info.emit('Downloading from Alja finished.')

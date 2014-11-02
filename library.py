@@ -185,6 +185,7 @@ class Library(QObject):
             self.refresh_next.emit()
 
     def update_song_from_file(self, library_name, filename, commit = True):
+        print(filename)
         fileinfo = QFileInfo(filename)
         if not (fileinfo.exists() and fileinfo.isReadable()):
             warn("Cannot read {}".format(filename), RuntimeWarning)

@@ -11,6 +11,7 @@ from commands import *
 import config
 from replay_gain import TMReplayGain
 from gi.repository import GObject, Gst
+import os, os.path
 
 import collections, weakref, binascii, datetime
 
@@ -517,15 +518,7 @@ class TandaMasterWindow(QMainWindow):
     def adhoc(self):
         ptv = app.focusWidget()
         if not isinstance(ptv, PlayTreeView): return
-        current_index = ptv.currentIndex()
-        model = ptv.model()
-        current_item = model.item(current_index)
-        print(current_item in current_item.parent.children[ptv.model()])
-        print(repr(current_item))
-        print(repr(current_item.parent))
-        print(current_item.parent.children[ptv.model()])
-        print(current_item.parent.children[None])        
-        print()
+        QThreadPool.globalInstance().start(GetFilesFromAlja(ptv.selectionModel().selectedRows()))
         
     def save_playtree_to_folder(self):
         ptv = app.focusWidget()
@@ -1420,3 +1413,30 @@ class TMProgressBar_Interaction(QObject):
                 return False
             obj.in_seek = False
         return False
+
+class GetFilesFromAlja(QRunnable):
+    def __init__(self, selected_indexes):
+        super().__init__()
+        if selected_indexes:
+            model = selected_indexes[0].model()
+            self.items = [child_item for index in selected_indexes for child_item in model.item(index).iter(model, lambda it: it.isTerminal, lambda it: not it.isTerminal)]
+        else:
+            self.items = []
+        
+    def run(self):
+        import paramiko
+        ssh_client = paramiko.SSHClient()
+        ssh_client.load_system_host_keys()
+        ssh_client.set_missing_host_key_policy(paramiko.WarningPolicy())
+        ssh_client.connect('localhost', port = 22000, username = 'alja')
+        ftp = ssh_client.open_sftp()
+        for item in self.items:
+            target = item.filename
+            source = target.replace('/home/saso/', '/home/alja/')
+            fileinfo = QFileInfo(target)
+            if not fileinfo.exists():
+                app.info.emit('Downloading {} from Alja ...'.format(target))
+                os.makedirs(os.path.dirname(target))
+                ftp.get(source, target)
+        ssh_client.close()
+        app.info.emit('Downloading from Alja finished.')

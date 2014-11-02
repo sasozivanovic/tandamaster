@@ -136,11 +136,11 @@ class TandaMasterPlayer(QObject):
         self.playbin.set_property('uri', QUrl.fromLocalFile(self.current_item.filename).toString())
         self.playbin.set_state(Gst.State.PAUSED)
         try:
-            self._cut_start = float(self.current_item.get_tag('TM::STARTSILENCE')[0])*1000000000
+            self._cut_start = float(self.current_item.get_tag('tm:song_start')[0])*1000000000
         except:
             self._cut_start = 0
         try:
-            self._cut_end = float(self.current_item.get_tag('TM::ENDSILENCE')[0])*1000000000
+            self._cut_end = float(self.current_item.get_tag('tm:song_end')[0])*1000000000
         except:
             self._cut_end = 0
         while (True):

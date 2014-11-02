@@ -122,7 +122,7 @@ class TandaMasterWindow(QMainWindow):
             self.tr('Mark start cut'), self, triggered = self.mark_start_cut,
             shortcut = QKeySequence('('))
         self.action_mark_end_cut = QAction(
-            self.tr('Mark start cut'), self, triggered = self.mark_end_cut,
+            self.tr('Mark end cut'), self, triggered = self.mark_end_cut,
             shortcut = QKeySequence(')'))
         self.playbackmenu.addAction(self.action_mark_start_cut)
         self.playbackmenu.addAction(self.action_mark_end_cut)
@@ -319,7 +319,6 @@ class TandaMasterWindow(QMainWindow):
         self.player.state_changed.connect(self.on_player_state_changed)
         self.on_player_state_changed(QMediaPlayer.StoppedState)
         QApplication.clipboard().changed.connect(self.on_clipboard_data_changed)
-        self.player.current_changed.connect(self.update_milonga_end)
 
         self.autosave_timer = QTimer(self)
         self.autosave_timer.timeout.connect(self.save)
@@ -484,13 +483,14 @@ class TandaMasterWindow(QMainWindow):
     def mark_start_cut(self):
         position = self.player.playbin.query_position(Gst.Format.TIME)
         if position[0]:
-            self.player.current_item.set_tag('TM::STARTSILENCE', [float(position[1])/1000000000])
+            self.player.current_item.set_tag('tm:song_start', [float(position[1])/1000000000])
 
     def mark_end_cut(self):
         position = self.player.playbin.query_position(Gst.Format.TIME)
         duration = self.player.playbin.query_duration(Gst.Format.TIME)
+        print('end cut', position, duration)
         if position[0] and duration[0]:
-            self.player.current_item.set_tag('TM::ENDSILENCE', [float(duration[1]-position[1])/1000000000])
+            self.player.current_item.set_tag('tm:song_end', [float(duration[1]-position[1])/1000000000])
         
     def adhoc(self):
         ptv = app.focusWidget()
@@ -589,21 +589,6 @@ class TandaMasterWindow(QMainWindow):
     def status_bar_message(self, msg):
         self.update_status_bar(remaining = msg)
         
-    def update_milonga_end(self):
-        index = self.player.current_index
-        model = self.player.current_model
-        if index and index.isValid():
-            duration_after_current = 0
-            mode = PlayTreeItem.duration_mode_cortinas
-            ind = index
-            while ind.isValid():
-                duration_after_current += model.item(ind).duration(model, mode)
-                ind = model.next(ind, descend = False)
-            self.update_status_bar(remaining = 'Milonga ends at ' + 
-                                   (datetime.datetime.now() + datetime.timedelta(seconds = duration_after_current)).strftime('%H:%M'))
-        else:
-            self.update_status_bar(remaining = '')
-
     def calculate_replay_gain(self):
         ptv = app.focusWidget()
         if not isinstance(ptv, PlayTreeView): return
@@ -742,9 +727,6 @@ class PlayTreeWidget(QWidget, TMWidget):
                     ptw.ptv.setColumnWidth(i, int(width))
         if element.get('current'):
             window.player.set_current(model = ptw.ptv.model())
-        ptw.ptv.model().rowsInserted.connect(ptw.ptv.update_milonga_end)
-        ptw.ptv.model().rowsMoved.connect(ptw.ptv.update_milonga_end)
-        ptw.ptv.model().rowsRemoved.connect(ptw.ptv.update_milonga_end)
         return ptw
 
     def to_xml(self):
@@ -1047,8 +1029,26 @@ class PlayTreeView(QTreeView):
                 time_to_text(duration_playtree,include_ms=False))
         if mode == PlayTreeItem.duration_mode_cortinas:
             msg += ' (cortina={}s)'.format(PlayTreeFile.cortina_duration)
-        self.window().update_status_bar(duration = msg)
 
+        index = self.player.current_index
+        model = self.player.current_model
+        remaining = ''
+        if index and index.isValid():
+            duration_after_current = 0
+            mode = PlayTreeItem.duration_mode_cortinas
+            ind = index
+            while ind.isValid():
+                d = model.item(ind).duration(model, mode)
+                if d is None:
+                    duration_after_current = None
+                    break
+                duration_after_current += d
+                ind = model.next(ind, descend = False)
+            else:
+                remaining = 'Milonga ends at ' + (datetime.datetime.now() + datetime.timedelta(seconds = duration_after_current)).strftime('%H:%M')
+            
+        self.window().update_status_bar(duration = msg, remaining = remaining)
+        
     def on_currentIndex_changed(self):
         self.window().action_paste.setEnabled(self.can_paste())
         self.window().action_insert.setEnabled(self.can_insert())
@@ -1338,10 +1338,6 @@ class PlayTreeView(QTreeView):
         self.model().beginResetModel()
         self.model().columns = columns
         self.model().endResetModel()
-
-    def update_milonga_end(self, parent_index, first, last, dest = QModelIndex(), dest_first = None, dest_last = None):
-        if self.player.current_model == self.model():
-            self.window().update_milonga_end()
 
     def edit_tag(self):
         self.edit(self.currentIndex())

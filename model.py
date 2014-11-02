@@ -780,7 +780,7 @@ class PlayTreeModel(QAbstractItemModel):
     # column "" provides browsing info (folder name, file name, ...)
     columns = ('', 'artist', 'performer:vocals',
                #'quodlibet::recordingdate',
-               'date', 'genre', '_length', 'tm::startsilence', 'tm::endsilence')
+               'date', 'genre', '_length', 'tm:song_start', 'tm:song_end')
     #columns = ('',)
 
     column_display_names = bidict.bidict({
@@ -793,8 +793,8 @@ class PlayTreeModel(QAbstractItemModel):
         'date': 'Year',
         #'GENRE': 'Genre',
         #'_Length': 'Length',
-        'tm::startsilence': 'Cut start',
-        'tm::endsilence': 'Cut end',
+        'tm:song_start': 'Cut start',
+        'tm:song_end': 'Cut end',
     })
 
     def index(self, row, column, parent):

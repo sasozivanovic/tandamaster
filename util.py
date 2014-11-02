@@ -54,6 +54,12 @@ def hmsms_to_text(h,m,s,ms,include_ms=True):
         (':' + str(ms) if include_ms else '')
 
 
+time_unit_factors = { 's': 1000, 'ms': 1 }
+def time_to_text(t, include_ms = False, unit = 's', fail_text = '?'):
+    if t is None:
+        return fail_text
+    return hmsms_to_text(*ms_to_hmsms(t*time_unit_factors[unit]), include_ms = include_ms)
+
 import datetime
 def tm_timestamp(sep = ' '):
     ts = datetime.datetime.now().isoformat(sep)

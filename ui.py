@@ -194,9 +194,6 @@ class TandaMasterWindow(QMainWindow):
             #QIcon('icons/iconfinder/32pxmania/up.png'),
             self.tr('&Revert tag'), self, triggered = self.revert_tag,
             shortcut=QKeySequence('ctrl+r'))
-        self.action_is_milonga = QAction(
-            self.tr('Is &milonga'), self, toggled = self.playtree_is_milonga)
-        self.action_is_milonga.setCheckable(True)
         action_undo = undo_stack.createUndoAction(self)
         action_redo = undo_stack.createRedoAction(self)
         action_undo.setIcon(QIcon('icons/iconfinder/32pxmania/undo.png'))
@@ -224,8 +221,6 @@ class TandaMasterWindow(QMainWindow):
         self.editmenu.addAction(self.action_save_tag)
         self.editmenu.addAction(self.action_revert_tag)
         self.editmenu.addSeparator()
-        self.editmenu.addAction(self.action_is_milonga)
-        self.editmenu.addSeparator()
         self.editmenu.addAction(self.action_group_into_tandas)
         menubar.addMenu(self.editmenu)
 
@@ -249,8 +244,12 @@ class TandaMasterWindow(QMainWindow):
 
         self.toolsmenu = QMenu(self.tr('Tools'))
         self.action_calculate_replay_gain = QAction(
-            self.tr('Calculate replay gain'), self, triggered = self.calculate_replay_gain)
+            self.tr('Calculate &replay gain'), self, triggered = self.calculate_replay_gain)
         self.toolsmenu.addAction(self.action_calculate_replay_gain)
+        self.action_milonga_info = QAction(
+            self.tr('Milonga &info'), self, triggered = self.milonga_info,
+            shortcut = QKeySequence('ctrl+shift+i'))
+        self.toolsmenu.addAction(self.action_milonga_info)
         menubar.addMenu(self.toolsmenu)
         
         self.setMenuBar(menubar)
@@ -458,16 +457,11 @@ class TandaMasterWindow(QMainWindow):
         ptv = app.focusWidget()
         if not isinstance(ptv, PlayTreeView): return
         ptv.revert_tag()
-
-    def playtree_is_milonga(self):
+    def milonga_info(self):
         ptv = app.focusWidget()
         if not isinstance(ptv, PlayTreeView): return
-        if self.action_is_milonga.isChecked():
-            ptv.model().root_item._function = 'milonga'
-            ptv.model().root_item.populate(ptv.model(), recursive = True)
-        else:
-            ptv.model().root_item._function = None
-        
+        ptv.milonga_info()
+
     def lock(self, locked):
         if locked:
             self.action_lock.setIcon(QIcon('icons/iconfinder/iconza/locked.png'))
@@ -1010,34 +1004,47 @@ class PlayTreeView(QTreeView):
         self.window().action_move_right.setEnabled(can_move_right)
         self.window().action_move_home.setEnabled(can_move_home)
         self.window().action_move_end.setEnabled(can_move_end)
+
+    def milonga_info(self):
         model = self.model()
-        if True or model.root_item.function() != 'milonga':
-            return
+        model.root_item.populate(model, recursive = True)
+        can_group, can_move_up, can_move_down, can_move_left, can_move_right, can_move_home, can_move_end = self.can_move()
         mode = PlayTreeItem.duration_mode_cortinas
         selected_indexes = self.selectionModel().selectedRows()
         duration_playtree = model.root_item.duration(model, mode)
         if selected_indexes:
-            duration = sum(model.item(index).duration(model, mode) for index in selected_indexes)
+            try:
+                duration = sum(model.item(index).duration(model, mode) for index in selected_indexes)
+            except TypeError:
+                duration = None
             if can_group:
                 parent_item = model.item(selected_indexes[0].parent())
-                duration_before = sum(parent_item.child(model, r).duration(model, mode)
-                                      for r in range(0, min(index.row() for index in selected_indexes)))
-                duration_after = sum(parent_item.child(model, r).duration(model, mode)
-                                      for r in range(
-                                              1+max(index.row() for index in selected_indexes),
-                                              parent_item.rowCount(model)))
+                try:
+                    duration_before = sum(parent_item.child(model, r).duration(model, mode)
+                                          for r in range(0, min(index.row() for index in selected_indexes)))
+                except TypeError:
+                    duration_before = None
+                try:
+                    duration_after = sum(
+                        parent_item.child(model, r).duration(model, mode)
+                        for r in range(
+                                1+max(index.row() for index in selected_indexes),
+                                parent_item.rowCount(model)))
+                except TypeError:
+                    duration_after = None
+                
                 msg = 'Duration before {}, selection {}, after {}, playtree {}'.format(
-                    hmsms_to_text(*ms_to_hmsms(1000*duration_before),include_ms=False),
-                    hmsms_to_text(*ms_to_hmsms(1000*duration),include_ms=False),
-                    hmsms_to_text(*ms_to_hmsms(1000*duration_after),include_ms=False),
-                    hmsms_to_text(*ms_to_hmsms(1000*duration_playtree),include_ms=False))
+                    time_to_text(duration_before,include_ms=False),
+                    time_to_text(duration,include_ms=False),
+                    time_to_text(duration_after,include_ms=False),
+                    time_to_text(duration_playtree,include_ms=False))
             else:
                 msg = 'Duration of the selection: {}'.format(
-                    hmsms_to_text(*ms_to_hmsms(1000*duration),include_ms=False),
-                    hmsms_to_text(*ms_to_hmsms(1000*duration_playtree),include_ms=False))
+                    time_to_text(duration,include_ms=False),
+                    time_to_text(duration_playtree,include_ms=False))
         else:
             msg = 'Duration of the playtree: {}'.format(
-                hmsms_to_text(*ms_to_hmsms(1000*duration_playtree),include_ms=False))
+                time_to_text(duration_playtree,include_ms=False))
         if mode == PlayTreeItem.duration_mode_cortinas:
             msg += ' (cortina={}s)'.format(PlayTreeFile.cortina_duration)
         self.window().update_status_bar(duration = msg)
@@ -1062,7 +1069,6 @@ class PlayTreeView(QTreeView):
         self.on_selection_changed()
         self.on_currentIndex_changed()
         self.update_current_song_from_file(self.currentIndex())
-        self.window().action_is_milonga.setChecked(self.model().root_item.function() == 'milonga')
         return r
 
     def focusOutEvent(self, event):

@@ -153,7 +153,7 @@ class PlayTreeList(PlayTreeItem):
 
     @classmethod
     def _create_from_xml(cls, element, parent):
-        item = cls(name = element.get('name'), function = element.get('function'), Id = element.get('id'), parent = parent)
+        item = cls(name = element.get('name'), Id = element.get('id'), parent = parent)
         for subelement in element:
             item.children[None].append(PlayTreeItem.create_from_xml(subelement, item))
         return item
@@ -162,16 +162,13 @@ class PlayTreeList(PlayTreeItem):
         element = super().to_xml()
         if self.name is not None:
             element.set('name', self.name)
-        if self._function:    
-            element.set('function', self._function)
         for child in self.children[None]:
             element.append(child.to_xml())
         return element
 
-    def __init__(self, name, function = None, Id = None, parent = None, *iterable):
+    def __init__(self, name, Id = None, parent = None, *iterable):
         super().__init__(Id, parent)
         self.name = name
-        self._function = function
         self.children = {None: list(*iterable)}
         
     def copy(self, parent = None):
@@ -205,9 +202,6 @@ class PlayTreeList(PlayTreeItem):
     def __str__(self):
         return self.name if self.name is not None else ''
 
-    def function(self):
-        return self._function
-    
     def data(self, model, column_name, role):
         if role in (Qt.DisplayRole, Qt.EditRole):
             if column_name == '_length':

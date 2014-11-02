@@ -243,6 +243,7 @@ class TandaMasterWindow(QMainWindow):
             self,
             triggered = self.set_columns_all)
         self.viewmenu.addAction(self.action_columns_minimal)
+        self.viewmenu.addAction(self.action_columns_normal)  
         self.viewmenu.addAction(self.action_columns_all)  
         menubar.addMenu(self.viewmenu)
 
@@ -461,7 +462,11 @@ class TandaMasterWindow(QMainWindow):
     def playtree_is_milonga(self):
         ptv = app.focusWidget()
         if not isinstance(ptv, PlayTreeView): return
-        ptv.model().root_item._function = 'milonga' if self.action_is_milonga.isChecked() else None
+        if self.action_is_milonga.isChecked():
+            ptv.model().root_item._function = 'milonga'
+            ptv.model().root_item.populate(ptv.model(), recursive = True)
+        else:
+            ptv.model().root_item._function = None
         
     def lock(self, locked):
         if locked:
@@ -1006,7 +1011,7 @@ class PlayTreeView(QTreeView):
         self.window().action_move_home.setEnabled(can_move_home)
         self.window().action_move_end.setEnabled(can_move_end)
         model = self.model()
-        if model.root_item.function() != 'milonga':
+        if True or model.root_item.function() != 'milonga':
             return
         mode = PlayTreeItem.duration_mode_cortinas
         selected_indexes = self.selectionModel().selectedRows()

@@ -1,4 +1,5 @@
 from PyQt5.QtCore import pyqtRemoveInputHook; from IPython import embed; pyqtRemoveInputHook()
+import traceback
 
 import sys, filecmp, os, datetime, copy, collections
 
@@ -102,7 +103,7 @@ class PlayTreeItem:
                 for item in self.child(model, i).iter(model, condition_yield, condition_propagate):
                     yield item
 
-    def populate(self, model, force = False):
+    def populate(self, model, force = False, recursive = False):
         pass
 
     def delete(self, items):
@@ -133,7 +134,20 @@ class PlayTreeItem:
             EditTagsCommand(model, [self], column_name, [value])
             return True
         return False
-            
+
+    def duration(self, model, mode = duration_mode_all, populate = False):
+        if populate:
+            self.populate(model)
+        d = 0
+        if model not in self.children:
+            return None
+        for child in self.children[model]:
+            cd = child.duration(model, mode, populate = populate)
+            if cd is None:
+                return None
+            d += cd
+        return d
+
 @register_xml_tag_handler('list')
 class PlayTreeList(PlayTreeItem):
 
@@ -175,8 +189,10 @@ class PlayTreeList(PlayTreeItem):
         return len(self.children[model])
 
     def hasChildren(self, model):
-        self.populate(model)
-        return bool(self.children[model])
+        if model not in self.children:
+            return True
+        else:
+            return bool(self.children[model])
 
     def child(self, model, row):
         self.populate(model)
@@ -195,7 +211,8 @@ class PlayTreeList(PlayTreeItem):
     def data(self, model, column_name, role):
         if role in (Qt.DisplayRole, Qt.EditRole):
             if column_name == '_length':
-                return hmsms_to_text(*ms_to_hmsms(1000*self.duration(model)), include_ms=False)
+                duration = self.duration(model)
+                return hmsms_to_text(*ms_to_hmsms(1000*duration), include_ms=False) if duration is not None else duration
             if column_name:
                 first = True
                 for child in self.children[None]:
@@ -213,10 +230,13 @@ class PlayTreeList(PlayTreeItem):
         elif not column_name and role == Qt.DecorationRole:
             return QIcon('icons/iconfinder/silk/list.png')
 
-    def populate(self, model, force = False):
+    def populate(self, model, force = False, recursive = False):
         if force or model not in self.children or self.children[model] is None:
             self.children[model] = [ child for child in self.children[None]
                                       if child.filter(model) ]
+        if recursive:
+            for child in self.children[model]:
+                child.populate(model, force = force, recursive = recursive)
 
     def filter(self, model):
         for child in self.children[None]:
@@ -321,10 +341,6 @@ class PlayTreeList(PlayTreeItem):
         else:
             return super().setData(model, column_name, value)
 
-    def duration(self, model, mode = PlayTreeItem.duration_mode_all):
-        return sum(child.duration(model, mode) for child in self.children[model]) \
-            if model in self.children else 0
-
 
 @register_xml_tag_handler('file')
 class PlayTreeFile(PlayTreeItem):
@@ -380,7 +396,10 @@ class PlayTreeFile(PlayTreeItem):
 
     def get_tag(self, tag, only_first = False):
         values = library.tag_by_song_id(tag, self.song_id)
-        return values[0] if only_first else values
+        if values:
+            return values[0] if only_first else values
+        else:
+            return None
 
     def get_tags(self, only_first = False):
         tags = library.tags_by_song_id(self.song_id)
@@ -440,18 +459,17 @@ class PlayTreeFile(PlayTreeItem):
                 )
 
     cortina_duration = 30
-    def duration(self, model = None, mode = PlayTreeItem.duration_mode_all):
+    def duration(self, model = None, mode = PlayTreeItem.duration_mode_all, populate = False):
         if mode & self.duration_mode_cortinas and self.function() == 'cortina':
             return self.cortina_duration
-        try:
-            return int(self.get_tag('_length')[0])
-        except:
-            return 0
+        d = self.get_tag('_length', only_first = True)
+        return float(d) if d is not None else None
 
     def data(self, model, column_name, role):
         if role in (Qt.DisplayRole, Qt.EditRole):
             if column_name == '_length':
-                return hmsms_to_text(*ms_to_hmsms(1000*self.duration()), include_ms=False)
+                duration = self.duration(model)
+                return hmsms_to_text(*ms_to_hmsms(1000*duration), include_ms=False) if duration is not None else duration
             elif column_name:
                 value = self.get_tag(column_name)
                 return value[0] if value else None
@@ -538,7 +556,7 @@ class PlayTreeFolder(PlayTreeItem):
             #return app.style().standardIcon(QStyle.SP_DirIcon)
             return MyIcon('Tango', 'places', 'folder')
 
-    def populate(self, model, force = False):
+    def populate(self, model, force = False, recursive = False):
         if force or model not in self.children or self.children[model] is None:
             self.children[model] = None
         if self.children[None] is None:
@@ -562,6 +580,9 @@ class PlayTreeFolder(PlayTreeItem):
         if self.children[model] is None:
             self.children[model] = [child for child in self.children[None] if child.filter(model) ]
             self.children[model] = self.children[None]
+        if recursive:
+            for child in self.children[model]:
+                child.populate(model, force = force, recursive = recursive)
 
     def filter(self, model):
         if self.children[None] is None or model not in self.children:
@@ -578,10 +599,6 @@ class PlayTreeFolder(PlayTreeItem):
                     model.view.setExpanded(child.index(model), True)
                     child.expand_small_children(model)
 
-    def duration(self, model, mode = PlayTreeItem.duration_mode_all):
-        return sum(child.duration(model, mode) for child in self.children[model]) \
-            if model in self.children else 0
-        
 
 @register_xml_tag_handler('browse')
 class PlayTreeBrowse(PlayTreeItem):
@@ -686,7 +703,7 @@ class PlayTreeBrowse(PlayTreeItem):
         for song_id in rows:
             children.append(PlayTreeFile(song_id = song_id, parent = self))
 
-    def populate(self, model, force = False):
+    def populate(self, model, force = False, recursive = False):
         if force or model not in self.children or self.children[model] is None:
             self.children[model] = None
         if self.children[model] is None:
@@ -698,7 +715,10 @@ class PlayTreeBrowse(PlayTreeItem):
                 self.populate_songs(model, library.query_songs_iter(
                     (('_library', self.library),) + self.fixed_tags,  
                     model.filter_expr))
-                
+        if recursive:
+            for child in self.children[model]:
+                child.populate(model, force = force, recursive = recursive)
+
     def expand_small_children(self, model):
         if self.rowCount(model) == 0 or isinstance(self.child(model, 0), PlayTreeFile):
             return
@@ -724,10 +744,6 @@ class PlayTreeBrowse(PlayTreeItem):
                 queries.model.view.setExpanded(query.browse.index(queries.model), True)
                 query.browse.expand_small_children(queries.model)
         
-    def duration(self, model, mode = PlayTreeItem.duration_mode_all):
-        return sum(child.duration(model, mode) for child in self.children[model]) \
-            if model in self.children else 0
-
 
 @register_xml_tag_handler('link')
 class PlayTreeLink(PlayTreeItem):

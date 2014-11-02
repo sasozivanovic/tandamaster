@@ -1,7 +1,7 @@
 import os.path
 library_folders = {
         'tango': ['~/tango'],
-#        'glasba': ['~/glasba'],
+        'glasba': ['~/glasba'],
     }
 for folders in library_folders.values():
     for i, folder in enumerate(folders):

@@ -388,12 +388,12 @@ class PlayTreeFile(PlayTreeItem):
     def copy(self, parent = None):
         return PlayTreeFile(self.filename, song_id = self.song_id, parent = parent)
 
-    def get_tag(self, tag, only_first = False):
+    def get_tag(self, tag, only_first = False, default = None):
         values = library.tag_by_song_id(tag, self.song_id)
         if values:
             return values[0] if only_first else values
         else:
-            return None
+            return default
 
     def get_tags(self, only_first = False):
         tags = library.tags_by_song_id(self.song_id)

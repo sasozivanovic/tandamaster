@@ -253,6 +253,12 @@ class TandaMasterWindow(QMainWindow):
             self.tr('Milonga &info'), self, triggered = self.milonga_info,
             shortcut = QKeySequence('ctrl+shift+i'))
         self.toolsmenu.addAction(self.action_milonga_info)
+        self.action_getfilesfromalja = QAction(
+            self.tr('Get files from &Alja'), self, triggered = lambda: self.run_on_selected_rows(GetFilesFromAlja))
+        self.toolsmenu.addAction(self.action_getfilesfromalja)
+        self.action_latexsonginfo = QAction(
+            self.tr('Make PDF for songs'), self, triggered = lambda: self.run_on_selected_rows(LaTeXSongInfo))
+        self.toolsmenu.addAction(self.action_latexsonginfo)
         menubar.addMenu(self.toolsmenu)
         
         self.setMenuBar(menubar)
@@ -515,11 +521,11 @@ class TandaMasterWindow(QMainWindow):
         import subprocess
         subprocess.Popen(['/usr/bin/audacity', filename])
 
-    def adhoc(self):
+    def run_on_selected_rows(self, qrunnable):
         ptv = app.focusWidget()
         if not isinstance(ptv, PlayTreeView): return
-        QThreadPool.globalInstance().start(GetFilesFromAlja(ptv.selectionModel().selectedRows()))
-        
+        QThreadPool.globalInstance().start(qrunnable(ptv.selectionModel().selectedRows()))
+
     def save_playtree_to_folder(self):
         ptv = app.focusWidget()
         if not isinstance(ptv, PlayTreeView): return
@@ -1444,3 +1450,52 @@ class GetFilesFromAlja(QRunnable):
                 ftp.get(source, target)
         ssh_client.close()
         app.info.emit('Downloading from Alja finished.')
+
+class LaTeXSongInfo(QRunnable):
+    def __init__(self, selected_indexes):
+        super().__init__()
+        if selected_indexes:
+            model = selected_indexes[0].model()
+            self.items = [child_item for index in selected_indexes for child_item in model.item(index).iter(model, lambda it: it.isTerminal, lambda it: not it.isTerminal)]
+        else:
+            self.items = []
+        self.items = [
+            (item.get_tag('artist', only_first = True, default = ''),
+             item.get_tag('title', only_first = True, default = ''),
+             item.get_tag('date', only_first = True, default = ''),
+             item.get_tag('performer:vocals', only_first = True, default = ''),
+             item.get_tag('genre', only_first = True, default = ''),             
+         ) for item in self.items]
+    def run(self):
+        with open('naslov.tex', 'w') as f:
+            print(r"""\documentclass[tikz]{standalone}
+\usepackage{fontspec}
+\def\mypaperwidth{297mm}
+\def\mypaperheight{210mm}
+\def\myleftrightmargin{10mm}
+\def\mytopbottommargin{10mm}
+\def\napis#1{%
+  \begin{tikzpicture}[x=.5*\mypaperwidth-\myleftrightmargin,y=.5*\mypaperheight-\mytopbottommargin] % 297x210mm = a4 landscape
+    \path[use as bounding box] (-1,-1) -- +(-\myleftrightmargin,-\mytopbottommargin) -- (1,1) -- +(\myleftrightmargin,\mytopbottommargin);
+    #1%
+  \end{tikzpicture}
+}
+\def\fs#1{\fontsize{#1}{#1}\selectfont}
+\newlength\myfs
+\begin{document}
+            """, file = f)
+            for author, title, year, singer, genre in self.items:
+                if singer.lower() == 'instrumental':
+                    singer = ''
+                if '-' in year:
+                    year = year[0:year.find('-')]
+                print(r"""\napis{%
+\node at (0,0.5)[anchor=center,font=\fs{3cm}]{""" + author + r"""};
+\node at (0,-0.2)[anchor=center,font=\fs{3cm}\it]{""" + title + r"""};
+\node at (-1,-1)[anchor=south west,font=\fs{2cm}]{""" + year + r"""};
+\node at (1,-1)[anchor=south east,font=\fs{2cm}]{""" + singer + r"""};
+}""", file = f)
+            print(r"""\end{document}""", file=f)
+        import subprocess
+        subprocess.call(['xelatex', 'naslov'])
+        subprocess.call(['xdg-open', 'naslov.pdf'])

@@ -105,7 +105,9 @@ class TandaMasterWindow(QMainWindow):
             #MyIcon('Tango', 'actions', 'media-skip-forward'),
             QIcon('button_fastforward_green.png'),
             #QIcon('icons/iconfinder/32pxmania/next.png'),
-            self.tr('&Next'), self, triggered = self.player.play_next)
+            self.tr('&Next'), self, triggered = self.player.play_next,
+            shortcut = QKeySequence('ctrl+n'),
+        )
         self.playbackmenu.addAction(self.action_forward)
         self.playbackmenu.addSeparator()
         self.action_lock = QAction(
@@ -488,10 +490,8 @@ class TandaMasterWindow(QMainWindow):
 
     def mark_end_cut(self):
         position = self.player.playbin.query_position(Gst.Format.TIME)
-        duration = self.player.playbin.query_duration(Gst.Format.TIME)
-        print('end cut', position, duration)
-        if position[0] and duration[0]:
-            self.player.current_item.set_tag('tm:song_end', [float(duration[1]-position[1])/1000000000])
+        if position[0]:
+            self.player.current_item.set_tag('tm:song_end', [float(position[1])/1000000000])
         
     def adhoc(self):
         ptv = app.focusWidget()
@@ -1026,6 +1026,7 @@ class PlayTreeView(QTreeView):
         index = self.player.current_index
         model = self.player.current_model
         remaining = ''
+        # todo: query the position of the current song
         if index and index.isValid():
             duration_after_current = 0
             mode = PlayTreeItem.duration_mode_cortinas

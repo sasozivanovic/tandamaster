@@ -793,8 +793,8 @@ class PlayTreeModel(QAbstractItemModel):
         'date': 'Year',
         #'GENRE': 'Genre',
         #'_Length': 'Length',
-        'tm:song_start': 'Cut start',
-        'tm:song_end': 'Cut end',
+        'tm:song_start': 'Start of song',
+        'tm:song_end': 'End of song',
     })
 
     def index(self, row, column, parent):

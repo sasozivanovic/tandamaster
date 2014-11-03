@@ -19,8 +19,8 @@ class TandaMasterPlayer(QObject):
         self._playback_start = None
         self.fadeout_timer = None
         self.state = self.STOPPED
-        self._cut_start = 0
-        self._cut_end = 0
+        self.song_begin = None
+        self.song_end = None
         
         self.playbin = Gst.ElementFactory.make("playbin", None)
         fakesink = Gst.ElementFactory.make("fakesink", None)
@@ -45,7 +45,7 @@ class TandaMasterPlayer(QObject):
         bus.add_signal_watch()
         bus.connect("message", self.on_message)
 
-        self.set_volume(1.0)
+        self._volume = 1.0
 
         self.position_timer = QTimer()
         self.position_timer.setTimerType(Qt.CoarseTimer)
@@ -105,12 +105,9 @@ class TandaMasterPlayer(QObject):
 
     def milonga_mode(self):
         return self.current_model.view.window().action_milonga_mode.isChecked()
-    def cut_start(self):
-        return self._cut_start if self.milonga_mode() else 0
-    def cut_end(self):
-        return max(0, self._cut_end - self._gap_ns) if self.milonga_mode() else 0
     def gap(self):
-        return max(0, self._gap_ns - self._cut_end)
+        #return max(0, self._gap_ns - self.duration + (self.song_end if self.song_end is not None else self.duration))
+        return self._gap_ns
         
     def play(self):
         if not self.current_item.isPlayable:
@@ -136,29 +133,24 @@ class TandaMasterPlayer(QObject):
         self.playbin.set_property('uri', QUrl.fromLocalFile(self.current_item.filename).toString())
         self.playbin.set_state(Gst.State.PAUSED)
         try:
-            self._cut_start = float(self.current_item.get_tag('tm:song_start')[0])*1000000000
+            self.song_begin = int(float(self.current_item.get_tag('tm:song_start')[0])*1000000000)
         except:
-            self._cut_start = 0
+            self.song_begin = None
         try:
-            self._cut_end = float(self.current_item.get_tag('tm:song_end')[0])*1000000000
+            self.song_end = int(float(self.current_item.get_tag('tm:song_end')[0])*1000000000)
         except:
-            self._cut_end = 0
-        while (True):
-            state = self.playbin.get_state(100000000)
-            duration = self.playbin.query_duration(Gst.Format.TIME)
-            if state[0] == Gst.StateChangeReturn.FAILURE:
-                return
-            if state[0] == Gst.StateChangeReturn.SUCCESS and duration[0]:
-                break
-        self.duration = duration[1] if duration[0] else None
-        cut_start, cut_end = self.cut_start(), self.cut_end()
-        if self.milonga_mode() and state[0] == Gst.StateChangeReturn.SUCCESS and state[1] == Gst.State.PAUSED and (cut_start or cut_end):
-            print(cut_start, cut_end, self.duration, 'seekA', 1.0, Gst.Format.TIME,Gst.SeekFlags.FLUSH|Gst.SeekFlags.ACCURATE,Gst.SeekType.SET, self.cut_start(),Gst.SeekType.SET if duration[0] else Gst.SeekType.NONE, duration[1]-self.cut_end())
+            self.song_end = None
+        state = self.playbin.get_state(100000000)
+        if state[0] == Gst.StateChangeReturn.FAILURE:
+            return
+        if self.milonga_mode() and state[0] == Gst.StateChangeReturn.SUCCESS and state[1] == Gst.State.PAUSED and (self.song_begin or self.song_end):
             self.playbin.seek(
                 1.0, Gst.Format.TIME,
                 Gst.SeekFlags.FLUSH|Gst.SeekFlags.ACCURATE,
-                Gst.SeekType.SET, cut_start,
-                Gst.SeekType.SET if (cut_end and duration[0]) else Gst.SeekType.NONE, duration[1]-cut_end)
+                Gst.SeekType.SET, self.song_begin if self.song_begin else 0,
+                Gst.SeekType.SET if self.song_end else Gst.SeekType.NONE,
+                1000000000000 # self.song_end if self.song_end else 0
+            )
         self.playbin.set_state(Gst.State.PLAYING)
         self.current_media_changed.emit()
     current_media_changed = pyqtSignal()
@@ -232,18 +224,9 @@ class TandaMasterPlayer(QObject):
             self.signal_play_next.emit()
         if t == Gst.MessageType.DURATION_CHANGED:
             duration = self.playbin.query_duration(Gst.Format.TIME)
-            print('message duration', duration, self.cut_end(), self.gap())
             self.duration = duration[1] if duration[0] else None
-            if False and self.cut_end():
-                print('seekB',1.0, Gst.Format.TIME,Gst.SeekFlags.FLUSH|Gst.SeekFlags.ACCURATE,Gst.SeekType.NONE, 0,Gst.SeekType.SET, duration[1]-self.cut_end())
-                self.playbin.seek(
-                    1.0, Gst.Format.TIME,
-                    Gst.SeekFlags.FLUSH | Gst.SeekFlags.ACCURATE,
-                    Gst.SeekType.NONE, 0,
-                    Gst.SeekType.SET, duration[1]-self.cut_end())
-            self.duration_changed.emit(int(duration[1]/1000000))
-        #if t == Gst.MessageType.POSITION_CHANGED:
-        #    self.position_changed.emit(self.playbin.query_position(Gst.Format.TIME))
+            if duration[0]:
+                   self.duration_changed.emit(int(duration[1]/1000000))
         if t == Gst.MessageType.STATE_CHANGED:
             gst_state = self.playbin.get_state(0)[1]
             state = self.PLAYING if gst_state == Gst.State.PLAYING else (self.PAUSED if gst_state == Gst.State.PAUSED else self.STOPPED)
@@ -256,8 +239,8 @@ class TandaMasterPlayer(QObject):
 
 
     def set_volume(self, volume):
-        self._volume = volume
-        self.playbin.set_property('volume', volume)
+        self._volume = float(volume) / 100
+        self.playbin.set_property('volume', self._volume)
 
     def volume(self):
         return self._volume
@@ -272,15 +255,10 @@ class TandaMasterPlayer(QObject):
                 self.position_changed.emit(int(position[1]/1000000))
         
     def seek(self, position): # position in ms
-        if self.cut_end() and self.duration is not None:
-            print('seekC',1.0, Gst.Format.TIME,Gst.SeekFlags.FLUSH|Gst.SeekFlags.ACCURATE,Gst.SeekType.SET, position * 1000000,Gst.SeekType.SET, self.duration-self.cut_end())
-            self.playbin.seek(
-                1.0, Gst.Format.TIME,
-                Gst.SeekFlags.FLUSH|Gst.SeekFlags.ACCURATE,
-                Gst.SeekType.SET, position * 1000000,
-                Gst.SeekType.SET, self.duration-self.cut_end()
-            )
-        else:
-            print('seekD',Gst.Format.TIME, Gst.SeekFlags.FLUSH, position * 1000000)
-            self.playbin.seek_simple(Gst.Format.TIME, Gst.SeekFlags.FLUSH|Gst.SeekFlags.ACCURATE, position * 1000000)
-        
+        self.playbin.seek(
+            1.0, Gst.Format.TIME,
+            Gst.SeekFlags.FLUSH|Gst.SeekFlags.ACCURATE,
+            Gst.SeekType.SET,
+            position * 1000000,
+            Gst.SeekType.SET if self.milonga_mode() and self.song_end else Gst.SeekType.NONE,
+            self.song_end if self.song_end else 0)

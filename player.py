@@ -143,6 +143,12 @@ class TandaMasterPlayer(QObject):
         state = self.playbin.get_state(100000000)
         if state[0] == Gst.StateChangeReturn.FAILURE:
             return
+        duration = self.playbin.query_duration(Gst.Format.TIME)
+        if duration[0]:
+            self.duration = duration[1]
+            self.duration_changed.emit(int(duration[1]/1000000))
+        else:
+            self.duration = 0
         if self.milonga_mode() and state[0] == Gst.StateChangeReturn.SUCCESS and state[1] == Gst.State.PAUSED and (self.song_begin or self.song_end):
             self.playbin.seek(
                 1.0, Gst.Format.TIME,

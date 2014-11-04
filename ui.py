@@ -274,7 +274,7 @@ class TandaMasterWindow(QMainWindow):
         volume_control.setMaximumWidth(100)
         volume_control.setMinimum(0)
         volume_control.setMaximum(100)
-        volume_control.setValue(self.player.volume())
+        volume_control.setValue(int(self.player.volume()*100))
         volume_control.valueChanged.connect(self.player.set_volume)
 
         toolbar = QToolBar('Play controls', self)

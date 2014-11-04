@@ -128,10 +128,11 @@ class TandaMasterPlayer(QObject):
         if not self.current_model.item(playtree_index).isPlayable:
             playtree_index = self.current_model.next_song(playtree_index)
         self.set_current(index = playtree_index)
-        self.playbin.set_state(Gst.State.READY)
+        print()
+        print('Setting state to READY', self.playbin.set_state(Gst.State.READY))
         print('setting uri to', self.current_item.filename)
         self.playbin.set_property('uri', QUrl.fromLocalFile(self.current_item.filename).toString())
-        self.playbin.set_state(Gst.State.PAUSED)
+        print('Setting state to PAUSED', self.playbin.set_state(Gst.State.PAUSED))
         try:
             self.song_begin = int(float(self.current_item.get_tag('tm:song_start')[0])*1000000000)
         except:
@@ -140,22 +141,26 @@ class TandaMasterPlayer(QObject):
             self.song_end = int(float(self.current_item.get_tag('tm:song_end')[0])*1000000000)
         except:
             self.song_end = None
-        state = self.playbin.get_state(100000000)
-        if state[0] == Gst.StateChangeReturn.FAILURE:
-            return
+        while (True):
+            state = self.playbin.get_state(100000000)
+            print('Getting state:', state)
+            if state[0] == Gst.StateChangeReturn.FAILURE:
+                return
+            if state[0] == Gst.StateChangeReturn.SUCCESS:
+                break
         duration = self.playbin.query_duration(Gst.Format.TIME)
         if duration[0]:
             self.duration = duration[1]
             self.duration_changed.emit(int(duration[1]/1000000))
         else:
             self.duration = 0
-        if self.milonga_mode() and state[0] == Gst.StateChangeReturn.SUCCESS and state[1] == Gst.State.PAUSED and (self.song_begin or self.song_end):
+        if self.milonga_mode() and (self.song_begin or self.song_end):
             self.playbin.seek(
                 1.0, Gst.Format.TIME,
                 Gst.SeekFlags.FLUSH|Gst.SeekFlags.ACCURATE,
                 Gst.SeekType.SET, self.song_begin if self.song_begin else 0,
                 Gst.SeekType.SET if self.song_end else Gst.SeekType.NONE,
-                1000000000000 # self.song_end if self.song_end else 0
+                self.song_end if self.song_end else 0
             )
         self.playbin.set_state(Gst.State.PLAYING)
         self.current_media_changed.emit()

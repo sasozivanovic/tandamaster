@@ -98,6 +98,11 @@ def mp4_performer_list(tags, key):
     
 mutagen.easymp4.EasyMP4.RegisterKey('performer:*', getter = mp4_performer_get, setter = mp4_performer_set, deleter = mp4_performer_delete, lister = mp4_performer_list)
 
+mutagen.easyid3.EasyID3.RegisterTXXXKey('tm:song_start', "tm:song_start")
+mutagen.easyid3.EasyID3.RegisterTXXXKey('tm:song_end', "tm:song_end")
+mutagen.easymp4.EasyMP4Tags.RegisterFreeformKey('tm:song_start', "tm:song_start")
+mutagen.easymp4.EasyMP4Tags.RegisterFreeformKey('tm:song_end', "tm:song_end")
+
 def _strip(tags):
     """Pulls single list items out of lists."""
     return collections.defaultdict(lambda: '', ((t,v[0] if isinstance(v,list) and len(v)==1 else v) for t,v in tags.items()))
@@ -163,6 +168,7 @@ class Library(QObject):
         self.n_in_transaction = 0
         self.refresh_next.connect(self.refresh_one_song, type = Qt.QueuedConnection)
         self.refresh_next.emit()
+        # todo: commit if app exists
     def refresh_one_song(self):
         if not self.dir_iterator or not self.dir_iterator.hasNext():
             if not self.queue:

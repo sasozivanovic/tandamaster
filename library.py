@@ -196,12 +196,6 @@ class Library(QObject):
         if not (fileinfo.exists() and fileinfo.isReadable()):
             warn("Cannot read {}".format(filename), RuntimeWarning)
             audiofile = None
-        else:
-            try:
-                audiofile = mutagen.File(filename, easy = True)
-            except:
-                warn("Cannot read {}. Probably not an audio file".format(filename), RuntimeWarning)
-                audiofile = None
         cursor = self.connection.cursor()
         cursor.execute(
             'SELECT song_id,mtime,filesize FROM files WHERE filename=?',
@@ -231,6 +225,11 @@ class Library(QObject):
                 (filename, fileinfo.lastModified().toTime_t(), fileinfo.size())
             )
             song_id = cursor.lastrowid
+        try:
+            audiofile = mutagen.File(filename, easy = True)
+        except:
+            warn("Cannot read {}. Probably not an audio file".format(filename), RuntimeWarning)
+            audiofile = None
         filedir = fileinfo.absolutePath()
         if library_name is not None:
             for d in config.library_folders[library_name]:

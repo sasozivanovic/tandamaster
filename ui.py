@@ -264,24 +264,16 @@ class TandaMasterWindow(QMainWindow):
         self.setMenuBar(menubar)
 
         toolbar = QToolBar('ProgressBar', self)
-        pb = TMProgressBar(self.player)
+        pb = TMPositionProgressBar(self.player)
         toolbar.addWidget(pb)
         self.addToolBar(Qt.BottomToolBarArea, toolbar)
 
         self.addToolBarBreak(Qt.BottomToolBarArea)
 
-        volume_control = QSlider(Qt.Horizontal)
-        volume_control.setMaximumWidth(100)
-        volume_control.setMinimum(0)
-        volume_control.setMaximum(100)
-        volume_control.setValue(int(self.player.volume()*100))
-        volume_control.valueChanged.connect(self.player.set_volume)
-
         toolbar = QToolBar('Play controls', self)
         toolbar.setAllowedAreas(Qt.TopToolBarArea | Qt.BottomToolBarArea)
         toolbar.setFloatable(False)
         #toolbar.setIconSize(2*toolbar.iconSize())
-        toolbar.addWidget(volume_control)
         toolbar.addAction(self.action_back)
         toolbar.addAction(self.action_play)
         toolbar.addAction(self.action_pause)
@@ -298,6 +290,8 @@ class TandaMasterWindow(QMainWindow):
         self.song_info.setContentsMargins(8,0,0,0)
         toolbar.addWidget(QWidget())
         toolbar.addWidget(self.song_info)
+        toolbar.addWidget(TMVolumeControl(Qt.Horizontal, self.player))
+        toolbar.addWidget(TMGapAndFadeoutProgressBar(self.player))
         self.addToolBar(Qt.BottomToolBarArea, toolbar)
         
         toolbar = QToolBar('Edit', self)
@@ -326,7 +320,7 @@ class TandaMasterWindow(QMainWindow):
         self.player.current_media_changed.connect(self.update_song_info)
         self.player.current_media_changed.connect(lambda: self.lock_action_forward())
         self.player.state_changed.connect(self.on_player_state_changed)
-        self.on_player_state_changed(QMediaPlayer.StoppedState)
+        self.on_player_state_changed(TandaMasterPlayer.STOPPED)
         QApplication.clipboard().changed.connect(self.on_clipboard_data_changed)
 
         self.autosave_timer = QTimer(self)
@@ -350,14 +344,14 @@ class TandaMasterWindow(QMainWindow):
             self.song_info.setText("")
 
     def on_player_state_changed(self, state):
-        if state == TandaMasterPlayer.PLAYING:
+        if state in (TandaMasterPlayer.PLAYING, TandaMasterPlayer.PLAYING_FADEOUT, TandaMasterPlayer.PLAYING_GAP):
             self.action_play.setVisible(False)
             self.action_pause.setVisible(True)
             self.action_stop.setEnabled(not self.action_lock.isChecked())
         else:
             self.action_play.setVisible(True)
             self.action_pause.setVisible(False)
-            self.action_stop.setEnabled(state != QMediaPlayer.StoppedState and not self.action_lock.isChecked())
+            self.action_stop.setEnabled(state != TandaMasterPlayer.STOPPED and not self.action_lock.isChecked())
                 
     def update_library(self):
         thread = QThread(self)
@@ -1364,47 +1358,47 @@ class TMItemDelegate(QStyledItemDelegate):
         return editor
 
 
-class TMProgressBar(QProgressBar):
-    def __init__(self, player, parent = None):
+class TMPositionProgressBar(QProgressBar):
+    def __init__(self, player, interactive = True, parent = None):
         super().__init__(parent)
         self.setMinimum(0)
-        self.setValue(-1)
+        self.setValue(0)
         self.player = player
         player.duration_changed.connect(self.on_duration_changed)
         player.position_changed.connect(self.on_position_changed)
         player.state_changed.connect(self.on_state_changed)
-        self.hours, self.minutes, self.seconds, self.milliseconds = 0,0,0,0
-        self.on_state_changed(QMediaPlayer.StoppedState)
+        self.on_state_changed(TandaMasterPlayer.STOPPED)
         self.update()
 
-        self.in_seek = False
-        self.setMouseTracking(True)
-        self.installEventFilter(TMProgressBar_Interaction(self))
+        if interactive:
+            self.in_seek = False
+            self.setMouseTracking(True)
+            self.installEventFilter(TMPositionProgressBar_Interaction(self))
 
     def on_duration_changed(self, duration):
-        self.setMaximum(duration)
+        self.setMaximum(int(duration/Gst.MSECOND))
         self.update()
         
     def on_position_changed(self, position):
-        self.setValue(position)
-        self.hours, self.minutes, self.seconds, self.milliseconds = ms_to_hmsms(position)
+        self.setValue(int(position/Gst.MSECOND))
         self.update()
 
     def text(self):
-        return hmsms_to_text(self.hours, self.minutes, self.seconds, self.milliseconds,
-                             include_ms = self.player.state == QMediaPlayer.PausedState)
+        return time_to_text(
+            self.value(), unit = 'ms',
+            include_ms = self.player.state == TandaMasterPlayer.PAUSED)
         
     def on_state_changed(self, state):
         self.player_state = state
-        self.setTextVisible(state != QMediaPlayer.StoppedState)
+        self.setTextVisible(state != TandaMasterPlayer.STOPPED)
         self.update()
-
-class TMProgressBar_Interaction(QObject):
+   
+class TMPositionProgressBar_Interaction(QObject):
     def eventFilter(self, obj, event):
         if event.type() == QEvent.MouseMove:   
             if obj.in_seek:
-                obj.player.seek(obj.maximum() * event.x() / obj.width())
-            if obj.player_state != QMediaPlayer.StoppedState:
+                obj.player.seek(obj.maximum() * Gst.MSECOND * event.x() / obj.width())
+            if obj.player_state != TandaMasterPlayer.STOPPED:
                 QToolTip.showText(event.globalPos(),
                                   hmsms_to_text(*ms_to_hmsms(int(
                                       obj.maximum() * event.x() / obj.width())),
@@ -1414,13 +1408,76 @@ class TMProgressBar_Interaction(QObject):
             if obj.window().action_lock.isChecked():
                 return False
             obj.in_seek = True
-            obj.player.seek(obj.maximum() * event.x() / obj.width())
+            obj.player.seek(obj.maximum() * Gst.MSECOND * event.x() / obj.width())
         elif event.type() == QEvent.MouseButtonRelease and event.button() == Qt.LeftButton:
             if obj.window().action_lock.isChecked():
                 return False
             obj.in_seek = False
         return False
 
+class TMGapAndFadeoutProgressBar(QProgressBar):
+    def __init__(self, player, parent = None):
+        super().__init__(parent)
+        self.maxWidth(100)
+        self.player = player
+        player.state_changed.connect(self.on_state_changed)
+        player.gap_position_changed.connect(self.on_gap_changed)
+        player.fadeout_volume_changed.connect(self.on_fadeout_volume_changed)
+        self.on_state_changed(TandaMasterPlayer.STOPPED)
+        self.update()
+
+    def on_state_changed(self, state):
+        if state == TandaMasterPlayer.PLAYING_FADEOUT:
+            self.setMinimum(0)
+            self.setMaximum(1000)
+            self.setValue(1000)
+            self.setEnabled(True)
+        elif state == TandaMasterPlayer.PLAYING_GAP:        
+            self.setMinimum(0)
+            self.setMaximum(int(config.gap/Gst.MSECOND))
+            print('show gap', self.maximum())
+            self.setValue(0)
+            self.setEnabled(True)
+        else:
+            self.setMinimum(0)
+            self.setMaximum(100)
+            self.setValue(-1)
+            self.setEnabled(False)
+        self.update()
+
+    def on_gap_changed(self, position):
+        self.setValue(int(position/Gst.MSECOND))
+        print('in gap', position, ' -- ', self.minimum(), self.value(), self.maximum())
+        self.update()
+
+    def on_fadeout_volume_changed(self, volume):
+        self.setValue(int(volume * 1000))
+        self.update()
+
+    def text(self):
+        return time_to_text(self.value(), unit = 'ms')
+        
+class TMVolumeControl(QSlider):
+    def __init__(self, orientation, player, parent = None):
+        super().__init__(orientation, parent)
+        #self.setMaximumWidth(100)
+        self.player = player
+        self.setMinimum(0)
+        self.setMaximum(1000)
+        self._changing_value = False
+        self.on_volume_changed(self.player.volume)
+        self.player.volume_changed.connect(self.on_volume_changed)
+        self.valueChanged.connect(self.on_value_changed)
+
+    def on_volume_changed(self, volume):
+        if not self._changing_value:
+            self.setValue(int(volume*1000))
+
+    def on_value_changed(self, value):
+        self._changing_value = True        
+        self.player.volume = value / 1000
+        self._changing_value = False
+        
 class GetFilesFromAlja(QRunnable):
     def __init__(self, selected_indexes):
         super().__init__()

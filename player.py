@@ -5,52 +5,50 @@ GObject.threads_init()
 Gst.init(None)
 
 from model import PlayTreeModel, PlayTreeItem
+import config
+
 from IPython import embed
 
 class TandaMasterPlayer(QObject):
-
-    STOPPED, PAUSED, PLAYING = range(3)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._current_model = None
         self._current_item = None
         self.stop_after = 0
-        self._playback_start = None
         self.fadeout_timer = None
+        self.gap_timer = None
         self.state = self.STOPPED
         self.song_begin = None
         self.song_end = None
+        self._volume = 1.0
         
         self.playbin = Gst.ElementFactory.make("playbin", None)
         fakesink = Gst.ElementFactory.make("fakesink", None)
         self.playbin.set_property("video-sink", fakesink)
 
-        if True:
-            rglimiter = Gst.ElementFactory.make("rglimiter", None)
-            rgvolume = Gst.ElementFactory.make("rgvolume", None)
-            autoaudiosink = Gst.ElementFactory.make("autoaudiosink", None)
-            bin = Gst.Bin.new("audio_sink_bin")
-            bin.add(rglimiter)
-            bin.add(rgvolume)
-            bin.add(autoaudiosink)
-            rglimiter.link(rgvolume)
-            rgvolume.link(autoaudiosink)
-            ghost_pad = Gst.GhostPad.new('sink', rglimiter.get_static_pad('sink'))
-            ghost_pad.set_active(True)
-            bin.add_pad(ghost_pad)
-            self.playbin.set_property("audio-sink", bin)
+        rglimiter = Gst.ElementFactory.make("rglimiter", None)
+        rgvolume = Gst.ElementFactory.make("rgvolume", None)
+        autoaudiosink = Gst.ElementFactory.make("autoaudiosink", None)
+        bin = Gst.Bin.new("audio_sink_bin")
+        bin.add(rglimiter)
+        bin.add(rgvolume)
+        bin.add(autoaudiosink)
+        rglimiter.link(rgvolume)
+        rgvolume.link(autoaudiosink)
+        ghost_pad = Gst.GhostPad.new('sink', rglimiter.get_static_pad('sink'))
+        ghost_pad.set_active(True)
+        bin.add_pad(ghost_pad)
+        self.playbin.set_property("audio-sink", bin)
 
         bus = self.playbin.get_bus()
         bus.add_signal_watch()
         bus.connect("message", self.on_message)
 
-        self._volume = 1.0
-
         self.position_timer = QTimer()
         self.position_timer.setTimerType(Qt.CoarseTimer)
         self.position_timer.timeout.connect(self.on_position_timer)
-        self.position_timer.start(200)
+        self.position_timer.start(100)
 
         self.signal_play_next.connect(self.play_next, type = Qt.QueuedConnection)
 
@@ -103,76 +101,37 @@ class TandaMasterPlayer(QObject):
             if not silent:
                 self.current_changed.emit(old_model, old_index, model, index)
 
-    def milonga_mode(self):
-        return self.current_model.view.window().action_milonga_mode.isChecked()
-    def gap(self):
-        #return max(0, self._gap_ns - self.duration + (self.song_end if self.song_end is not None else self.duration))
-        return self._gap_ns
-        
+    STOPPED, PAUSED, PLAYING, PLAYING_FADEOUT, PLAYING_GAP = range(5)
+    state_changed = pyqtSignal(int)
+    def set_state(self, state):
+        if self.state != state:
+            self.state = state
+            self.state_changed.emit(state)
+            if state == self.PAUSED:
+                position = self.playbin.query_position(Gst.Format.TIME)
+                if position[0]:
+                    self.position_changed.emit(position[1])
+            elif state == self.STOPPED:
+                self.position_changed.emit(0)
+            
     def play(self):
         if not self.current_item.isPlayable:
             self.play_index(self.current_model.next_song(self.current_index))
         else:
             self.playbin.set_state(Gst.State.PLAYING)
-            #self.setNotifyInterval(100)
 
-    def play_index(self, playtree_index):
-        if self.current_model and self.current_item and self.milonga_mode() and self.current_item.function() == 'cortina':
-            self._fadeout(self._play_index, playtree_index)
-        else:
-            self._play_index(playtree_index)
-
-    def _play_index(self, playtree_index):
-        if not playtree_index.model() == self.current_model:
-            self.set_current(model = playtree_index.model())
-        if not self.current_model.item(playtree_index).isPlayable:
-            playtree_index = self.current_model.next_song(playtree_index)
-        self.set_current(index = playtree_index)
-        print()
-        print('Setting state to READY', self.playbin.set_state(Gst.State.READY))
-        print('setting uri to', self.current_item.filename)
-        self.playbin.set_property('uri', QUrl.fromLocalFile(self.current_item.filename).toString())
-        print('Setting state to PAUSED', self.playbin.set_state(Gst.State.PAUSED))
-        try:
-            self.song_begin = int(float(self.current_item.get_tag('tm:song_start')[0])*1000000000)
-        except:
-            self.song_begin = None
-        try:
-            self.song_end = int(float(self.current_item.get_tag('tm:song_end')[0])*1000000000)
-        except:
-            self.song_end = None
-        while (True):
-            state = self.playbin.get_state(100000000)
-            print('Getting state:', state)
-            if state[0] == Gst.StateChangeReturn.FAILURE:
-                return
-            if state[0] == Gst.StateChangeReturn.SUCCESS:
-                break
-        duration = self.playbin.query_duration(Gst.Format.TIME)
-        if duration[0]:
-            self.duration = duration[1]
-            self.duration_changed.emit(int(duration[1]/1000000))
-        else:
-            self.duration = 0
-        if self.milonga_mode() and (self.song_begin or self.song_end):
-            self.playbin.seek(
-                1.0, Gst.Format.TIME,
-                Gst.SeekFlags.FLUSH|Gst.SeekFlags.ACCURATE,
-                Gst.SeekType.SET, self.song_begin if self.song_begin else 0,
-                Gst.SeekType.SET if self.song_end else Gst.SeekType.NONE,
-                self.song_end if self.song_end else 0
-            )
-        self.playbin.set_state(Gst.State.PLAYING)
-        self.current_media_changed.emit()
-    current_media_changed = pyqtSignal()
+    def play_previous(self):
+        n = self.current_model.previous_song(self.current_index)
+        if n.isValid():
+            self.play_index(n)
 
     signal_play_next = pyqtSignal()
     def play_next(self):
         if self.current_model and self.current_item and self.milonga_mode():
             if self.current_item.function() == 'cortina':
-                self._fadeout(self._play_next)
+                self.fadeout(self._play_next)
             else:
-                self._gap(self._play_next)
+                self.gap(self._play_next)
         else:
             self._play_next()    
 
@@ -191,85 +150,164 @@ class TandaMasterPlayer(QObject):
     def set_stop_after(self, i):
         self.stop_after = i
 
-    _gap_ns = 3  *1000000000
-
-    fadeout_step = 0.05
-    fadeout_timeout = 200
-
-    def _fadeout(self, method, *args, **kwargs):
-        if not self.fadeout_timer:
-            self.fadeout_timer = QTimer()
-            self.fadeout_timer.setTimerType(Qt.PreciseTimer)
-            self.fadeout_timer.timeout.connect(lambda: self._fadeout(method, *args, **kwargs))
-            self.fadeout_timer.start(self.fadeout_timeout)
-        else:
-            if self.playbin.get_property('volume') == 0:
-                self.fadeout_timer.stop()
-                self.fadeout_timer = None
-                self.playbin.set_state(Gst.State.PAUSED)
-                self.playbin.set_property('volume', self._volume)
-                self._gap(method, *args, **kwargs)
-            else:
-                self.playbin.set_property('volume', max(0,self.playbin.get_property('volume')-self.fadeout_step))
-
-    def _gap(self, method,  *args, **kwargs):
-        if self.gap():
-            print("Doing a gap of", self.gap())
-            QTimer.singleShot(int(float(self.gap())/1000000), Qt.PreciseTimer, lambda: method(*args, **kwargs))
-        else:
-            method(*args, **kwargs)
-
-    def play_previous(self):
-        n = self.current_model.previous_song(self.current_index)
-        if n.isValid():
-            self.play_index(n)
-
     def stop(self):
         self.playbin.set_state(Gst.State.READY)
+        self.set_state(self.STOPPED)
         self.set_current(item = None)
-
-    def on_message(self, bus, message):
-        t = message.type
-        if t == Gst.MessageType.EOS:
-            print('EOS at ', self.playbin.query_position(Gst.Format.TIME)[1])
-            self.signal_play_next.emit()
-        if t == Gst.MessageType.DURATION_CHANGED:
-            duration = self.playbin.query_duration(Gst.Format.TIME)
-            self.duration = duration[1] if duration[0] else None
-            if duration[0]:
-                   self.duration_changed.emit(int(duration[1]/1000000))
-        if t == Gst.MessageType.STATE_CHANGED:
-            gst_state = self.playbin.get_state(0)[1]
-            state = self.PLAYING if gst_state == Gst.State.PLAYING else (self.PAUSED if gst_state == Gst.State.PAUSED else self.STOPPED)
-            self.state_changed.emit(state)
-            if gst_state == Gst.State.PAUSED:
-                self.on_position_timer(force = True)
-    duration_changed = pyqtSignal(int)
-    position_changed = pyqtSignal(int)
-    state_changed = pyqtSignal(int)
-
-
-    def set_volume(self, volume):
-        self._volume = float(volume) / 100
-        self.playbin.set_property('volume', self._volume)
-
-    def volume(self):
-        return self._volume
 
     def pause(self):
         self.playbin.set_state(Gst.State.PAUSED)
+        self.set_state(self.PAUSED)
 
-    def on_position_timer(self, force = True):
-        if force or self.playbin.get_state(0)[1] == Gst.State.PLAYING:
-            position = self.playbin.query_position(Gst.Format.TIME)
-            if position[0]:
-                self.position_changed.emit(int(position[1]/1000000))
-        
-    def seek(self, position): # position in ms
+    def seek(self, position):
         self.playbin.seek(
             1.0, Gst.Format.TIME,
-            Gst.SeekFlags.FLUSH|Gst.SeekFlags.ACCURATE,
-            Gst.SeekType.SET,
-            position * 1000000,
-            Gst.SeekType.SET if self.milonga_mode() and self.song_end else Gst.SeekType.NONE,
-            self.song_end if self.song_end else 0)
+            Gst.SeekFlags.FLUSH | Gst.SeekFlags.ACCURATE,
+            Gst.SeekType.SET, position,
+            Gst.SeekType.NONE, 0)
+
+    volume_changed = pyqtSignal(float)
+    @property
+    def volume(self):
+        return self._volume
+    @volume.setter
+    def volume(self, volume):
+        self._volume = volume
+        self.playbin.set_property('volume', volume)
+        self.volume_changed.emit(volume)
+
+    def milonga_mode(self):
+        return self.current_model.view.window().action_milonga_mode.isChecked()
+
+    def play_index(self, playtree_index):
+        if self.current_model and self.current_item and self.milonga_mode() and self.current_item.function() == 'cortina':
+            self.fadeout(self._play_index, playtree_index)
+        else:
+            self._play_index(playtree_index)
+
+    def _play_index(self, playtree_index):
+        if not playtree_index.model() == self.current_model:
+            self.set_current(model = playtree_index.model())
+        if not self.current_model.item(playtree_index).isPlayable:
+            playtree_index = self.current_model.next_song(playtree_index)
+        self.set_current(index = playtree_index)
+        self.playbin.set_state(Gst.State.READY)
+        self.playbin.set_property('uri', QUrl.fromLocalFile(self.current_item.filename).toString())
+        self.playbin.set_property('volume', self.volume)
+        try:
+            self.song_begin = int(float(self.current_item.get_tag('tm:song_start')[0])*Gst.SECOND)
+        except:
+            self.song_begin = None
+        try:
+            self.song_end = int(float(self.current_item.get_tag('tm:song_end')[0])*Gst.SECOND)
+        except:
+            self.song_end = None
+        if self.milonga_mode() and self.song_begin:
+            self.playbin.seek(
+                1.0, Gst.Format.TIME,
+                Gst.SeekFlags.FLUSH | Gst.SeekFlags.ACCURATE,
+                Gst.SeekType.SET, self.song_begin if self.song_begin else 0,
+                Gst.SeekType.NONE, 0
+            )
+        self.playbin.set_state(Gst.State.PLAYING)
+        self.set_state(self.PLAYING)
+        self.current_media_changed.emit()
+        
+    current_media_changed = pyqtSignal()
+
+    fadeout_volume_changed = pyqtSignal(float)
+    def fadeout(self, method, *args, **kwargs):
+        if not self.fadeout_timer:
+            self.fadeout_timer = QTimer()
+            self.fadeout_step = 0
+            self.fadeout_timer.setTimerType(Qt.PreciseTimer)
+            self.fadeout_timer.timeout.connect(lambda: self.fadeout(method, *args, **kwargs))
+            self.fadeout_timer.start(config.fadeout_timeout)
+            self.set_state(self.PLAYING_FADEOUT)
+        else:
+            self.fadeout_step += 1
+            fadeout_volume = self._volume * (1 - self.fadeout_step * config.fadeout_timeout * Gst.MSECOND / config.fadeout_time)
+            if fadeout_volume > 0:
+                self.playbin.set_property('volume', fadeout_volume)
+                self.fadeout_volume_changed.emit(fadeout_volume)
+            else:
+                self.fadeout_timer.stop()
+                self.fadeout_timer = None
+                self.playbin.set_state(Gst.State.PAUSED)
+                self.playbin.set_property('volume', self.volume)
+                self.gap(method, *args, **kwargs)
+
+    gap_position_changed = pyqtSignal(float)
+    def gap(self, method,  *args, **kwargs):
+        position = self.playbin.query_position(Gst.Format.TIME)
+        if position[0]:
+            song_end = self.song_end if self.song_end is not None else position[1]
+            gap = max(0, config.gap - (position[1] - song_end))
+            if gap:
+                self.set_state(self.PLAYING_GAP)
+                self.gap_timer = QTimer()
+                self.gap_timer.setSingleShot(True)
+                self.gap_timer.setInterval(int(gap/Gst.MSECOND))
+                self.gap_timer.setTimerType(Qt.PreciseTimer)
+                self.gap_timer.timeout.connect(lambda: self._gap_do_method(method, *args, **kwargs))
+                self.gap_timer.start()
+            else:
+                method(*args, **kwargs)
+        else:
+            method(*args, **kwargs)
+    def _gap_do_method(self, method, *args, **kwargs):
+        self.gap_timer = None
+        method(*args, **kwargs)
+            
+    def on_message(self, bus, message):
+        try:
+            self.message_handlers[message.type](self, bus, message)
+        except KeyError:
+            pass
+    def on_eos(self, bus, message):
+        self.signal_play_next.emit()
+    def on_duration_changed(self, bus, message):
+        duration = self.playbin.query_duration(Gst.Format.TIME)
+        self.duration = duration[1] if duration[0] else None
+        if duration[0]:
+            self.duration_changed.emit(duration[1])
+    def on_state_changed(self, bus, message):
+        previous, current, pending = message.parse_state_changed()
+        state = self.PLAYING if current == Gst.State.PLAYING else \
+                (self.PAUSED if current == Gst.State.PAUSED else self.STOPPED)
+        if not(self.state in (self.PLAYING_FADEOUT, self.PLAYING_GAP) and
+               state != self.STOPPED):
+            self.set_state(state)
+    message_handlers = {
+        Gst.MessageType.EOS: on_eos,
+        Gst.MessageType.DURATION_CHANGED: on_duration_changed,
+        Gst.MessageType.STATE_CHANGED: on_state_changed,
+    }
+
+    duration_changed = pyqtSignal('ulong')
+    position_changed = pyqtSignal('ulong')
+
+    # todo: optimize!
+    def on_position_timer(self):
+        if self.state == self.PLAYING:
+            position = self.playbin.query_position(Gst.Format.TIME)
+            if position[0]:
+                if self.song_end is not None and self.milonga_mode():
+                    if position[1] > self.song_end + config.gap:
+                        self.playbin.set_state(Gst.State.PAUSED)
+                        self.signal_play_next.emit()
+                    elif position[1] > self.song_end:
+                        self.set_state(self.PLAYING_GAP)
+                        self.gap_position_changed.emit(position[1] - self.song_end)
+                self.position_changed.emit(position[1])
+        elif self.state == self.PLAYING_GAP:
+            position = self.playbin.query_position(Gst.Format.TIME)
+            if self.gap_timer is not None:
+                self.gap_position_changed.emit(
+                    (position[1] - self.song_end if self.song_end is not None else 0) + 
+                    (self.gap_timer.interval() -
+                     self.gap_timer.remainingTime())*Gst.MSECOND)
+            else:
+                if position[0] and self.song_end is not None and self.milonga_mode() and position[1] > self.song_end:
+                    self.gap_position_changed.emit(position[1] > self.song_end)
+        

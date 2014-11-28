@@ -51,10 +51,10 @@ def hmsms_to_text(h,m,s,ms,include_ms=True):
     h,m,s,ms = int(h),int(m),int(s),int(ms)
     return (str(h) + ":" if h else '') + \
         ('{:02d}:{:02d}' if h else '{}:{:02d}').format(m, s) + \
-        (':' + str(ms) if include_ms else '')
+        ('.' + str(ms) if include_ms else '')
 
 
-time_unit_factors = { 's': 1000, 'ms': 1 }
+time_unit_factors = { 's': 1000, 'ms': 1, 'ns': 0.000001 }
 def time_to_text(t, include_ms = False, unit = 's', fail_text = '?'):
     if t is None:
         return fail_text

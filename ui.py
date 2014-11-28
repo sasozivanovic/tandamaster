@@ -2,7 +2,7 @@ from PyQt5.QtCore import pyqtRemoveInputHook; from IPython import embed; pyqtRem
 
 from PyQt5.Qt import *   # todo: import only what you need
 
-from player import TandaMasterPlayer
+from player import TMPlayer, PlayOrder
 from model import *
 from library import Library
 from util import *
@@ -22,8 +22,8 @@ class TandaMasterWindow(QMainWindow):
         self.setWindowTitle('TandaMaster')        
         self.setWindowIcon(QIcon('icons/iconarchive/icons8/tandamaster-Sports-Dancing-icon.png'))
 
-        self.player = TandaMasterPlayer()
-        #self.player2 = TandaMasterPlayer() # pre-listening
+        self.player = TMPlayer()
+        #self.player2 = TMPlayer() # pre-listening
 
         try:
             self.ui_xml = etree.parse('ui.xml')
@@ -72,7 +72,7 @@ class TandaMasterWindow(QMainWindow):
             #MyIcon('Tango', 'actions', 'media-skip-backward'),
             QIcon('button_rewind_green.png'),
             #QIcon('icons/iconfinder/32pxmania/previous.png'),
-            self.tr('P&revious'), self, triggered = self.player.play_previous)
+            self.tr('P&revious'), self, triggered = self.player.previous)
         self.playbackmenu.addAction(self.action_back)        
         self.action_play = QAction(
             #self.style().standardIcon(QStyle.SP_MediaPlay), 
@@ -105,7 +105,7 @@ class TandaMasterWindow(QMainWindow):
             #MyIcon('Tango', 'actions', 'media-skip-forward'),
             QIcon('button_fastforward_green.png'),
             #QIcon('icons/iconfinder/32pxmania/next.png'),
-            self.tr('&Next'), self, triggered = self.player.play_next,
+            self.tr('&Next'), self, triggered = self.player.next,
             shortcut = QKeySequence('ctrl+n'),
         )
         self.playbackmenu.addAction(self.action_forward)
@@ -115,11 +115,11 @@ class TandaMasterWindow(QMainWindow):
             self.tr('Un&locked'), self, toggled = self.lock)
         self.action_lock.setCheckable(True)
         self.playbackmenu.addAction(self.action_lock)
-        self.action_milonga_mode = QAction(
-            QIcon('icons/iconarchive/icons8/tandamaster-Sports-Dancing-icon.png'),
-            self.tr('&Milonga mode'), self)
-        self.action_milonga_mode.setCheckable(True)
-        self.playbackmenu.addAction(self.action_milonga_mode)
+        #self.action_milonga_mode = QAction(
+        #    QIcon('icons/iconarchive/icons8/tandamaster-Sports-Dancing-icon.png'),
+        #    self.tr('&Milonga mode'), self)
+        #self.action_milonga_mode.setCheckable(True)
+        #self.playbackmenu.addAction(self.action_milonga_mode)
         self.playbackmenu.addSeparator()
         self.action_mark_start_cut = QAction(
             self.tr('Mark start cut'), self, triggered = self.mark_start_cut,
@@ -281,10 +281,10 @@ class TandaMasterWindow(QMainWindow):
         toolbar.addAction(self.action_forward)
         toolbar.addSeparator()
         toolbar.addAction(self.action_lock)
-        toolbar.addAction(self.action_milonga_mode)
+        #toolbar.addAction(self.action_milonga_mode)
         self.stopafter_spinbox = QSpinBox()
         self.stopafter_spinbox.setMinimum(0)
-        self.stopafter_spinbox.valueChanged.connect(self.player.set_stop_after)
+        self.stopafter_spinbox.valueChanged.connect(self.player.play_order.set_stop_after)
         toolbar.addWidget(self.stopafter_spinbox)
         self.song_info = QLabel()
         self.song_info.setContentsMargins(8,0,0,0)
@@ -292,6 +292,14 @@ class TandaMasterWindow(QMainWindow):
         toolbar.addWidget(self.song_info)
         toolbar.addWidget(TMVolumeControl(Qt.Horizontal, self.player))
         toolbar.addWidget(TMGapAndFadeoutProgressBar(self.player))
+        playorders = QComboBox()
+        for name, cls in PlayOrder.play_orders:
+            playorders.addItem(name, cls)
+        playorders.setCurrentIndex(0)
+        def set_play_order(index):
+            self.player.set_play_order(playorders.currentData()())
+        playorders.currentIndexChanged.connect(set_play_order)
+        toolbar.addWidget(playorders)
         self.addToolBar(Qt.BottomToolBarArea, toolbar)
         
         toolbar = QToolBar('Edit', self)
@@ -317,10 +325,10 @@ class TandaMasterWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
         app.info.connect(self.status_bar_message)
 
-        self.player.current_media_changed.connect(self.update_song_info)
-        self.player.current_media_changed.connect(lambda: self.lock_action_forward())
+        self.player.play_order.current_changed.connect(self.update_song_info)
+        self.player.play_order.current_changed.connect(lambda: self.lock_action_forward())
         self.player.state_changed.connect(self.on_player_state_changed)
-        self.on_player_state_changed(TandaMasterPlayer.STOPPED)
+        self.on_player_state_changed(TMPlayer.STOPPED)
         QApplication.clipboard().changed.connect(self.on_clipboard_data_changed)
 
         self.autosave_timer = QTimer(self)
@@ -332,7 +340,7 @@ class TandaMasterWindow(QMainWindow):
 
     song_info_formatter = PartialFormatter()
     def update_song_info(self):
-        item = self.player.current_item
+        item = self.player.play_order.current_item
         if item:
             tags = item.get_tags(only_first = True)
             self.setWindowTitle(self.song_info_formatter.format(
@@ -344,14 +352,14 @@ class TandaMasterWindow(QMainWindow):
             self.song_info.setText("")
 
     def on_player_state_changed(self, state):
-        if state in (TandaMasterPlayer.PLAYING, TandaMasterPlayer.PLAYING_FADEOUT, TandaMasterPlayer.PLAYING_GAP):
+        if state in (TMPlayer.PLAYING, TMPlayer.PLAYING_FADEOUT, TMPlayer.PLAYING_GAP):
             self.action_play.setVisible(False)
             self.action_pause.setVisible(True)
             self.action_stop.setEnabled(not self.action_lock.isChecked())
         else:
             self.action_play.setVisible(True)
             self.action_pause.setVisible(False)
-            self.action_stop.setEnabled(state != TandaMasterPlayer.STOPPED and not self.action_lock.isChecked())
+            self.action_stop.setEnabled(state != TMPlayer.STOPPED and not self.action_lock.isChecked())
                 
     def update_library(self):
         thread = QThread(self)
@@ -481,17 +489,21 @@ class TandaMasterWindow(QMainWindow):
     def lock_action_forward(self, locked = None):
         if locked is None:
             locked = self.action_lock.isChecked()
-        self.action_forward.setEnabled(not locked or self.player.current_item.function() == 'cortina')
+        self.action_forward.setEnabled(not locked or self.player.play_order.current_item.function() == 'cortina')
 
     def mark_start_cut(self):
         position = self.player.playbin.query_position(Gst.Format.TIME)
         if position[0]:
-            self.player.current_item.set_tag('tm:song_start', [float(position[1])/1000000000])
+            self.player.play_order.current_item.set_tag(
+                'tm:song_start',
+                [float(position[1])/Gst.SECOND])
 
     def mark_end_cut(self):
         position = self.player.playbin.query_position(Gst.Format.TIME)
         if position[0]:
-            self.player.current_item.set_tag('tm:song_end', [float(position[1])/1000000000])
+            self.player.play_order.current_item.set_tag(
+                'tm:song_end',
+                [float(position[1])/Gst.SECOND])
         
     def adhoc(self):
         ptv = app.focusWidget()
@@ -659,7 +671,7 @@ class TabbedPlayTreesWidget(QTabWidget, TMWidget):
         self.tabBarDoubleClicked.connect(lambda: self.add_tab())
         self.tabCloseRequested.connect(self.removeTab)
         self.setAcceptDrops(True)
-        window.player.current_changed.connect(self.on_current_changed)
+        window.player.play_order.current_changed.connect(self.on_current_changed)
         
     def add_tab(self, widget = None, root_item = None):
         self.insert_tab(-1, widget = widget, root_item = root_item)
@@ -719,7 +731,7 @@ class PlayTreeWidget(QWidget, TMWidget):
                 if width is not None:
                     ptw.ptv.setColumnWidth(i, int(width))
         if element.get('current'):
-            window.player.set_current(model = ptw.ptv.model())
+            window.player.play_order.set_current(model = ptw.ptv.model())
         return ptw
 
     def to_xml(self):
@@ -786,9 +798,9 @@ class PlayTreeView(QTreeView):
 
         self.player = player
         self.activated.connect(self.on_activated)
-        player.current_changed.connect(self.on_current_changed)
-        if not player.current_model:
-            player.set_current(model = self.model())
+        player.play_order.current_changed.connect(self.on_current_changed)
+        if not player.play_order.current_model:
+            player.play_order.set_current(model = self.model())
         self.model().modelReset.connect(self.on_end_reset_model)
 
         self.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -803,16 +815,16 @@ class PlayTreeView(QTreeView):
     def on_expanded(self, index):
         model = self.model()
         model.item(index).expanded[model] = True
-        if model == self.player.current_model and \
-           index in model.ancestors(self.player.current_index):
+        if model == self.player.play_order.current_model and \
+           index in model.ancestors(self.player.play_order.current_index):
             self._autoexpand_on = True
         self.autosize_columns()
 
     def on_collapsed(self, index):
         model = self.model()
         model.item(index).expanded[model] = False
-        if model == self.player.current_model and \
-           index in model.ancestors(self.player.current_index):
+        if model == self.player.play_order.current_model and \
+           index in model.ancestors(self.player.play_order.current_index):
             self._autoexpand_on = False
 
     def on_current_changed(self, old_model, old_index, model, index):
@@ -831,8 +843,8 @@ class PlayTreeView(QTreeView):
                     index = model.parent(index)
 
     def on_activated(self, index):
-        if not self.window().action_lock.isChecked() or self.player.current_item.function() == 'cortina':
-            self.player.play_index(index)
+        if not self.window().action_lock.isChecked() or self.player.play_order.current_item.function() == 'cortina':
+            self.player.jump(index.model(), index)
 
     def currentChanged(self, current, previous):
         super().currentChanged(current, previous)
@@ -1023,8 +1035,8 @@ class PlayTreeView(QTreeView):
         if mode == PlayTreeItem.duration_mode_cortinas:
             msg += ' (cortina={}s)'.format(PlayTreeFile.cortina_duration)
 
-        index = self.player.current_index
-        model = self.player.current_model
+        index = self.player.play_index.current_index
+        model = self.player.play_index.current_model
         remaining = ''
         # todo: query the position of the current song
         if index and index.isValid():
@@ -1367,7 +1379,7 @@ class TMPositionProgressBar(QProgressBar):
         player.duration_changed.connect(self.on_duration_changed)
         player.position_changed.connect(self.on_position_changed)
         player.state_changed.connect(self.on_state_changed)
-        self.on_state_changed(TandaMasterPlayer.STOPPED)
+        self.on_state_changed(TMPlayer.STOPPED)
         self.update()
 
         if interactive:
@@ -1386,11 +1398,11 @@ class TMPositionProgressBar(QProgressBar):
     def text(self):
         return time_to_text(
             self.value(), unit = 'ms',
-            include_ms = self.player.state == TandaMasterPlayer.PAUSED)
+            include_ms = self.player.state == TMPlayer.PAUSED)
         
     def on_state_changed(self, state):
         self.player_state = state
-        self.setTextVisible(state != TandaMasterPlayer.STOPPED)
+        self.setTextVisible(state != TMPlayer.STOPPED)
         self.update()
    
 class TMPositionProgressBar_Interaction(QObject):
@@ -1398,7 +1410,7 @@ class TMPositionProgressBar_Interaction(QObject):
         if event.type() == QEvent.MouseMove:   
             if obj.in_seek:
                 obj.player.seek(obj.maximum() * Gst.MSECOND * event.x() / obj.width())
-            if obj.player_state != TandaMasterPlayer.STOPPED:
+            if obj.player_state != TMPlayer.STOPPED:
                 QToolTip.showText(event.globalPos(),
                                   hmsms_to_text(*ms_to_hmsms(int(
                                       obj.maximum() * event.x() / obj.width())),
@@ -1418,40 +1430,31 @@ class TMPositionProgressBar_Interaction(QObject):
 class TMGapAndFadeoutProgressBar(QProgressBar):
     def __init__(self, player, parent = None):
         super().__init__(parent)
-        self.maxWidth(100)
+        self.setMaximumWidth(100)
         self.player = player
+        self.setMinimum(0)
         player.state_changed.connect(self.on_state_changed)
-        player.gap_position_changed.connect(self.on_gap_changed)
-        player.fadeout_volume_changed.connect(self.on_fadeout_volume_changed)
-        self.on_state_changed(TandaMasterPlayer.STOPPED)
+        player.gap_position_changed.connect(self.on_value_changed)
+        player.fadeout_position_changed.connect(self.on_value_changed)
+        self.on_state_changed(TMPlayer.STOPPED)
         self.update()
 
     def on_state_changed(self, state):
-        if state == TandaMasterPlayer.PLAYING_FADEOUT:
-            self.setMinimum(0)
+        if state == TMPlayer.PLAYING_FADEOUT:
             self.setMaximum(1000)
             self.setValue(1000)
             self.setEnabled(True)
-        elif state == TandaMasterPlayer.PLAYING_GAP:        
-            self.setMinimum(0)
+        elif state == TMPlayer.PLAYING_GAP:        
             self.setMaximum(int(config.gap/Gst.MSECOND))
-            print('show gap', self.maximum())
             self.setValue(0)
             self.setEnabled(True)
         else:
-            self.setMinimum(0)
-            self.setMaximum(100)
-            self.setValue(-1)
+            self.setValue(0)
             self.setEnabled(False)
         self.update()
 
-    def on_gap_changed(self, position):
+    def on_value_changed(self, position):
         self.setValue(int(position/Gst.MSECOND))
-        print('in gap', position, ' -- ', self.minimum(), self.value(), self.maximum())
-        self.update()
-
-    def on_fadeout_volume_changed(self, volume):
-        self.setValue(int(volume * 1000))
         self.update()
 
     def text(self):

@@ -828,7 +828,7 @@ class PlayTreeModel(QAbstractItemModel):
     currentindexroles = (Qt.ForegroundRole, Qt.FontRole)
     def data(self, index, role = Qt.DisplayRole):
         if role in self.currentindexroles:
-            if self.view.player.current_model == self and self.item(index) == self.view.player.current_item:
+            if self.view.player.play_order.current_model == self and self.item(index) == self.view.player.play_order.current_item:
                 if role == Qt.ForegroundRole:
                     #return QBrush(QColor(Qt.red))
                     return QBrush(QColor(Qt.darkGreen))

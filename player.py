@@ -286,7 +286,7 @@ class TMPlayer(QObject):
     def on_message_eos(self, bus, message):
         if self.state in (self.PLAYING, self.PLAYING_FADEOUT):
             self.state = self.PLAYING_GAP
-    duration_changed = pyqtSignal('ulong')
+    duration_changed = pyqtSignal('quint64')
     def on_message_duration_changed(self, bus = None, message = None):
         duration = self.playbin.query_duration(Gst.Format.TIME)
         self.duration = duration[1] if duration[0] else None
@@ -306,9 +306,9 @@ class TMPlayer(QObject):
         Gst.MessageType.STATE_CHANGED: on_message_state_changed,
     }
 
-    position_changed = pyqtSignal('ulong')
-    fadeout_position_changed = pyqtSignal('ulong')
-    gap_position_changed = pyqtSignal('ulong')
+    position_changed = pyqtSignal('quint64')
+    fadeout_position_changed = pyqtSignal('quint64')
+    gap_position_changed = pyqtSignal('quint64')
     def on_timer(self):
         # shouldn't be in PAUSED or STOPPED state ...
         position = self.position

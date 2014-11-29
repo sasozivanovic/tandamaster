@@ -124,7 +124,7 @@ class TMPlayer(QObject):
         if next_song is None:
             next_song = self.play_order.auto(model = self.current_model, item = self.current_item)
         if next_song:
-            self.next_changed.emit(next_song.model, next_song.item.index(next_song.model))
+            self.next_changed.emit(next_song.model, next_song.index)
         else:
             self.next_changed.emit(None, QModelIndex())
 
@@ -141,7 +141,7 @@ class TMPlayer(QObject):
     _signal_uri_change = pyqtSignal()
     def previous(self):
         position = self.position
-        if position and position < config.previous_restarts_song__min_time:
+        if not position or position < config.previous_restarts_song__min_time:
             self.next_song = self.play_order.previous(model = self.current_model, item = self.current_item)
             self.state = self.PLAYING_FADEOUT
         else:
@@ -342,6 +342,11 @@ class SongInfo:
         self.gap_duration = gap_duration
         self.song_begin = song_begin
         self.song_end = song_end
+    @property
+    def index(self):
+        return self.item.index(self.model) if self.item else QModelIndex()
+    def __str__(self):
+        return 'SongInfo({},fadeout={},gap={},begin={},end={})'.format(self.item.filename,self.fadeout_duration,self.gap_duration,self.song_begin,self.song_end) if self.item else 'SongInfo()'
             
 class PlayOrder(QObject):
     play_orders = []

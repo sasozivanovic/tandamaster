@@ -1008,6 +1008,17 @@ class PlayTreeModel(QAbstractItemModel):
             return self.item(index).setData(self, self.columns[index.column()], value)
         return False
         
+def model_index_item(model = None, index = None, item = None):
+    if index and index.isValid():
+        model = index.model()
+        item = model.item(index)
+    elif model and item:
+        index = item.index(model)
+    elif model:
+        item = model.root_item
+        index = QModelIndex()
+    return model, index, item
+
 from app import app
 def save_playtree():
     playtree.save(playtree_xml_filename)

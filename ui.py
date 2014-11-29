@@ -291,15 +291,16 @@ class TandaMasterWindow(QMainWindow):
         toolbar.addWidget(QWidget())
         toolbar.addWidget(self.song_info)
         toolbar.addWidget(TMVolumeControl(Qt.Horizontal, self.player))
-        toolbar.addWidget(TMGapAndFadeoutProgressBar(self.player))
-        playorders = QComboBox()
+        
+        self.playorders = QComboBox()
         for name, cls in PlayOrder.play_orders:
-            playorders.addItem(name, cls)
-        playorders.setCurrentIndex(0)
+            self.playorders.addItem(name, cls)
+        self.playorders.setCurrentIndex(0)
         def set_play_order(index):
-            self.player.set_play_order(playorders.currentData()())
-        playorders.currentIndexChanged.connect(set_play_order)
-        toolbar.addWidget(playorders)
+            self.player.set_play_order(self.playorders.currentData()())
+        self.playorders.currentIndexChanged.connect(set_play_order)
+        toolbar.addWidget(self.playorders)
+
         self.addToolBar(Qt.BottomToolBarArea, toolbar)
         
         toolbar = QToolBar('Edit', self)
@@ -320,10 +321,12 @@ class TandaMasterWindow(QMainWindow):
         toolbar.addAction(self.action_move_left)
         toolbar.addAction(self.action_move_right)
         
-        self.addToolBar(toolbar)        
+        self.addToolBar(toolbar)
+        self.toolbar = toolbar
 
         self.setStatusBar(QStatusBar())
         app.info.connect(self.status_bar_message)
+        self.fadeout_gap_pb = TMGapAndFadeoutProgressBar(self.player)
 
         self.player.play_order.current_changed.connect(self.update_song_info)
         self.player.play_order.current_changed.connect(lambda: self.lock_action_forward())
@@ -352,7 +355,7 @@ class TandaMasterWindow(QMainWindow):
             self.song_info.setText("")
 
     def on_player_state_changed(self, state):
-        if state in (TMPlayer.PLAYING, TMPlayer.PLAYING_FADEOUT, TMPlayer.PLAYING_GAP):
+        if state in (TMPlayer.PLAYING, TMPlayer.PLAYING_FADEOUT, TMPlayer.PLAYING_GAP, TMPlayer.PLAYING_FADEOUT):
             self.action_play.setVisible(False)
             self.action_pause.setVisible(True)
             self.action_stop.setEnabled(not self.action_lock.isChecked())
@@ -360,7 +363,14 @@ class TandaMasterWindow(QMainWindow):
             self.action_play.setVisible(True)
             self.action_pause.setVisible(False)
             self.action_stop.setEnabled(state != TMPlayer.STOPPED and not self.action_lock.isChecked())
-                
+        if state in (TMPlayer.PLAYING_FADEOUT, TMPlayer.PLAYING_GAP):
+            self.fadeout_gap_pb.setMaximumHeight(self.statusBar().height())
+            self.statusBar().addPermanentWidget(self.fadeout_gap_pb)
+            self.fadeout_gap_pb.show()
+        else:
+            self.statusBar().removeWidget(self.fadeout_gap_pb)
+        self.toolbar.update()
+
     def update_library(self):
         thread = QThread(self)
         app.aboutToQuit.connect(thread.exit)
@@ -844,7 +854,7 @@ class PlayTreeView(QTreeView):
 
     def on_activated(self, index):
         if not self.window().action_lock.isChecked() or self.player.play_order.current_item.function() == 'cortina':
-            self.player.jump(index.model(), index)
+            self.player.play_index(index)
 
     def currentChanged(self, current, previous):
         super().currentChanged(current, previous)
@@ -1438,19 +1448,25 @@ class TMGapAndFadeoutProgressBar(QProgressBar):
         player.fadeout_position_changed.connect(self.on_value_changed)
         self.on_state_changed(TMPlayer.STOPPED)
         self.update()
-
+        self._text = ''
+        
     def on_state_changed(self, state):
         if state == TMPlayer.PLAYING_FADEOUT:
-            self.setMaximum(1000)
-            self.setValue(1000)
+            fadeout_duration = self.player.current_song.fadeout_duration
+            self.setMaximum(int(fadeout_duration/Gst.MSECOND))
+            self.setValue(int(fadeout_duration/Gst.MSECOND))
             self.setEnabled(True)
-        elif state == TMPlayer.PLAYING_GAP:        
-            self.setMaximum(int(config.gap/Gst.MSECOND))
+            self._text = 'fadeout {:1g}s'.format(fadeout_duration/Gst.SECOND)
+        elif state == TMPlayer.PLAYING_GAP:
+            gap_duration = self.player.current_song.gap_duration
+            self.setMaximum(int(gap_duration/Gst.MSECOND))
             self.setValue(0)
             self.setEnabled(True)
+            self._text = 'gap {:1g}s'.format(gap_duration/Gst.SECOND)
         else:
             self.setValue(0)
             self.setEnabled(False)
+            self._text = ''
         self.update()
 
     def on_value_changed(self, position):
@@ -1459,7 +1475,10 @@ class TMGapAndFadeoutProgressBar(QProgressBar):
 
     def text(self):
         return time_to_text(self.value(), unit = 'ms')
-        
+
+    def text(self):
+        return self._text
+
 class TMVolumeControl(QSlider):
     def __init__(self, orientation, player, parent = None):
         super().__init__(orientation, parent)

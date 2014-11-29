@@ -191,7 +191,6 @@ class Library(QObject):
             self.refresh_next.emit()
 
     def update_song_from_file(self, library_name, filename, commit = True):
-        print(filename)
         fileinfo = QFileInfo(filename)
         if not (fileinfo.exists() and fileinfo.isReadable()):
             warn("Cannot read {}".format(filename), RuntimeWarning)
@@ -362,7 +361,6 @@ class Library(QObject):
                     (fileinfo.lastModified().toTime_t(), fileinfo.size(), song_id))
                 
             else:
-                print("update from file", song_id)
                 # update library from file
                 librarian.bg_queries(BgQueries([BgQuery(Library.update_song_from_file, (None, filename))], lambda qs: None, relevant = lambda: True))
                 # todo: notify ui

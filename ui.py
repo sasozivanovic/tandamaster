@@ -516,6 +516,7 @@ class TandaMasterWindow(QMainWindow):
     def mark_start_cut(self):
         position = self.player.playbin.query_position(Gst.Format.TIME)
         if position[0]:
+            self.player.current_song.song_begin = position[1]
             self.player.current_item.set_tag(
                 'tm:song_start',
                 [float(position[1])/Gst.SECOND])
@@ -523,6 +524,7 @@ class TandaMasterWindow(QMainWindow):
     def mark_end_cut(self):
         position = self.player.playbin.query_position(Gst.Format.TIME)
         if position[0]:
+            self.player.current_song.song_end = position[1]
             self.player.current_item.set_tag(
                 'tm:song_end',
                 [float(position[1])/Gst.SECOND])

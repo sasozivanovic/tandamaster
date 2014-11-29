@@ -22,6 +22,5 @@ gap_duration = collections.defaultdict(
         'cortina': 2 * Gst.SECOND,
     })
 
-_TMPlaybin_timer_precision = 100 # ms
-_TMPlaybin_gstreamer_sync_interval = 1000 #ms
-
+_TMPlayer_timer_precision = 100 # ms
+previous_restarts_song__min_time = 3 * Gst.SECOND

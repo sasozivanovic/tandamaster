@@ -33,7 +33,7 @@ class TMPlayer(QObject):
         self._timer = QTimer()
         self._timer.setTimerType(Qt.CoarseTimer)
         self._timer.timeout.connect(self.on_timer)
-        self._timer.setInterval(config._TMPlaybin_timer_precision)
+        self._timer.setInterval(config._TMPlayer_timer_precision)
 
         self._pending_ops = collections.defaultdict(lambda:[])
         self._fadeout_start = None
@@ -140,8 +140,13 @@ class TMPlayer(QObject):
         
     _signal_uri_change = pyqtSignal()
     def previous(self):
-        self.next_song = self.play_order.previous(model = self.current_model, item = self.current_item)
-        self.state = self.PLAYING_FADEOUT
+        position = self.position
+        if position and position < config.previous_restarts_song__min_time:
+            self.next_song = self.play_order.previous(model = self.current_model, item = self.current_item)
+            self.state = self.PLAYING_FADEOUT
+        else:
+            self.seek(0)
+            self.current_song = self.play_order.make_transition(model = self.current_model, item = self.current_item)
     def pause(self):
         self._next_song = self.PAUSED
         self.state = self.PLAYING_FADEOUT
@@ -163,6 +168,7 @@ class TMPlayer(QObject):
         self.state = self.PLAYING_FADEOUT
 
     def seek(self, position):
+        self._gap_timer.stop()
         if self.current_song.song_end is not None and position >= self.current_song.song_end:
             self.current_song.song_end = None
         self.playbin.seek(
@@ -251,7 +257,6 @@ class TMPlayer(QObject):
             self.playbin.set_property('volume', self.volume)
             self.playbin.set_property('uri', QUrl.fromLocalFile(self.current_song.item.filename).toString())
             self.playbin.set_state(Gst.State.PAUSED)
-            print(self.current_song.song_begin)
             if self.current_song.song_begin:
                 self._pending_ops[Gst.State.PAUSED].append(
                     lambda:

@@ -286,11 +286,9 @@ class TandaMasterWindow(QMainWindow):
         self.stopafter_spinbox.setMinimum(0)
         self.stopafter_spinbox.valueChanged.connect(self.player.play_order.set_stop_after)
         toolbar.addWidget(self.stopafter_spinbox)
-        self.song_info = QLabel()
-        self.song_info.setContentsMargins(8,0,0,0)
         toolbar.addWidget(QWidget())
-        toolbar.addWidget(self.song_info)
         toolbar.addWidget(TMVolumeControl(Qt.Horizontal, self.player))
+        toolbar.addWidget(QWidget())
         
         self.playorders = QComboBox()
         for name, cls in PlayOrder.play_orders:
@@ -328,6 +326,10 @@ class TandaMasterWindow(QMainWindow):
         app.info.connect(self.status_bar_message)
         self.fadeout_gap_pb = TMGapAndFadeoutProgressBar(self.player)
 
+        self.song_info = QLabel()
+        self.song_info.setContentsMargins(8,0,8,0)
+        self.statusBar().addPermanentWidget(self.song_info)
+        
         self.player.play_order.current_changed.connect(self.update_song_info)
         self.player.play_order.current_changed.connect(lambda: self.lock_action_forward())
         self.player.state_changed.connect(self.on_player_state_changed)
@@ -364,7 +366,7 @@ class TandaMasterWindow(QMainWindow):
             self.action_pause.setVisible(False)
             self.action_stop.setEnabled(state != TMPlayer.STOPPED and not self.action_lock.isChecked())
         if state in (TMPlayer.PLAYING_FADEOUT, TMPlayer.PLAYING_GAP):
-            self.fadeout_gap_pb.setMaximumHeight(self.statusBar().height())
+            self.fadeout_gap_pb.setMaximumHeight(self.song_info.height())
             self.statusBar().addPermanentWidget(self.fadeout_gap_pb)
             self.fadeout_gap_pb.show()
         else:
@@ -1045,8 +1047,8 @@ class PlayTreeView(QTreeView):
         if mode == PlayTreeItem.duration_mode_cortinas:
             msg += ' (cortina={}s)'.format(PlayTreeFile.cortina_duration)
 
-        index = self.player.play_index.current_index
-        model = self.player.play_index.current_model
+        index = self.player.play_order.current_index
+        model = self.player.play_order.current_model
         remaining = ''
         # todo: query the position of the current song
         if index and index.isValid():

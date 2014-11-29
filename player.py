@@ -164,7 +164,11 @@ class TMPlayer(QObject):
                 return
             if self.gst_state == Gst.State.PLAYING and (not self.current_song.song_end or self.position < self.current_song.song_end):
                 self.playbin.set_state(Gst.State.PAUSED)
-            self._gap_timer.start(int(self.current_song.gap_duration/Gst.MSECOND))
+            if self.next_song and self.next_song.uri:
+                self._gap_timer.start(int(self.current_song.gap_duration/Gst.MSECOND))
+            else:
+                self.state = self._URI_CHANGE
+                return
         elif state == self._URI_CHANGE:
             self._gap_timer.stop()
             if self.next_song and self.next_song == self.PAUSED:
@@ -254,7 +258,8 @@ class TMPlayer(QObject):
         elif self.state == self.PLAYING_GAP:
             gap_remaining = self._gap_timer.remainingTime()
             self.gap_position_changed.emit(self.current_song.gap_duration - gap_remaining * Gst.MSECOND)
-        self.position_changed.emit(position)
+        if position:
+            self.position_changed.emit(position)
         
 class SongInfo:
     def __init__(self, uri, song_begin = 0, song_end = None, fadeout_duration = 0, gap_duration = 0):
@@ -373,8 +378,8 @@ class PlayOrderMilongaMode(PlayOrderStandard):
             song_begin = song_begin,
             song_end = song_end,
             fadeout_duration = config.fadeout_duration[self.current_item.function()],
-            gap_duration = config.gap_duration[self.current_item.function()])
-    
+            gap_duration = config.gap_duration[self.current_item.function()]) \
+            if next_uri else SongInfo(next_uri)
 
 class PlayOrderCheckSongBegins(PlayOrderStandard):
     def make_transition(self, model = None, index = None, item = None):

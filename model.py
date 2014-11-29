@@ -15,6 +15,8 @@ from commands import *
 import bidict, shlex
 import functools
 
+from gi.repository import Gst
+
 def register_xml_tag_handler(tag):
     def f(cls):
         PlayTreeItem.xml_tag_registry[tag] = cls
@@ -496,7 +498,20 @@ class PlayTreeFile(PlayTreeItem):
         else:
             return super().setData(model, column_name, value)
 
+    def get_song_begin(self):
+        try:
+            song_begin = int(float(self.get_tag('tm:song_start')[0])*Gst.SECOND)
+        except:
+            song_begin = 0
+        return song_begin
 
+    def get_song_end(self):
+        try:
+            song_end = int(float(self.get_tag('tm:song_end')[0])*Gst.SECOND)
+        except:
+            song_end = None
+        return song_end
+        
 @register_xml_tag_handler('folder')
 class PlayTreeFolder(PlayTreeItem):
 
@@ -828,7 +843,7 @@ class PlayTreeModel(QAbstractItemModel):
     currentindexroles = (Qt.ForegroundRole, Qt.FontRole)
     def data(self, index, role = Qt.DisplayRole):
         if role in self.currentindexroles:
-            if self.view.player.play_order.current_model == self and self.item(index) == self.view.player.play_order.current_item:
+            if self.view.player.current_model == self and self.item(index) == self.view.player.current_item:
                 if role == Qt.ForegroundRole:
                     #return QBrush(QColor(Qt.red))
                     return QBrush(QColor(Qt.darkGreen))
@@ -1008,15 +1023,17 @@ class PlayTreeModel(QAbstractItemModel):
             return self.item(index).setData(self, self.columns[index.column()], value)
         return False
         
-def model_index_item(model = None, index = None, item = None):
-    if index and index.isValid():
+def model_index_item(model = None, index = None, item = None, root_item = True):
+    if model and item:
+        index = item.index(model)
+    elif index and index.isValid():
         model = index.model()
         item = model.item(index)
-    elif model and item:
-        index = item.index(model)
     elif model:
-        item = model.root_item
+        item = model.root_item if root_item else None
         index = QModelIndex()
+    else:
+        return None, None, None
     return model, index, item
 
 from app import app

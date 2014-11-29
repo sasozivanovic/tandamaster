@@ -115,11 +115,6 @@ class TandaMasterWindow(QMainWindow):
             self.tr('Un&locked'), self, toggled = self.lock)
         self.action_lock.setCheckable(True)
         self.playbackmenu.addAction(self.action_lock)
-        #self.action_milonga_mode = QAction(
-        #    QIcon('icons/iconarchive/icons8/tandamaster-Sports-Dancing-icon.png'),
-        #    self.tr('&Milonga mode'), self)
-        #self.action_milonga_mode.setCheckable(True)
-        #self.playbackmenu.addAction(self.action_milonga_mode)
         self.playbackmenu.addSeparator()
         self.action_mark_start_cut = QAction(
             self.tr('Mark start cut'), self, triggered = self.mark_start_cut,
@@ -273,7 +268,6 @@ class TandaMasterWindow(QMainWindow):
         toolbar = QToolBar('Play controls', self)
         toolbar.setAllowedAreas(Qt.TopToolBarArea | Qt.BottomToolBarArea)
         toolbar.setFloatable(False)
-        #toolbar.setIconSize(2*toolbar.iconSize())
         toolbar.addAction(self.action_back)
         toolbar.addAction(self.action_play)
         toolbar.addAction(self.action_pause)
@@ -281,23 +275,21 @@ class TandaMasterWindow(QMainWindow):
         toolbar.addAction(self.action_forward)
         toolbar.addSeparator()
         toolbar.addAction(self.action_lock)
-        #toolbar.addAction(self.action_milonga_mode)
         self.stopafter_spinbox = QSpinBox()
         self.stopafter_spinbox.setMinimum(0)
         self.stopafter_spinbox.valueChanged.connect(self.player.play_order.set_stop_after)
         toolbar.addWidget(self.stopafter_spinbox)
-        toolbar.addWidget(QWidget())
+        toolbar.addSeparator()
         toolbar.addWidget(TMVolumeControl(Qt.Horizontal, self.player))
-        toolbar.addWidget(QWidget())
-        
-        self.playorders = QComboBox()
+        toolbar.addSeparator()
+        self.play_orders_combo = QComboBox()
         for name, cls in PlayOrder.play_orders:
-            self.playorders.addItem(name, cls)
-        self.playorders.setCurrentIndex(0)
+            self.play_orders_combo.addItem(name, cls)
+        self.play_orders_combo.setCurrentIndex(0)
         def set_play_order(index):
-            self.player.set_play_order(self.playorders.currentData()())
-        self.playorders.currentIndexChanged.connect(set_play_order)
-        toolbar.addWidget(self.playorders)
+            self.player.set_play_order(self.play_orders_combo.currentData()())
+        self.play_orders_combo.currentIndexChanged.connect(set_play_order)
+        toolbar.addWidget(self.play_orders_combo)
 
         self.addToolBar(Qt.BottomToolBarArea, toolbar)
         
@@ -329,10 +321,14 @@ class TandaMasterWindow(QMainWindow):
         self.song_info = QLabel()
         self.song_info.setContentsMargins(8,0,8,0)
         self.statusBar().addPermanentWidget(self.song_info)
+        self.next_song_info = QLabel()
+        self.next_song_info.setContentsMargins(8,0,8,0)
+        self.next_song_info.hide()
         
-        self.player.play_order.current_changed.connect(self.update_song_info)
-        self.player.play_order.current_changed.connect(lambda: self.lock_action_forward())
-        self.player.state_changed.connect(self.on_player_state_changed)
+        self.player.current_changed.connect(self.update_song_info, type = Qt.QueuedConnection)
+        self.player.next_changed.connect(self.update_next_song_info, type = Qt.QueuedConnection)
+        self.player.current_changed.connect(lambda: self.lock_action_forward(), type = Qt.QueuedConnection)
+        self.player.state_changed.connect(self.on_player_state_changed, type = Qt.QueuedConnection)
         self.on_player_state_changed(TMPlayer.STOPPED)
         QApplication.clipboard().changed.connect(self.on_clipboard_data_changed)
 
@@ -345,7 +341,7 @@ class TandaMasterWindow(QMainWindow):
 
     song_info_formatter = PartialFormatter()
     def update_song_info(self):
-        item = self.player.play_order.current_item
+        item = self.player.current_item
         if item:
             tags = item.get_tags(only_first = True)
             self.setWindowTitle(self.song_info_formatter.format(
@@ -355,7 +351,16 @@ class TandaMasterWindow(QMainWindow):
         else:
             self.setWindowTitle("TandaMaster")
             self.song_info.setText("")
-
+            
+    def update_next_song_info(self, model, index):
+        item = model.item(index) if model else None
+        if item:
+            tags = item.get_tags(only_first = True)
+            self.next_song_info.setText(self.song_info_formatter.format(
+                "{artist} <b>{title}</b>", **tags))
+        else:
+            self.next_song_info.setText('')
+            
     def on_player_state_changed(self, state):
         if state in (TMPlayer.PLAYING, TMPlayer.PLAYING_FADEOUT, TMPlayer.PLAYING_GAP, TMPlayer.PLAYING_FADEOUT):
             self.action_play.setVisible(False)
@@ -368,9 +373,12 @@ class TandaMasterWindow(QMainWindow):
         if state in (TMPlayer.PLAYING_FADEOUT, TMPlayer.PLAYING_GAP):
             self.fadeout_gap_pb.setMaximumHeight(self.song_info.height())
             self.statusBar().addPermanentWidget(self.fadeout_gap_pb)
+            self.statusBar().addPermanentWidget(self.next_song_info)
             self.fadeout_gap_pb.show()
+            self.next_song_info.show()
         else:
             self.statusBar().removeWidget(self.fadeout_gap_pb)
+            self.statusBar().removeWidget(self.next_song_info)
         self.toolbar.update()
 
     def update_library(self):
@@ -496,24 +504,26 @@ class TandaMasterWindow(QMainWindow):
         self.action_play.setEnabled(not locked)
         self.action_pause.setEnabled(not locked)
         self.action_stop.setEnabled(not locked)
+        self.stopafter_spinbox.setEnabled(not locked)
+        self.play_orders_combo.setEnabled(not locked)
         self.lock_action_forward(locked)
 
     def lock_action_forward(self, locked = None):
         if locked is None:
             locked = self.action_lock.isChecked()
-        self.action_forward.setEnabled(not locked or self.player.play_order.current_item.function() == 'cortina')
+        self.action_forward.setEnabled(not locked or self.player.current_item.function() == 'cortina')
 
     def mark_start_cut(self):
         position = self.player.playbin.query_position(Gst.Format.TIME)
         if position[0]:
-            self.player.play_order.current_item.set_tag(
+            self.player.current_item.set_tag(
                 'tm:song_start',
                 [float(position[1])/Gst.SECOND])
 
     def mark_end_cut(self):
         position = self.player.playbin.query_position(Gst.Format.TIME)
         if position[0]:
-            self.player.play_order.current_item.set_tag(
+            self.player.current_item.set_tag(
                 'tm:song_end',
                 [float(position[1])/Gst.SECOND])
         
@@ -683,7 +693,7 @@ class TabbedPlayTreesWidget(QTabWidget, TMWidget):
         self.tabBarDoubleClicked.connect(lambda: self.add_tab())
         self.tabCloseRequested.connect(self.removeTab)
         self.setAcceptDrops(True)
-        window.player.play_order.current_changed.connect(self.on_current_changed)
+        window.player.current_changed.connect(self.on_current_changed)
         
     def add_tab(self, widget = None, root_item = None):
         self.insert_tab(-1, widget = widget, root_item = root_item)
@@ -743,7 +753,7 @@ class PlayTreeWidget(QWidget, TMWidget):
                 if width is not None:
                     ptw.ptv.setColumnWidth(i, int(width))
         if element.get('current'):
-            window.player.play_order.set_current(model = ptw.ptv.model())
+            window.player.set_current(model = ptw.ptv.model())
         return ptw
 
     def to_xml(self):
@@ -810,9 +820,9 @@ class PlayTreeView(QTreeView):
 
         self.player = player
         self.activated.connect(self.on_activated)
-        player.play_order.current_changed.connect(self.on_current_changed)
-        if not player.play_order.current_model:
-            player.play_order.set_current(model = self.model())
+        player.current_changed.connect(self.on_current_changed)
+        if not player.current_model:
+            player.set_current(model = self.model())
         self.model().modelReset.connect(self.on_end_reset_model)
 
         self.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -827,16 +837,16 @@ class PlayTreeView(QTreeView):
     def on_expanded(self, index):
         model = self.model()
         model.item(index).expanded[model] = True
-        if model == self.player.play_order.current_model and \
-           index in model.ancestors(self.player.play_order.current_index):
+        if model == self.player.current_model and \
+           index in model.ancestors(self.player.current_index):
             self._autoexpand_on = True
         self.autosize_columns()
 
     def on_collapsed(self, index):
         model = self.model()
         model.item(index).expanded[model] = False
-        if model == self.player.play_order.current_model and \
-           index in model.ancestors(self.player.play_order.current_index):
+        if model == self.player.current_model and \
+           index in model.ancestors(self.player.current_index):
             self._autoexpand_on = False
 
     def on_current_changed(self, old_model, old_index, model, index):
@@ -855,7 +865,7 @@ class PlayTreeView(QTreeView):
                     index = model.parent(index)
 
     def on_activated(self, index):
-        if not self.window().action_lock.isChecked() or self.player.play_order.current_item.function() == 'cortina':
+        if not self.window().action_lock.isChecked() or self.player.current_item.function() == 'cortina':
             self.player.play_index(index)
 
     def currentChanged(self, current, previous):
@@ -1047,8 +1057,8 @@ class PlayTreeView(QTreeView):
         if mode == PlayTreeItem.duration_mode_cortinas:
             msg += ' (cortina={}s)'.format(PlayTreeFile.cortina_duration)
 
-        index = self.player.play_order.current_index
-        model = self.player.play_order.current_model
+        index = self.player.current_index
+        model = self.player.current_model
         remaining = ''
         # todo: query the position of the current song
         if index and index.isValid():

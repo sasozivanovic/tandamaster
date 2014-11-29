@@ -12,14 +12,14 @@ autosave_interval = 10 # minutes
 from gi.repository import Gst
 import collections
 fadeout_duration = collections.defaultdict(
-    lambda: 0,
+    lambda: 1 * Gst.SECOND,
     {
         'cortina': 5 * Gst.SECOND,
     })
 gap_duration = collections.defaultdict(
     lambda: 3 * Gst.SECOND,
     {
-        'cortina': int(2 * Gst.SECOND),
+        'cortina': 2 * Gst.SECOND,
     })
 
 _TMPlaybin_timer_precision = 100 # ms

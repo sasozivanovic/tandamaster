@@ -6,6 +6,7 @@ Gst.init(None)
 
 from model import PlayTreeModel, PlayTreeItem, model_index_item
 import config
+from util import *
 
 from IPython import embed
 import traceback
@@ -116,6 +117,12 @@ class TMPlayer(QObject):
         position = self.playbin.query_position(Gst.Format.TIME)
         if position[0]:
             return position[1]
+
+    @property
+    def gst_state(self):
+        gst_state = self.playbin.get_state(0)
+        if gst_state[0]:
+            return gst_state[1]
         
     STOPPED, PAUSED, PLAYING, PLAYING_FADEOUT, PLAYING_GAP, _URI_CHANGE = range(6)
     state_changed = pyqtSignal(int)
@@ -144,7 +151,10 @@ class TMPlayer(QObject):
             #self.duration_changed.emit(1) # todo
         elif state == self.PLAYING_FADEOUT:
             self._gap_timer.stop()
-            if not self.current_song.fadeout_duration:
+            if self.gst_state != Gst.State.PLAYING:
+                self.state = self._URI_CHANGE
+                return
+            elif not self.current_song.fadeout_duration:
                 self.state = self.PLAYING_GAP
                 return
             self._fadeout_start = self.position
@@ -152,10 +162,13 @@ class TMPlayer(QObject):
             if not self.current_song.gap_duration or self.next_song == self.PAUSED:
                 self._signal_uri_change.emit()
                 return
+            if self.gst_state == Gst.State.PLAYING and (not self.current_song.song_end or self.position < self.current_song.song_end):
+                self.playbin.set_state(Gst.State.PAUSED)
             self._gap_timer.start(int(self.current_song.gap_duration/Gst.MSECOND))
         elif state == self._URI_CHANGE:
             self._gap_timer.stop()
             if self.next_song and self.next_song == self.PAUSED:
+                self.next_song = None
                 self.state = self.PAUSED
                 return
             self.current_song = self.next_song if self.next_song else self.play_order.auto()

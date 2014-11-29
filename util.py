@@ -97,4 +97,3 @@ def open_autobackup(filename, *args, prepare = lambda: os.mkdir('bak'), tmp = la
 import unidecode
 def search_value(value):
     return unidecode.unidecode(value).lower() if isinstance(value, str) else value
-

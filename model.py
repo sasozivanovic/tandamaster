@@ -361,6 +361,7 @@ class PlayTreeFile(PlayTreeItem):
         self._song_id = song_id
         self._filename = filename
         self._querying = False
+        self.unavailable = False
         
     def got_song_id(self, queries):
         self._song_id = queries[0].result
@@ -485,6 +486,8 @@ class PlayTreeFile(PlayTreeItem):
             return QBrush(QColor(Qt.yellow))
         elif role == Qt.ToolTipRole and library.dirty(self.song_id, column_name if column_name else 'title'):
             return app.tr('Original value') + ': ' + library.tag_by_song_id(column_name if column_name else 'title', self.song_id, sources = ('file',))[0]
+        elif self.unavailable and role == Qt.ForegroundRole:
+            return QBrush(QColor(Qt.gray))
 
     def flags(self, column = ''):
         if not (column and column[0] == '_'):
@@ -841,18 +844,17 @@ class PlayTreeModel(QAbstractItemModel):
         return len(self.columns)
 
     currentindexroles = (Qt.ForegroundRole, Qt.FontRole)
+    # todo: upper levels if not expanded
     def data(self, index, role = Qt.DisplayRole):
         if role in self.currentindexroles:
             if self.view.player.current_model == self and self.item(index) == self.view.player.current_item:
                 if role == Qt.ForegroundRole:
-                    #return QBrush(QColor(Qt.red))
                     return QBrush(QColor(Qt.darkGreen))
                 elif role == Qt.FontRole:
                     font = QFont()
                     font.setWeight(QFont.Bold)
                     return font
-        else:
-            return self.item(index).data(self, self.columns[index.column()], role)
+        return self.item(index).data(self, self.columns[index.column()], role)
 
     def headerData(self, section, orientation, role):
         if orientation == Qt.Horizontal and role == Qt.DisplayRole:

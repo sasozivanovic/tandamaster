@@ -1,6 +1,6 @@
 from PyQt5.Qt import *
 
-from gi.repository import GObject, Gst
+from gi.repository import GObject, Gst, GLib
 GObject.threads_init()
 Gst.init(None)
 
@@ -207,6 +207,7 @@ class TMPlayer(QObject):
         if not playing and self._timer.isActive():
             self._timer.stop()
         if state == self.PLAYING:
+            self.current_item.unavailable = False
             self.playbin.set_state(Gst.State.PLAYING)
         elif state == self.PAUSED:
             self.playbin.set_state(Gst.State.PAUSED)
@@ -294,7 +295,12 @@ class TMPlayer(QObject):
             self.duration_changed.emit(duration[1])
     def on_message_error(self, bus, message):
         self._pending_ops.clear()
-        print(message, message.parse_error())
+        error = message.parse_error()
+        if GLib.quark_from_string(error[0].domain) == Gst.ResourceError.quark():
+            self.current_item.unavailable = True
+            self._signal_uri_change.emit()
+        else:
+            print(error)
     def on_message_state_changed(self, bus, message):
         previous, current, pending = message.parse_state_changed()
         while self._pending_ops[current]:

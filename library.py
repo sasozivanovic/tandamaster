@@ -195,6 +195,7 @@ class Library(QObject):
         if not (fileinfo.exists() and fileinfo.isReadable()):
             warn("Cannot read {}".format(filename), RuntimeWarning)
             audiofile = None
+            return
         cursor = self.connection.cursor()
         cursor.execute(
             'SELECT song_id,mtime,filesize FROM files WHERE filename=?',

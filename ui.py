@@ -1001,6 +1001,7 @@ class PlayTreeView(QTreeView):
         return can_group, can_move_up, can_move_down, can_move_left, can_move_right, can_move_home, can_move_end
 
     def on_selection_changed(self):
+        self.window().statusBar().clearMessage()
         can_cut = self.can_cut()
         self.window().action_cut.setEnabled(can_cut)
         self.window().action_delete.setEnabled(can_cut)
@@ -1426,7 +1427,23 @@ class TMPositionProgressBar(QProgressBar):
         self.player_state = state
         self.setTextVisible(state != TMPlayer.STOPPED)
         self.update()
-   
+
+    def paintEvent(self, paintevent):
+        super().paintEvent(paintevent)
+        if not self.maximum():
+            return
+        painter = QPainter(self)
+        song_begin = self.player.current_song.song_begin
+        song_end = self.player.current_song.song_end
+        # calculate manually: setting scale to use ms produces numbers that are too large?
+        song_begin = self.width() * song_begin / Gst.MSECOND / self.maximum() if song_begin else None
+        song_end = self.width() * song_end / Gst.MSECOND / self.maximum() if song_end else None
+        painter.setPen(QColor(Qt.red))
+        if song_begin:
+            painter.drawLine(song_begin, 0, song_begin, self.height())
+        if song_end:
+            painter.drawLine(song_end, 0, song_end, self.height())
+        
 class TMPositionProgressBar_Interaction(QObject):
     def eventFilter(self, obj, event):
         if event.type() == QEvent.MouseMove:   

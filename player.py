@@ -4,6 +4,8 @@ from gi.repository import GObject, Gst
 GObject.threads_init()
 Gst.init(None)
 
+import collections
+
 from model import PlayTreeModel, PlayTreeItem, model_index_item
 import config
 from util import *
@@ -33,6 +35,7 @@ class TMPlayer(QObject):
         self._timer.timeout.connect(self.on_timer)
         self._timer.setInterval(config._TMPlaybin_timer_precision)
 
+        self._pending_ops = collections.defaultdict(lambda:[])
         self._fadeout_start = None
         
         self._gap_timer = QTimer()
@@ -242,26 +245,33 @@ class TMPlayer(QObject):
                 self.state = self.STOPPED
                 return
             self.bus.set_flushing(True)
+            self._pending_ops.clear()
             self.playbin.set_state(Gst.State.READY)
             self.bus.set_flushing(False)
             self.playbin.set_property('volume', self.volume)
             self.playbin.set_property('uri', QUrl.fromLocalFile(self.current_song.item.filename).toString())
             self.playbin.set_state(Gst.State.PAUSED)
+            print(self.current_song.song_begin)
             if self.current_song.song_begin:
-                self.playbin.seek(
-                    1.0, Gst.Format.TIME,
-                    Gst.SeekFlags.FLUSH | Gst.SeekFlags.ACCURATE,
-                    Gst.SeekType.SET, self.current_song.song_begin,
-                    Gst.SeekType.NONE, 0
-                )
+                self._pending_ops[Gst.State.PAUSED].append(
+                    lambda:
+                    self.playbin.seek(
+                        1.0, Gst.Format.TIME,
+                        Gst.SeekFlags.FLUSH | Gst.SeekFlags.ACCURATE,
+                        Gst.SeekType.SET, self.current_song.song_begin,
+                        Gst.SeekType.NONE, 0
+                    ))
             self.on_message_duration_changed()
-            self.state = self.PLAYING
+            self._pending_ops[Gst.State.PAUSED].append(
+                lambda: self._set_state(self.PLAYING))
             return
         if playing and not self._timer.isActive():
             self._timer.start()
         self.state_changed.emit(state)
     def _uri_change(self):
         self.state = self._URI_CHANGE
+    def _set_state(self, state):
+        self.state = state
         
     def on_message(self, bus, message):
         try:
@@ -278,19 +288,17 @@ class TMPlayer(QObject):
         if duration[0]:
             self.duration_changed.emit(duration[1])
     def on_message_error(self, bus, message):
+        self._pending_ops.clear()
         print(message, message.parse_error())
-    #def on_message_state_changed(self, bus, message):
-    #    previous, current, pending = message.parse_state_changed()
-    #    state = self.PLAYING if current == Gst.State.PLAYING else \
-    #            (self.PAUSED if current == Gst.State.PAUSED else self.STOPPED)
-    #    if not(self.state in (self.PLAYING_FADEOUT, self.PLAYING_GAP) and
-    #           state != self.STOPPED):
-    #        self.set_state(state)
+    def on_message_state_changed(self, bus, message):
+        previous, current, pending = message.parse_state_changed()
+        while self._pending_ops[current]:
+            self._pending_ops[current].pop(0)()
     message_handlers = {
         Gst.MessageType.EOS: on_message_eos,
         Gst.MessageType.DURATION_CHANGED: on_message_duration_changed,
         Gst.MessageType.ERROR: on_message_error,
-        #Gst.MessageType.STATE_CHANGED: on_message_state_changed,
+        Gst.MessageType.STATE_CHANGED: on_message_state_changed,
     }
 
     position_changed = pyqtSignal('ulong')

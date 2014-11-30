@@ -17,7 +17,7 @@ class TMPlayer(QObject):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.play_order = PlayOrderStandard()
+        self.play_order = PlayOrderMilongaMode() #PlayOrderStandard()
 
         self._state = self.STOPPED
         self._volume = 1.0
@@ -139,7 +139,7 @@ class TMPlayer(QObject):
         self.volume_changed.emit(volume)
         
     _signal_uri_change = pyqtSignal()
-    def previous(self):
+    def play_previous(self):
         position = self.position
         if not position or position < config.previous_restarts_song__min_time:
             self.next_song = self.play_order.previous(model = self.current_model, item = self.current_item)
@@ -160,7 +160,7 @@ class TMPlayer(QObject):
     def stop(self):
         self.next_song = SongInfo(None)
         self.state = self.PLAYING_FADEOUT
-    def next(self):
+    def play_next(self):
         self.next_song = self.play_order.next(model = self.current_model, item = self.current_item)
         self.state = self.PLAYING_FADEOUT
     def play_index(self, index):
@@ -371,16 +371,34 @@ class PlayOrderStandard(PlayOrder):
     def previous(self, model = None, index = None, item = None):
         model, index, item = model_index_item(model, index, item)
         index = model.previous_song(index)
-        return self.make_transition(index = index)
+        si = self.make_transition(index = index)
+        while not si:
+            index = model.previous_song(index)
+            if not index or not index.isValid():
+                return SongInfo()
+            si = self.make_transition(index = index)
+        return si
     def next(self, model = None, index = None, item = None):
         model, index, item = model_index_item(model, index, item)
         index = model.next_song(index)
-        return self.make_transition(index = index)
+        si = self.make_transition(index = index)
+        while not si:
+            index = model.next_song(index)
+            if not index or not index.isValid():
+                return SongInfo()
+            si = self.make_transition(index = index)
+        return si
     def play_index(self, model = None, index = None, item = None):
         model, index, item = model_index_item(model, index, item)
         if not item.isPlayable:
+            return self.next(model = model, item = item)
+        si = self.make_transition(model, index, item)
+        while not si:
             index = model.next_song(index)
-        return self.make_transition(index = index)
+            if not index or not index.isValid():
+                return SongInfo()
+            si = self.make_transition(index = index)
+        return si
     def set_stop_after(self, i):
         self._stop_after = i
         self._stop_after_initial = i
@@ -413,33 +431,47 @@ class PlayOrderMilongaMode(PlayOrderStandard):
             song_end = item.get_song_end(),
             fadeout_duration = config.fadeout_duration[item.function()],
             gap_duration = config.gap_duration[item.function()]) \
-            if item else SongInfo()
+            if item else None
 
-class PlayOrderCheckSongBegins(PlayOrderStandard):
+@PlayOrder.register
+class PlayOrderCheckSongBeginsSilently(PlayOrderStandard):
+    name = 'To start'
     def make_transition(self, model = None, index = None, item = None):
         model, index, item = model_index_item(model, index, item)
-        song_begin = item.get_song_begin()
+        song_begin = item.get_song_begin() if item else None
+        return SongInfo(model, index, item,
+                        song_begin = 0,
+                        song_end = song_begin) \
+            if song_begin else None
+    
+@PlayOrder.register
+class PlayOrderCheckSongBegins(PlayOrderStandard):
+    name = 'From start'
+    def make_transition(self, model = None, index = None, item = None):
+        model, index, item = model_index_item(model, index, item)
+        song_begin = item.get_song_begin() if item else None
         return SongInfo(
             model, index, item,
             song_begin = song_begin,
-            song_end = song_begin + 3*Gst.SECOND)
-
-class PlayOrderCheckSongBeginsSilently(PlayOrderStandard):
-    def make_transition(self, model = None, index = None, item = None):
-        model, index, item = model_index_item(model, index, item)
-        return SongInfo(model, index, item,
-                        song_begin = 0,
-                        song_end = item.get_song_begin())
+            song_end = song_begin + 3*Gst.SECOND)\
+            if song_begin else None
     
+@PlayOrder.register
 class PlayOrderCheckSongEnds(PlayOrderStandard):
+    name = 'To end'
     def make_transition(self, model = None, index = None, item = None):
         model, index, item = model_index_item(model, index, item)
-        song_end = item.get_song_end()
+        song_end = item.get_song_end() if item else song_end
         return SongInfo(model, index, item,
                         song_begin = song_end - 5*Gst.SECOND,
-                        song_end = song_end)
+                        song_end = song_end) \
+            if song_end else None
 
+@PlayOrder.register
 class PlayOrderCheckSongEndsSilently(PlayOrderStandard):
+    name = 'From end'
     def make_transition(self, model = None, index = None, item = None):
         model, index, item = model_index_item(model, index, item)
-        return SongInfo(model, index, item, song_begin = item.get_song_end())
+        song_end = item.get_song_end() if item else None
+        return SongInfo(model, index, item, song_begin = song_end)\
+            if song_end else None

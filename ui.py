@@ -72,7 +72,7 @@ class TandaMasterWindow(QMainWindow):
             #MyIcon('Tango', 'actions', 'media-skip-backward'),
             QIcon('button_rewind_green.png'),
             #QIcon('icons/iconfinder/32pxmania/previous.png'),
-            self.tr('P&revious'), self, triggered = self.player.previous)
+            self.tr('P&revious'), self, triggered = self.player.play_previous)
         self.playbackmenu.addAction(self.action_back)        
         self.action_play = QAction(
             #self.style().standardIcon(QStyle.SP_MediaPlay), 
@@ -105,7 +105,7 @@ class TandaMasterWindow(QMainWindow):
             #MyIcon('Tango', 'actions', 'media-skip-forward'),
             QIcon('button_fastforward_green.png'),
             #QIcon('icons/iconfinder/32pxmania/next.png'),
-            self.tr('&Next'), self, triggered = self.player.next,
+            self.tr('&Next'), self, triggered = self.player.play_next,
             shortcut = QKeySequence('ctrl+n'),
         )
         self.playbackmenu.addAction(self.action_forward)
@@ -285,7 +285,7 @@ class TandaMasterWindow(QMainWindow):
         self.play_orders_combo = QComboBox()
         for name, cls in PlayOrder.play_orders:
             self.play_orders_combo.addItem(name, cls)
-        self.play_orders_combo.setCurrentIndex(0)
+        self.play_orders_combo.setCurrentText(self.player.play_order.name)
         def set_play_order(index):
             self.player.set_play_order(self.play_orders_combo.currentData()())
         self.play_orders_combo.currentIndexChanged.connect(set_play_order)
@@ -1394,6 +1394,11 @@ class TMItemDelegate(QStyledItemDelegate):
             editor.setCompleter(completer)
         return editor
 
+    def paint(self, painter, option, index):
+        if index.model().item(index) == index.model().view.player.current_item \
+           and option.state & QStyle.State_Selected:
+            option.palette.setColor(QPalette.HighlightedText, QColor(Qt.green))
+        return super().paint(painter, option, index)
 
 class TMPositionProgressBar(QProgressBar):
     def __init__(self, player, interactive = True, parent = None):
@@ -1432,7 +1437,7 @@ class TMPositionProgressBar(QProgressBar):
 
     def paintEvent(self, paintevent):
         super().paintEvent(paintevent)
-        if not self.maximum():
+        if not self.player.current_song or not self.maximum():
             return
         painter = QPainter(self)
         song_begin = self.player.current_song.song_begin

@@ -884,7 +884,9 @@ class PlayTreeModel(QAbstractItemModel):
 
     def next_song(self, index):
         index = self.next(index)
-        while index.isValid() and not self.item(index).isPlayable:
+        while index.isValid():
+            if self.item(index).isPlayable:
+                return index
             index = self.next(index)
         return index
 

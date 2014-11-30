@@ -337,7 +337,6 @@ class TandaMasterWindow(QMainWindow):
         self.next_song_info.hide()
 
         self.player.current_changed.connect(self.update_song_info, type = Qt.QueuedConnection)
-        self.player.next_changed.connect(self.update_next_song_info, type = Qt.QueuedConnection)
         self.player.current_changed.connect(lambda: self.lock_action_forward(), type = Qt.QueuedConnection)
         self.player.state_changed.connect(self.on_player_state_changed, type = Qt.QueuedConnection)
         self.on_player_state_changed(TMPlayer.STOPPED)
@@ -362,10 +361,10 @@ class TandaMasterWindow(QMainWindow):
             self.setWindowTitle("TandaMaster")
             self.song_info.setText("")
             
-    def update_next_song_info(self, model, index):
-        item = model.item(index) if model else None
-        if item:
-            tags = item.get_tags(only_first = True)
+    def update_next_song_info(self):
+        next = self.player.concrete(self.player.next)
+        if next:
+            tags = next.item.get_tags(only_first = True)
             self.next_song_info.setText(self.song_info_formatter.format(
                 "{artist} <b>{title}</b>", **tags))
         else:
@@ -383,6 +382,7 @@ class TandaMasterWindow(QMainWindow):
         if state in (TMPlayer.PLAYING_FADEOUT, TMPlayer.PLAYING_GAP):
             self.fadeout_gap_pb.setMaximumHeight(self.song_info.height())
             self.statusBar().addPermanentWidget(self.fadeout_gap_pb)
+            self.update_next_song_info()
             self.statusBar().addPermanentWidget(self.next_song_info)
             self.fadeout_gap_pb.show()
             self.next_song_info.show()
@@ -521,13 +521,13 @@ class TandaMasterWindow(QMainWindow):
     def lock_action_forward(self, locked = None):
         if locked is None:
             locked = self.action_lock.isChecked()
-        self.action_forward.setEnabled(not locked or self.player.current.item.function() == 'cortina')
+        self.action_forward.setEnabled(not locked or (self.player.current and self.player.current.item.function() == 'cortina'))
 
     def mark_start_cut(self):
         position = self.player.playbin.query_position(Gst.Format.TIME)
         if position[0]:
             self.player.current.song_begin = position[1]
-            self.player.current.item.set_tag(
+            self.player.current.item.set_tag(# todo: undoable!
                 'tm:song_start',
                 [float(position[1])/Gst.SECOND])
 
@@ -737,7 +737,11 @@ class TabbedPlayTreesWidget(QTabWidget, TMWidget):
                     self.insert_tab(index, root_item = item)
                     index += 1
             
-    def on_current_changed(self, old_model, old_index, model, index):
+    def on_current_changed(self):
+        if not isinstance(self.window(), TandaMasterWindow):
+            return
+        old_model = self.window().player.old_current.model
+        model = self.window().player.current.model
         if old_model == model:
             return
         for i in range(self.count()):
@@ -861,7 +865,11 @@ class PlayTreeView(QTreeView):
            index in model.ancestors(self.player.current.index):
             self._autoexpand_on = False
 
-    def on_current_changed(self, old_model, old_index, model, index):
+    def on_current_changed(self):
+        old_model = self.player.old_current.model
+        model = self.player.current.model
+        old_index = self.player.old_current.index
+        index = self.player.current.index
         if self._autoexpand_on:
             if self._autoexpanded and old_model == self.model():
                 while old_index.isValid():

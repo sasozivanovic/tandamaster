@@ -124,14 +124,11 @@ class TandaMasterWindow(QMainWindow):
         self.action_lock.setCheckable(True)
         self.playbackmenu.addAction(self.action_lock)
         self.playbackmenu.addSeparator()
-        self.action_mark_start_cut = QAction(
-            self.tr('Mark start cut'), self, triggered = self.mark_start_cut,
-            shortcut = QKeySequence('('))
-        self.action_mark_end_cut = QAction(
-            self.tr('Mark end cut'), self, triggered = self.mark_end_cut,
-            shortcut = QKeySequence(')'))
-        self.playbackmenu.addAction(self.action_mark_start_cut)
-        self.playbackmenu.addAction(self.action_mark_end_cut)
+        self.action_mark_start_end = QAction(
+            self.tr('Mark start/end'), self,
+            triggered = self.mark_start_end,
+            shortcut = QKeySequence('.'))
+        self.playbackmenu.addAction(self.action_mark_start_end)
         menubar.addMenu(self.playbackmenu)
 
         self.editmenu = QMenu(self.tr('&Edit'))
@@ -525,14 +522,22 @@ class TandaMasterWindow(QMainWindow):
             locked = self.action_lock.isChecked()
         self.action_forward.setEnabled(not locked or (self.player.current and self.player.current.item.function() == 'cortina'))
 
-    def mark_start_cut(self):
+    # todo: update duration on play
+    def mark_start_end(self):
         position = self.player.playbin.query_position(Gst.Format.TIME)
         if position[0]:
-            self.player.current.song_begin = position[1]
-            self.player.current.item.set_tag(# todo: undoable!
-                'tm:song_start',
-                [float(position[1])/Gst.SECOND])
-
+            duration = self.player.playbin.query_duration(Gst.Format.TIME)
+            if not duration[0] or position[1] < duration[1] / 2:
+                self.player.current.song_begin = position[1]
+                self.player.current.item.set_tag(# todo: undoable!
+                    'tm:song_start',
+                    [float(position[1])/Gst.SECOND])
+            else:
+                self.player.current.song_end = position[1]
+                self.player.current.item.set_tag(
+                    'tm:song_end',
+                    [float(position[1])/Gst.SECOND])
+                
     def mark_end_cut(self):
         position = self.player.playbin.query_position(Gst.Format.TIME)
         if position[0]:

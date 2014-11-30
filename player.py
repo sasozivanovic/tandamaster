@@ -13,7 +13,7 @@ from util import *
 from IPython import embed
 import traceback
 
-
+        
 class TMPlayer(QObject):
 
     def __init__(self, *args, **kwargs):
@@ -43,6 +43,7 @@ class TMPlayer(QObject):
         
         self._gap_timer.timeout.connect(self._uri_change, type = Qt.QueuedConnection)
         self._signal_uri_change.connect(self._uri_change, type = Qt.QueuedConnection)
+        self._signal_on_gst_message.connect(self.on_gst_message, type = Qt.QueuedConnection)
         
     def _make_playbin(self):
         self.playbin = Gst.ElementFactory.make("playbin", None)
@@ -127,12 +128,12 @@ class TMPlayer(QObject):
     _signal_uri_change = pyqtSignal()
     def play_previous(self):
         position = self.position
-        if not position or position < config.previous_restarts_song__min_time:
+        if not position or position - self.current.song_begin < config.previous_restarts_song__min_time:
             self.next = self.play_order.previous(self.current.model, self.current.item)
             self.state = self.PLAYING_FADEOUT
         else:
-            self.seek(0)
             self.current = self.play_order.config_playback(self.current.model, self.current.item)
+            self.seek(self.current.song_begin)
     def pause(self):
         self._next = PlaybackConfig(state = self.PAUSED)
         self.state = self.PLAYING_FADEOUT
@@ -184,7 +185,7 @@ class TMPlayer(QObject):
     def state(self):
         return self._state
     @state.setter
-    def state(self, state):
+    def state(self, state):  # todo: thread safety
         if self._state == state:
             return
         self._state = state
@@ -270,12 +271,13 @@ class TMPlayer(QObject):
         self.state = self._URI_CHANGE
     def _set_state(self, state):
         self.state = state
-        
+
+    _signal_on_gst_message = pyqtSignal(QVariant, QVariant) # for thread safety
     def on_message(self, bus, message):
-        try:
-            self.message_handlers[message.type](self, bus, message)
-        except KeyError:
-            pass
+        if message.type in self.message_handlers:
+            self._signal_on_gst_message.emit(bus, message)
+    def on_gst_message(self, bus, message):
+        self.message_handlers[message.type](self, bus, message)
     def on_message_eos(self, bus, message):
         if self.state in (self.PLAYING, self.PLAYING_FADEOUT):
             self.state = self.PLAYING_GAP
@@ -463,7 +465,7 @@ class PlayOrderCheckSongBegins(PlayOrderStandard):
             model, item, 
             song_begin = song_begin,
             song_end = song_begin + 3*Gst.SECOND) \
-            if song_begin else PlaybackConfig()
+            if song_begin else PlaybackConfig() # todo: remove this line
     
 @PlayOrder.register
 class PlayOrderCheckSongEnds(PlayOrderStandard):
@@ -476,7 +478,7 @@ class PlayOrderCheckSongEnds(PlayOrderStandard):
             model, item, 
             song_begin = song_end - 5*Gst.SECOND,
             song_end = song_end) \
-            if song_end else PlaybackConfig()
+            if song_end else PlaybackConfig() # todo: remove this line
 
 @PlayOrder.register
 class PlayOrderCheckSongEndsSilently(PlayOrderStandard):

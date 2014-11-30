@@ -843,11 +843,9 @@ class PlayTreeModel(QAbstractItemModel):
     def columnCount(self, parent):
         return len(self.columns)
 
-    currentindexroles = (Qt.ForegroundRole, Qt.FontRole)
-    # todo: upper levels if not expanded
     def data(self, index, role = Qt.DisplayRole):
-        if role in self.currentindexroles:
-            if self.view.player.current_model == self and self.item(index) == self.view.player.current_item:
+        if role in (Qt.ForegroundRole, Qt.FontRole):
+            if self.mark_as_playing(index):
                 if role == Qt.ForegroundRole:
                     return QBrush(QColor(Qt.darkGreen))
                 elif role == Qt.FontRole:
@@ -855,7 +853,7 @@ class PlayTreeModel(QAbstractItemModel):
                     font.setWeight(QFont.Bold)
                     return font
         return self.item(index).data(self, self.columns[index.column()], role)
-
+    
     def headerData(self, section, orientation, role):
         if orientation == Qt.Horizontal and role == Qt.DisplayRole:
             tag = self.columns[section]
@@ -913,7 +911,7 @@ class PlayTreeModel(QAbstractItemModel):
             index = self.previous(index)
         return index
 
-    def ancestors(self, index):
+    def ancestors(self, index): # including oneself
         ancestors = []
         while index.isValid():
             ancestors.append(index)
@@ -1024,7 +1022,26 @@ class PlayTreeModel(QAbstractItemModel):
         if role == Qt.EditRole:
             return self.item(index).setData(self, self.columns[index.column()], value)
         return False
-        
+
+    def mark_as_playing(self, index):
+        index = self.sibling(index.row(), 0, index)
+        ca = self.view.player.current_ancestors
+        item = self.item(index)
+        if self.view.player.current.model == self:
+            if item in ca:
+                if item == ca[0] or not self.view.isExpanded(index):
+                    return True
+    # for refreshing at current_changed
+    def refresh_first_expanded_row(self, candidates,
+                                   roles = (Qt.ForegroundRole, Qt.FontRole)):
+        for candidate in candidates:
+            if self.view.isExpanded(candidate):
+                self.dataChanged.emit(
+                    self.sibling(None, 0, candidate),
+                    self.sibling(None, -1, candidate),
+                    roles)
+                break
+            
 def model_index_item(model = None, index = None, item = None, root_item = True):
     if model and item:
         index = item.index(model)

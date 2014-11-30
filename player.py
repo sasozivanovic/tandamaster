@@ -22,11 +22,9 @@ class TMPlayer(QObject):
         self._state = self.STOPPED
         self._volume = 1.0
 
-        self._current_model = None
-        self._current_item = None
-
-        self.current_song = SongInfo(None)
-        self._next_song = None
+        self._current = SongInfo(None)
+        self.current_ancestors = []
+        self._next = None
 
         self._make_playbin()
         
@@ -70,59 +68,38 @@ class TMPlayer(QObject):
         
     def set_play_order(self, play_order):
         self.play_order = play_order
-        self.current_song = play_order.make_transition(model = self.current_song.model, item = self.current_song.item) if isinstance(self.current_song, SongInfo) else self.current_song
-        self.next_song = play_order.make_transition(model = self.next_song.model, item = self.next_song.item) if isinstance(self.next_song, SongInfo) else self.next_song
+        self.current = play_order.make_transition(model = self.current.model, item = self.current.item) if isinstance(self.current, SongInfo) else self.current
+        self.next = play_order.make_transition(model = self.next.model, item = self.next.item) if isinstance(self.next, SongInfo) else self.next
         
-    @property
-    def current_model(self):
-        return self._current_model
-    @property
-    def current_item(self):
-        return self._current_item
-    @property
-    def current_index(self):
-        try:
-            return self._current_item.index(self._current_model)
-        except:
-            return QModelIndex()
     current_changed = pyqtSignal(PlayTreeModel, QModelIndex, PlayTreeModel, QModelIndex)
-    def set_current(self, model = None, index = None, item = None, silent = False):
-        model, index, item = model_index_item(model, index, item, root_item = False)
-        if not model:
-            model = self._current_model
-        old_model = self._current_model
-        old_item = self._current_item
-        self._current_model = model
-        self._current_item = item
-        if old_model != model or old_item != item:
-            if old_model is not None and old_item is not None:
-                old_index = old_item.index(old_model)
-                if not silent:
-                    old_model.dataChanged.emit(old_model.sibling(None, 0, old_index),
-                                               old_model.sibling(None, -1, old_index),
-                                               [Qt.ForegroundRole, Qt.FontRole])
-            else:
-                old_index = QModelIndex()
-            if model is not None and item is not None:
-                index = item.index(model)
-                if not silent:
-                    model.dataChanged.emit(model.sibling(None, 0, index),
-                                           model.sibling(None, -1, index),
-                                           [Qt.ForegroundRole, Qt.FontRole])
-            else:
-                index = QModelIndex()
-            if not silent:
-                self.current_changed.emit(old_model, old_index, model, index)
+    @property
+    def current(self):
+        return self._current
+    @current.setter
+    def current(self, current):
+        old_current = self._current
+        if old_current and old_current.model:
+            old_current.model.refresh_first_expanded_row(
+                [a.index(old_current.model) for a in self.current_ancestors])
+        if current and current.model:
+            current_ancestors_indexes = current.model.ancestors(current.index)
+            self.current_ancestors = [current.model.item(a) for a in current_ancestors_indexes]
+            current.model.refresh_first_expanded_row(current_ancestors_indexes)
+        else:
+            self.current_ancestors = []
+        self._current = current
+        self.current_changed.emit(old_current.model, old_current.index,
+                                  current.model, current.index)
 
     next_changed = pyqtSignal(PlayTreeModel, QModelIndex)
     @property
-    def next_song(self):
-        return self._next_song
-    @next_song.setter
-    def next_song(self, next_song):
-        self._next_song = next_song
+    def next(self):
+        return self._next
+    @next.setter
+    def next(self, next_song):
+        self._next = next_song
         if next_song is None:
-            next_song = self.play_order.auto(model = self.current_model, item = self.current_item)
+            next_song = self.play_order.auto(model = self.current.model, item = self.current.item)
         if next_song:
             self.next_changed.emit(next_song.model, next_song.index)
         else:
@@ -142,35 +119,35 @@ class TMPlayer(QObject):
     def play_previous(self):
         position = self.position
         if not position or position < config.previous_restarts_song__min_time:
-            self.next_song = self.play_order.previous(model = self.current_model, item = self.current_item)
+            self.next = self.play_order.previous(model = self.current.model, item = self.current.item)
             self.state = self.PLAYING_FADEOUT
         else:
             self.seek(0)
-            self.current_song = self.play_order.make_transition(model = self.current_model, item = self.current_item)
+            self.current = self.play_order.make_transition(model = self.current.model, item = self.current.item)
     def pause(self):
-        self._next_song = self.PAUSED
+        self._next = self.PAUSED
         self.state = self.PLAYING_FADEOUT
     def play(self):
         if self.state == self.PAUSED:
             self.playbin.set_state(Gst.State.PLAYING)
             self.state = self.PLAYING
         else:
-            self.next_song = None
+            self.next = None
             self.state = self.PLAYING_FADEOUT
     def stop(self):
-        self.next_song = SongInfo(None)
+        self.next = SongInfo(None)
         self.state = self.PLAYING_FADEOUT
     def play_next(self):
-        self.next_song = self.play_order.next(model = self.current_model, item = self.current_item)
+        self.next = self.play_order.next(model = self.current.model, item = self.current.item)
         self.state = self.PLAYING_FADEOUT
     def play_index(self, index):
-        self.next_song = self.play_order.play_index(index = index)
+        self.next = self.play_order.play_index(index = index)
         self.state = self.PLAYING_FADEOUT
 
     def seek(self, position):
         self._gap_timer.stop()
-        if self.current_song.song_end is not None and position >= self.current_song.song_end:
-            self.current_song.song_end = None
+        if self.current.song_end is not None and position >= self.current.song_end:
+            self.current.song_end = None
         self.playbin.seek(
             1.0, Gst.Format.TIME,
             Gst.SeekFlags.FLUSH | Gst.SeekFlags.ACCURATE,
@@ -207,7 +184,7 @@ class TMPlayer(QObject):
         if not playing and self._timer.isActive():
             self._timer.stop()
         if state == self.PLAYING:
-            self.current_item.unavailable = False
+            self.current.item.unavailable = False
             self.playbin.set_state(Gst.State.PLAYING)
         elif state == self.PAUSED:
             self.playbin.set_state(Gst.State.PAUSED)
@@ -216,7 +193,7 @@ class TMPlayer(QObject):
                 self.position_changed.emit(position[1])
         elif state == self.STOPPED:
             self.playbin.set_state(Gst.State.READY)
-            self.set_current(model = self.current_model)
+            self.current = SongInfo(self.current.model)
             self.position_changed.emit(0)
             #self.duration_changed.emit(1) # todo
         elif state == self.PLAYING_FADEOUT:
@@ -224,31 +201,30 @@ class TMPlayer(QObject):
             if self.gst_state != Gst.State.PLAYING:
                 self.state = self._URI_CHANGE
                 return
-            elif not self.current_song.fadeout_duration:
+            elif not self.current.fadeout_duration:
                 self.state = self.PLAYING_GAP
                 return
             self._fadeout_start = self.position
         elif state == self.PLAYING_GAP:
-            if not self.current_song.gap_duration or self.next_song == self.PAUSED:
+            if not self.current.gap_duration or self.next == self.PAUSED:
                 self._signal_uri_change.emit()
                 return
-            if self.gst_state == Gst.State.PLAYING and (not self.current_song.song_end or self.position < self.current_song.song_end):
+            if self.gst_state == Gst.State.PLAYING and (not self.current.song_end or self.position < self.current.song_end):
                 self.playbin.set_state(Gst.State.PAUSED)
-            if not self.next_song or self.next_song.item:
-                self._gap_timer.start(int(self.current_song.gap_duration/Gst.MSECOND))
+            if not self.next or self.next.item:
+                self._gap_timer.start(int(self.current.gap_duration/Gst.MSECOND))
             else:
                 self.state = self._URI_CHANGE
                 return
         elif state == self._URI_CHANGE:
             self._gap_timer.stop()
-            if self.next_song and self.next_song == self.PAUSED:
-                self.next_song = None
+            if self.next and self.next == self.PAUSED:
+                self.next = None
                 self.state = self.PAUSED
                 return
-            self.current_song = self.next_song if self.next_song else self.play_order.auto(model = self.current_model, item = self.current_item)
-            self.set_current(model = self.current_song.model, item = self.current_song.item)
-            self.next_song = None
-            if self.current_song.item is None:
+            self.current = self.next if self.next else self.play_order.auto(model = self.current.model, item = self.current.item)
+            self.next = None
+            if self.current.item is None:
                 self.state = self.STOPPED
                 return
             self.bus.set_flushing(True)
@@ -256,15 +232,15 @@ class TMPlayer(QObject):
             self.playbin.set_state(Gst.State.READY)
             self.bus.set_flushing(False)
             self.playbin.set_property('volume', self.volume)
-            self.playbin.set_property('uri', QUrl.fromLocalFile(self.current_song.item.filename).toString())
+            self.playbin.set_property('uri', QUrl.fromLocalFile(self.current.item.filename).toString())
             self.playbin.set_state(Gst.State.PAUSED)
-            if self.current_song.song_begin:
+            if self.current.song_begin:
                 self._pending_ops[Gst.State.PAUSED].append(
                     lambda:
                     self.playbin.seek(
                         1.0, Gst.Format.TIME,
                         Gst.SeekFlags.FLUSH | Gst.SeekFlags.ACCURATE,
-                        Gst.SeekType.SET, self.current_song.song_begin,
+                        Gst.SeekType.SET, self.current.song_begin,
                         Gst.SeekType.NONE, 0
                     ))
             self.on_message_duration_changed()
@@ -297,7 +273,7 @@ class TMPlayer(QObject):
         self._pending_ops.clear()
         error = message.parse_error()
         if GLib.quark_from_string(error[0].domain) == Gst.ResourceError.quark():
-            self.current_item.unavailable = True
+            self.current.item.unavailable = True
             self._signal_uri_change.emit()
         else:
             print(error)
@@ -321,23 +297,23 @@ class TMPlayer(QObject):
         if self.state == self.PLAYING:
             if position is None:
                 return
-            song_end = self.current_song.song_end if self.current_song.song_end is not None else self.duration
+            song_end = self.current.song_end if self.current.song_end is not None else self.duration
             if song_end is not None and position > song_end:
                 self.state = self.PLAYING_GAP
                 self.gap_position_changed.emit(position - song_end)
         elif self.state == self.PLAYING_FADEOUT:
             fadeout_elapsed = position - self._fadeout_start
-            if fadeout_elapsed > self.current_song.fadeout_duration:
+            if fadeout_elapsed > self.current.fadeout_duration:
                 self.playbin.set_state(Gst.State.PAUSED)
                 self.playbin.set_property('volume', self.volume)
                 self.state = self.PLAYING_GAP
             else:
-                fadeout_volume = self.volume * (1 - fadeout_elapsed / self.current_song.fadeout_duration)
+                fadeout_volume = self.volume * (1 - fadeout_elapsed / self.current.fadeout_duration)
                 self.playbin.set_property('volume', fadeout_volume)
-                self.fadeout_position_changed.emit(self.current_song.fadeout_duration - fadeout_elapsed)
+                self.fadeout_position_changed.emit(self.current.fadeout_duration - fadeout_elapsed)
         elif self.state == self.PLAYING_GAP:
             gap_remaining = self._gap_timer.remainingTime()
-            self.gap_position_changed.emit(self.current_song.gap_duration - gap_remaining * Gst.MSECOND)
+            self.gap_position_changed.emit(self.current.gap_duration - gap_remaining * Gst.MSECOND)
         if position:
             self.position_changed.emit(position)
         
@@ -352,7 +328,7 @@ class SongInfo:
     def index(self):
         return self.item.index(self.model) if self.item else QModelIndex()
     def __str__(self):
-        return 'SongInfo({},fadeout={},gap={},begin={},end={})'.format(self.item.filename,self.fadeout_duration,self.gap_duration,self.song_begin,self.song_end) if self.item else 'SongInfo()'
+        return 'SongInfo({},fadeout={},gap={},begin={},end={})'.format(self.item,self.fadeout_duration,self.gap_duration,self.song_begin,self.song_end) if self.item else 'SongInfo()'
             
 class PlayOrder(QObject):
     play_orders = []
@@ -390,15 +366,11 @@ class PlayOrderStandard(PlayOrder):
         return si
     def play_index(self, model = None, index = None, item = None):
         model, index, item = model_index_item(model, index, item)
-        if not item.isPlayable:
-            return self.next(model = model, item = item)
-        si = self.make_transition(model, index, item)
-        while not si:
-            index = model.next_song(index)
-            if not index or not index.isValid():
-                return SongInfo()
-            si = self.make_transition(index = index)
-        return si
+        if item.isPlayable:
+            si = self.make_transition(model, index, item)
+            if si:
+                return si
+        return self.next(model = model, item = item)
     def set_stop_after(self, i):
         self._stop_after = i
         self._stop_after_initial = i

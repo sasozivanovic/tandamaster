@@ -2,7 +2,7 @@ from PyQt5.QtCore import pyqtRemoveInputHook; from IPython import embed; pyqtRem
 
 from PyQt5.Qt import *   # todo: import only what you need
 
-from player import TMPlayer, PlayOrder
+from player import TMPlayer, PlayOrder, SongInfo
 from model import *
 from library import Library
 from util import *
@@ -324,7 +324,7 @@ class TandaMasterWindow(QMainWindow):
         self.next_song_info = QLabel()
         self.next_song_info.setContentsMargins(8,0,8,0)
         self.next_song_info.hide()
-        
+
         self.player.current_changed.connect(self.update_song_info, type = Qt.QueuedConnection)
         self.player.next_changed.connect(self.update_next_song_info, type = Qt.QueuedConnection)
         self.player.current_changed.connect(lambda: self.lock_action_forward(), type = Qt.QueuedConnection)
@@ -341,7 +341,7 @@ class TandaMasterWindow(QMainWindow):
 
     song_info_formatter = PartialFormatter()
     def update_song_info(self):
-        item = self.player.current_item
+        item = self.player.current.item
         if item:
             tags = item.get_tags(only_first = True)
             self.setWindowTitle(self.song_info_formatter.format(
@@ -511,21 +511,21 @@ class TandaMasterWindow(QMainWindow):
     def lock_action_forward(self, locked = None):
         if locked is None:
             locked = self.action_lock.isChecked()
-        self.action_forward.setEnabled(not locked or self.player.current_item.function() == 'cortina')
+        self.action_forward.setEnabled(not locked or self.player.current.item.function() == 'cortina')
 
     def mark_start_cut(self):
         position = self.player.playbin.query_position(Gst.Format.TIME)
         if position[0]:
-            self.player.current_song.song_begin = position[1]
-            self.player.current_item.set_tag(
+            self.player.current.song_begin = position[1]
+            self.player.current.item.set_tag(
                 'tm:song_start',
                 [float(position[1])/Gst.SECOND])
 
     def mark_end_cut(self):
         position = self.player.playbin.query_position(Gst.Format.TIME)
         if position[0]:
-            self.player.current_song.song_end = position[1]
-            self.player.current_item.set_tag(
+            self.player.current.song_end = position[1]
+            self.player.current.item.set_tag(
                 'tm:song_end',
                 [float(position[1])/Gst.SECOND])
         
@@ -755,12 +755,14 @@ class PlayTreeWidget(QWidget, TMWidget):
                 if width is not None:
                     ptw.ptv.setColumnWidth(i, int(width))
         if element.get('current'):
-            window.player.set_current(model = ptw.ptv.model())
+            window.player.current = SongInfo(ptw.ptv.model())
         return ptw
 
     def to_xml(self):
         element = super().to_xml()
         element.set('root_id', str(self.ptv.model().root_item.Id))
+        if self.window().player.current.model == self.ptv.model():
+            element.set('current', '1')
         for i, column in enumerate(self.ptv.model().columns):
             etree.SubElement(element, 
                              'column', 
@@ -823,8 +825,6 @@ class PlayTreeView(QTreeView):
         self.player = player
         self.activated.connect(self.on_activated)
         player.current_changed.connect(self.on_current_changed)
-        if not player.current_model:
-            player.set_current(model = self.model())
         self.model().modelReset.connect(self.on_end_reset_model)
 
         self.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -839,16 +839,16 @@ class PlayTreeView(QTreeView):
     def on_expanded(self, index):
         model = self.model()
         model.item(index).expanded[model] = True
-        if model == self.player.current_model and \
-           index in model.ancestors(self.player.current_index):
+        if model == self.player.current.model and \
+           index in model.ancestors(self.player.current.index):
             self._autoexpand_on = True
         self.autosize_columns()
 
     def on_collapsed(self, index):
         model = self.model()
         model.item(index).expanded[model] = False
-        if model == self.player.current_model and \
-           index in model.ancestors(self.player.current_index):
+        if model == self.player.current.model and \
+           index in model.ancestors(self.player.current.index):
             self._autoexpand_on = False
 
     def on_current_changed(self, old_model, old_index, model, index):
@@ -867,7 +867,7 @@ class PlayTreeView(QTreeView):
                     index = model.parent(index)
 
     def on_activated(self, index):
-        if not self.window().action_lock.isChecked() or self.player.current_item.function() == 'cortina':
+        if not self.window().action_lock.isChecked() or self.player.current.item.function() == 'cortina':
             self.player.play_index(index)
 
     def currentChanged(self, current, previous):
@@ -1060,8 +1060,8 @@ class PlayTreeView(QTreeView):
         if mode == PlayTreeItem.duration_mode_cortinas:
             msg += ' (cortina={}s)'.format(PlayTreeFile.cortina_duration)
 
-        index = self.player.current_index
-        model = self.player.current_model
+        index = self.player.current.index
+        model = self.player.current.model
         remaining = ''
         # todo: query the position of the current song
         if index and index.isValid():
@@ -1395,9 +1395,9 @@ class TMItemDelegate(QStyledItemDelegate):
         return editor
 
     def paint(self, painter, option, index):
-        if index.model().item(index) == index.model().view.player.current_item \
-           and option.state & QStyle.State_Selected:
-            option.palette.setColor(QPalette.HighlightedText, QColor(Qt.green))
+        if option.state & QStyle.State_Selected:
+            if index.model().mark_as_playing(index):
+                option.palette.setColor(QPalette.HighlightedText, QColor(Qt.green))
         return super().paint(painter, option, index)
 
 class TMPositionProgressBar(QProgressBar):
@@ -1437,11 +1437,11 @@ class TMPositionProgressBar(QProgressBar):
 
     def paintEvent(self, paintevent):
         super().paintEvent(paintevent)
-        if not self.player.current_song or not self.maximum():
+        if not self.player.current or not self.maximum():
             return
         painter = QPainter(self)
-        song_begin = self.player.current_song.song_begin
-        song_end = self.player.current_song.song_end
+        song_begin = self.player.current.song_begin
+        song_end = self.player.current.song_end
         # calculate manually: setting scale to use ms produces numbers that are too large?
         song_begin = self.width() * song_begin / Gst.MSECOND / self.maximum() if song_begin else None
         song_end = self.width() * song_end / Gst.MSECOND / self.maximum() if song_end else None
@@ -1488,13 +1488,13 @@ class TMGapAndFadeoutProgressBar(QProgressBar):
         
     def on_state_changed(self, state):
         if state == TMPlayer.PLAYING_FADEOUT:
-            fadeout_duration = self.player.current_song.fadeout_duration
+            fadeout_duration = self.player.current.fadeout_duration
             self.setMaximum(int(fadeout_duration/Gst.MSECOND))
             self.setValue(int(fadeout_duration/Gst.MSECOND))
             self.setEnabled(True)
             self._text = 'fadeout {:1g}s'.format(fadeout_duration/Gst.SECOND)
         elif state == TMPlayer.PLAYING_GAP:
-            gap_duration = self.player.current_song.gap_duration
+            gap_duration = self.player.current.gap_duration
             self.setMaximum(int(gap_duration/Gst.MSECOND))
             self.setValue(0)
             self.setEnabled(True)

@@ -2,7 +2,7 @@ from PyQt5.QtCore import pyqtRemoveInputHook; from IPython import embed; pyqtRem
 
 from PyQt5.Qt import *   # todo: import only what you need
 
-from player import TMPlayer, PlayOrder, SongInfo
+from player import TMPlayer, PlayOrder, PlaybackConfig
 from model import *
 from library import Library
 from util import *
@@ -35,6 +35,14 @@ class TandaMasterWindow(QMainWindow):
             self.restoreGeometry(binascii.unhexlify(geometry))
         self.setCentralWidget(TMWidget.create_from_xml(self.ui_xml.find('CentralWidget')[0],self))
 
+
+        if self.player.current and self.player.current.model:
+            widget = self.player.current.model.view
+            while widget.parent():
+                print(widget)
+                widget.setFocus(Qt.OtherFocusReason)
+                widget = widget.parent()
+                
         menubar = QMenuBar()
 
         self.musicmenu = QMenu(self.tr('&Music'))
@@ -255,6 +263,9 @@ class TandaMasterWindow(QMainWindow):
             self.tr('Make PDF for songs'), self, triggered = lambda: self.run_on_selected_rows(LaTeXSongInfo))
         self.toolsmenu.addAction(self.action_latexsonginfo)
         menubar.addMenu(self.toolsmenu)
+
+        self.musicmenu.addAction(action_quit)
+        menubar.addMenu(self.musicmenu)        
         
         self.setMenuBar(menubar)
 
@@ -341,9 +352,8 @@ class TandaMasterWindow(QMainWindow):
 
     song_info_formatter = PartialFormatter()
     def update_song_info(self):
-        item = self.player.current.item
-        if item:
-            tags = item.get_tags(only_first = True)
+        if self.player.current:
+            tags = self.player.current.item.get_tags(only_first = True)
             self.setWindowTitle(self.song_info_formatter.format(
                 "{artist} - {title} | TandaMaster", **tags))
             self.song_info.setText(self.song_info_formatter.format(
@@ -755,7 +765,7 @@ class PlayTreeWidget(QWidget, TMWidget):
                 if width is not None:
                     ptw.ptv.setColumnWidth(i, int(width))
         if element.get('current'):
-            window.player.current = SongInfo(ptw.ptv.model())
+            window.player.current = PlaybackConfig(ptw.ptv.model())
         return ptw
 
     def to_xml(self):

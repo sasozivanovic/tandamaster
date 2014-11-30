@@ -1027,7 +1027,7 @@ class PlayTreeModel(QAbstractItemModel):
         index = self.sibling(index.row(), 0, index)
         ca = self.view.player.current_ancestors
         item = self.item(index)
-        if self.view.player.current.model == self:
+        if self.view.player.current and self.view.player.current.model == self:
             if item in ca:
                 if item == ca[0] or not self.view.isExpanded(index):
                     return True
@@ -1042,19 +1042,6 @@ class PlayTreeModel(QAbstractItemModel):
                     roles)
                 break
             
-def model_index_item(model = None, index = None, item = None, root_item = True):
-    if model and item:
-        index = item.index(model)
-    elif index and index.isValid():
-        model = index.model()
-        item = model.item(index)
-    elif model:
-        item = model.root_item if root_item else None
-        index = QModelIndex()
-    else:
-        return None, None, None
-    return model, index, item
-
 from app import app
 def save_playtree():
     playtree.save(playtree_xml_filename)

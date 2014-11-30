@@ -96,12 +96,16 @@ class TMPlayer(QObject):
         # hmm ... two signals, current_model_changed and current_item_changed?
         self.current_changed.emit()
         
+    next_changed = pyqtSignal()
     @property
     def next(self):
         return self._next
     @next.setter
     def next(self, next):
         self._next = next
+        if self.state in (self.PLAYING_FADEOUT, self.PLAYING_GAP):
+            self.next_changed.emit()
+            
     def concrete(self, pbc):
         if pbc.auto() and self.current:
             return self.play_order.auto(self.current.model, self.current.item)
@@ -237,7 +241,7 @@ class TMPlayer(QObject):
                 return
             if self.next:
                 self.current = self.next
-            else:
+            elif self.current:
                 self.current = self.play_order.auto(self.current.model, self.current.item)
             self.next = PlaybackConfig()
             if not self.current:
@@ -434,13 +438,15 @@ class PlayOrderMilongaMode(PlayOrderStandard):
             song_end = item.get_song_end(),
             fadeout_duration = config.fadeout_duration[item.function()],
             gap_duration = config.gap_duration[item.function()]) \
-            if item else PlaybackConfig()
+            if isinstance(item, PlayTreeFile) else PlaybackConfig()
 
 @PlayOrder.register
 class PlayOrderCheckSongBeginsSilently(PlayOrderStandard):
     name = 'To start'
     def config_playback(self, model, item):
-        song_begin = item.get_song_begin() if item else None
+        if not isinstance(item, PlayTreeFile):
+            return PlaybackConfig()
+        song_begin = item.get_song_begin()
         return PlaybackConfig(
             model, item, 
             song_begin = 0, song_end = song_begin) \
@@ -450,7 +456,9 @@ class PlayOrderCheckSongBeginsSilently(PlayOrderStandard):
 class PlayOrderCheckSongBegins(PlayOrderStandard):
     name = 'From start'
     def config_playback(self, model, item):
-        song_begin = item.get_song_begin() if item else None
+        if not isinstance(item, PlayTreeFile):
+            return PlaybackConfig()
+        song_begin = item.get_song_begin()
         return PlaybackConfig(
             model, item, 
             song_begin = song_begin,
@@ -461,7 +469,9 @@ class PlayOrderCheckSongBegins(PlayOrderStandard):
 class PlayOrderCheckSongEnds(PlayOrderStandard):
     name = 'To end'
     def config_playback(self, model, item):
-        song_end = item.get_song_end() if item else None
+        if not isinstance(item, PlayTreeFile):
+            return PlaybackConfig()
+        song_end = item.get_song_end()
         return PlaybackConfig(
             model, item, 
             song_begin = song_end - 5*Gst.SECOND,
@@ -472,7 +482,9 @@ class PlayOrderCheckSongEnds(PlayOrderStandard):
 class PlayOrderCheckSongEndsSilently(PlayOrderStandard):
     name = 'From end'
     def config_playback(self, model, item):
-        song_end = item.get_song_end() if item else None
+        if not isinstance(item, PlayTreeFile):
+            return PlaybackConfig()
+        song_end = item.get_song_end()
         return PlaybackConfig(model, item, song_begin = song_end) \
             if song_end else PlaybackConfig()
 

@@ -337,6 +337,7 @@ class TandaMasterWindow(QMainWindow):
         self.next_song_info.hide()
 
         self.player.current_changed.connect(self.update_song_info, type = Qt.QueuedConnection)
+        self.player.next_changed.connect(self.update_next_song_info, type = Qt.QueuedConnection)
         self.player.current_changed.connect(lambda: self.lock_action_forward(), type = Qt.QueuedConnection)
         self.player.state_changed.connect(self.on_player_state_changed, type = Qt.QueuedConnection)
         self.on_player_state_changed(TMPlayer.STOPPED)
@@ -369,6 +370,7 @@ class TandaMasterWindow(QMainWindow):
                 "{artist} <b>{title}</b>", **tags))
         else:
             self.next_song_info.setText('')
+        self.next_song_info.update()
             
     def on_player_state_changed(self, state):
         if state in (TMPlayer.PLAYING, TMPlayer.PLAYING_FADEOUT, TMPlayer.PLAYING_GAP, TMPlayer.PLAYING_FADEOUT):

@@ -178,7 +178,12 @@ class TMPlayer(QObject):
         gst_state = self.playbin.get_state(0)
         if gst_state[0]:
             return gst_state[1]
-        
+
+    # todo: prepare uri while doing the real gap --- ie on eos, or about to finish
+    # fix bug(?): moving works, but only at autoplay
+    #   - maybe previous and next should find the prev/next song at the last moment too?
+    #
+    # ideja. playbackconfig naj bo še bolj živ. naj shrani model in item, ja, ampak tudi metodo iz playorderja, ki izračuna naslednjo skladbo (naj bo kar callable); metoda se seveda določi glede na uporabnikovi klike, na začetku pa je default (zdaj auto). pa še cacheja naj rezultat --- zato bi bilo treba imeti fiksen primerek klasa med celim predvajanjem skladbe v next-u (potem ga pa že dobi currrent). ostali parametri (vsi razen model in item) pa naj bodo shranjeni v dictu, da se jih lahko pobriše? --mah, saj se ob vsaki skladbi naredi nov playbackconfig
     STOPPED, PAUSED, PLAYING, PLAYING_FADEOUT, PLAYING_GAP, _URI_CHANGE = range(1,7)
     state_changed = pyqtSignal(int)
     @property

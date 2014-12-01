@@ -118,6 +118,7 @@ class TandaMasterWindow(QMainWindow):
         )
         self.playbackmenu.addAction(self.action_forward)
         self.playbackmenu.addSeparator()
+        # todo: disablaj lock kadar je state STOPPED, na koncu seznama pa avtomatsko odkleni
         self.action_lock = QAction(
             QIcon('icons/iconfinder/iconza/unlocked.png'),
             self.tr('Un&locked'), self, toggled = self.lock)

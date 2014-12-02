@@ -356,7 +356,7 @@ class TandaMasterWindow(QMainWindow):
             self.setWindowTitle(self.song_info_formatter.format(
                 "{artist} - {title} | TandaMaster", **tags))
             self.song_info.setText(self.song_info_formatter.format(
-                "{artist} <b>{title}</b>{duration}", duration = ' ' + time_to_text(self.player.duration,unit='ms',include_ms=False) if self.player.duration else '', **tags))
+                "{artist} <b>{title}</b>{duration}", duration = ' ' + time_to_text(self.player.duration,unit='ns',include_ms=False) if self.player.duration else '', **tags))
         else:
             self.setWindowTitle("TandaMaster")
             self.song_info.setText("")

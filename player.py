@@ -22,6 +22,7 @@ class TMPlayer(QObject):
 
         self._state = self.STOPPED
         self._volume = 1.0
+        self.duration = None
 
         self._current = PlaybackConfig()
         self.current_ancestors = []

@@ -1649,11 +1649,12 @@ class LaTeXSongInfo(QRunnable):
                 if '-' in year:
                     year = year[0:year.find('-')]
                 print(r"""\napis{%
-\node at (0,0.5)[anchor=center,font=\fs{3cm}]{""" + author + r"""};
-\node at (0,-0.2)[anchor=center,font=\fs{3cm}\it]{""" + title + r"""};
-\node at (-1,-1)[anchor=south west,font=\fs{2cm}]{""" + year + r"""};
-\node at (1,-1)[anchor=south east,font=\fs{2cm}]{""" + singer + r"""};
-}""", file = f)
+\node at (0,0.5)[anchor=center,align=center,font=\fs{3cm}]{""" + author + r"""};
+\node at (0,-0.2)[anchor=center,align=center,font=\fs{3cm}\it]{""" + title + r"""};
+\node at (-1,-1)[anchor=south west,align=center,font=\fs{2cm}]{""" + year + r"""};
+\node at (1,-1)[anchor=south east,align=center,font=\fs{2cm}]{""" + singer + r"""};
+""" + ((r"""\node at (1,1)[anchor=north east,align=center,outer ysep=5mm,font=\fs{2cm}]{\textsc{""" + genre.lower() + r"""}};
+}""") if genre.lower() in ('vals', 'milonga') else ''), file = f)
             print(r"""\end{document}""", file=f)
         import subprocess
         subprocess.call(['xelatex', 'naslov'])

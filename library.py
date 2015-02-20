@@ -121,7 +121,7 @@ class BgQueries(list):
     
 class Library(QObject):
     _cache = {}
-    musicfile_extensions = ['.mp3', '.wav', '.ogg', '.m4a', '.mp3']
+    musicfile_extensions = ['.mp3', '.wav', '.ogg', '.m4a', '.mp3', '.flac']
 
     def __init__(self, filename = 'tandamaster.db', connect = True):
         super().__init__()
@@ -368,7 +368,7 @@ class Library(QObject):
         self.connection.commit() # must be here: if it's in the loop, all hell breaks loose
 
     def _query(self, fixed_tags, filter_words, browse_by_tags, tags_only):
-        what = "".join("tags_browse_{}.value, " + i for i in range(browse_by_tags))
+        what = "".join("tags_browse_{}.value, ".format(i) for i in range(len(browse_by_tags)))
         def tables():
             for i in range(len(fixed_tags)):
                 yield 'INNER', 'tags', 'tags_' + str(i)
@@ -378,7 +378,7 @@ class Library(QObject):
                 yield 'LEFT', 'tags', 'tags_browse_' + str(i)
         join = " ".join(
             "{} JOIN {} AS {} USING(song_id)".format(j,t,a)
-            for j,t,a in list(tables))
+            for j,t,a in list(tables()))
         where = " AND ".join(filter(None,(
             " AND ".join(
                 "tags_{n}.tag=? AND tags_{n}.value=?".format(n=n)
@@ -390,11 +390,11 @@ class Library(QObject):
                 "tags_filter_{}.ascii LIKE ?".format(i) for i in range(len(filter_words))
             ),
             " AND ".join(
-                "tags_browse_{}.tag=?" for i in range(browse_by_tags)
+                "tags_browse_{}.tag=?".format(i) for i in range(len(browse_by_tags))
             )
         )))
         group = ("GROUP BY " + ", ".join(
-            "tags_browse_" + str(i) + '.value' for i in range(browse_by_tags))
+            "tags_browse_" + str(i) + '.value' for i in range(len(browse_by_tags)))
            ) if tags_only and browse_by_tags else ""
         statement = 'SELECT {} {}{},{} FROM files {} {}{} {}'.format(
             '' if tags_only else ' DISTINCT ',
@@ -432,6 +432,11 @@ class Library(QObject):
             row = cursor.fetchone()
     def query_songs_all(self, fixed_tags, filter_words, browse_by_tags):
         return self._query(fixed_tags, filter_words, browse_by_tags, False).fetchall()
+    def query_songs_create_playitems(self, browse, model, fixed_tags, filter_words, browse_by_tags):
+        rows = self.query_songs_iter(fixed_tags, filter_words, browse_by_tags)
+        temp_root_browse = browse.copy()
+        temp_root_browse._populate(model, rows)
+        return temp_root_browse
     
     bg_queries_done = pyqtSignal(BgQueries)
     def bg_queries(self, queries):

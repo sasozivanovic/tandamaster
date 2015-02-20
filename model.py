@@ -431,6 +431,8 @@ class PlayTreeFile(PlayTreeItem):
         return True
 
     def filter(self, model):
+        if not model.filter_expr:
+            return True
         for row in library.query_songs_iter(
                 [('song_id', self.song_id)], model.filter_expr, []):
             return True
@@ -471,9 +473,12 @@ class PlayTreeFile(PlayTreeItem):
                 value = self.get_tag(column_name)
                 return value[0] if value else None
             else:
-                column_name = 'title'
-                titles = self.get_tag('title')
-                data = titles[0] if titles else str(self)
+                if 'value' in self.__dict__:
+                    data = self.value
+                else:
+                    column_name = 'title'
+                    titles = self.get_tag('title')
+                    data = titles[0] if titles else str(self)
             return data
         elif not column_name and role == Qt.DecorationRole:
             #return tmSongIcon
@@ -680,9 +685,11 @@ class PlayTreeBrowse(PlayTreeItem):
         if column_name:
             return None
         elif role == Qt.DisplayRole:
-            if model in self.song_count:
-                return (self.value[model] if model in self.value and self.value[model] else '') + \
-                    ' (' + str(self.song_count[model]) + ')'
+            #if model in self.song_count:
+            #    return (self.value[model] if model in self.value and self.value[model] else '') + \
+            #        ' (' + str(self.song_count[model]) + ')'
+            if isinstance(self.parent, PlayTreeBrowse):
+                return self.value[model] if model in self.value and self.value[model] else ''
             else:
                 return str(self)
         elif column_name == '' and role == Qt.DecorationRole:
@@ -713,35 +720,38 @@ class PlayTreeBrowse(PlayTreeItem):
 
     def _populate(self, model, rows):
         self.children[model] = []
-        children = self.children[model]
-        browse_by_values = [None for t in self.browse_by_tags]
         for row in rows:
-            change = False
-            for i,t in enumerate(browse_by_values):
-                if t != row[i]:
-                    change = True
-                
-        
-    def populate_tags(self, model, rows):
-        self.children[model] = []
-        children = self.children[model]
-        tag = self.browse_by_tags[0]
-        browse_by_tags = self.browse_by_tags[1:]        
-        for value, count in rows:
-            fixed_tags = self.fixed_tags + ((tag, value),)
-            child = PlayTreeBrowse(self.library, fixed_tags, browse_by_tags, tag = tag, parent = self)
-            child.value[model] = value
-            child.song_count[model] = count
-            children.append(child)
-        
-    def populate_songs(self, model, rows):
-        self.children[model] = []
-        children = self.children[model]
-        for song_id in rows:
-            children.append(PlayTreeFile(song_id = song_id, parent = self))
+            cols = list(row[0:-3])
+            if cols:
+                last_browse = self._populate_create_structure(model, cols)
+            else:
+                last_browse = self
+            if row[-2]:
+                song = PlayTreeFile(song_id = row[-2], parent = last_browse)
+                song.value = row[-3]
+                if model not in last_browse.children or last_browse.children[model] is None:
+                    last_browse.children[model] = []
+                last_browse.children[model].append(song)
 
+    def _populate_create_structure(self, model, values):
+        if not values:
+            return self
+        value = values.pop(0)
+        if model not in self.children or self.children[model] is None:
+            self.children[model] = []
+        children = self.children[model]
+        if len(children) == 0 or not isinstance(children[-1], PlayTreeBrowse) or value != children[-1].value[model]:
+            new_browse = PlayTreeBrowse(
+                self.library,
+                self.fixed_tags + ( (self.browse_by_tags[0], value), ),
+                self.browse_by_tags[1:],
+                tag = self.browse_by_tags[0],
+                parent = self)
+            new_browse.value[model] = value
+            children.append(new_browse)
+        return children[-1]._populate_create_structure(model, values)
+        
     
-
 @register_xml_tag_handler('link')
 class PlayTreeLink(PlayTreeItem):
     pass
@@ -933,6 +943,11 @@ class PlayTreeModel(QAbstractItemModel):
         except:
             return
         self.filter_expr = filter_expr
+        if not filter_expr:
+            self.beginResetModel()
+            self.root_item.populate(self, force = True)
+            self.endResetModel()
+            return
         self.root_item.filter(self)
         queries = BgQueries([],
             self.refilter_update_model, 
@@ -942,8 +957,12 @@ class PlayTreeModel(QAbstractItemModel):
                 lambda item: isinstance(item, PlayTreeBrowse),
                 lambda item: isinstance(item, PlayTreeList)):
             query = BgQuery(
-                Library.query_songs_all,
-                ((('_library', browse.library),) + browse.fixed_tags, filter_expr, browse.browse_by_tags)
+                Library.query_songs_create_playitems,
+                (browse,
+                 self,
+                 (('_library', browse.library),) + browse.fixed_tags,
+                 filter_expr,
+                 browse.browse_by_tags)
             )
             query.browse = browse
             queries.append(query)
@@ -952,8 +971,10 @@ class PlayTreeModel(QAbstractItemModel):
     def refilter_update_model(self, queries):
         self.beginResetModel()
         for query in queries:
-            query.browse.populate_songs(self, query.result)
+            query.browse.children[self] = query.result.children[self]
         self.endResetModel()
+        for browse in self.root_item.iter(self, lambda i: isinstance(i, PlayTreeBrowse), lambda i: isinstance(i, PlayTreeBrowse) or isinstance(i, PlayTreeList)):
+            self.view.expand(browse.index(self))
 
     def flags(self, index):
         return self.item(index).flags(self.columns[index.column()])

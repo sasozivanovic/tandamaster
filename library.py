@@ -3,9 +3,10 @@ from PyQt5.Qt import *   # todo: import only what you need
 
 import mutagen, mutagen.easyid3, mutagen.easymp4
 import sqlite3
+import threading
 import os, os.path, sys
 from warnings import warn
-import functools, itertools, collections, weakref
+import functools, itertools, collections
 from fnmatch import fnmatch
 from app import app
 import config
@@ -177,7 +178,7 @@ class Library(QObject):
         if not self.dir_iterator or not self.dir_iterator.hasNext():
             if not self.queue:
                 self.connection.commit()
-                self.refresh_finished.emit()
+                self.refresh.emit()
             else:
                 self.name, folder = self.queue.pop(0)
                 self.dir_iterator = QDirIterator(
@@ -424,7 +425,6 @@ class Library(QObject):
                 yield '%' + filter_word + '%'
             for t in browse_by_tags:
                 yield t
-        print(statement, list(params()))
         return self.connection.execute(statement, list(params()))
 
     def query_tags_iter(self, fixed_tags, filter_words, browse_by_tags, song_ids = None):
@@ -449,7 +449,7 @@ class Library(QObject):
         browse._populate(model, rows)
     
     def filter_model(self, model, filter_expr):
-        return model.root_item.filter(model, filter_expr, self)
+        return model.root_item.filter(model, filter_expr)
         
     bg_queries_done = pyqtSignal(BgQueries)
     def bg_queries(self, queries):
@@ -457,23 +457,54 @@ class Library(QObject):
             query.result = query.method.__get__(self)(*query.args)
         self.bg_queries_done.emit(queries)
 
-library = Library()
-library.create_tables()
+
+_libraries = threading.local()
+#_libraries.library = Library()
+def library():
+    try:
+        return _libraries.library
+    except AttributeError:
+        _libraries.library = Library()
+        #print('Created', _libraries.library, 'in thread', threading.get_ident())
+        return _libraries.library
+        
+library().create_tables()
+
+class TMThread(QThread):
+    def __init__(self, parent = None):
+        super().__init__(parent)
+        #self.library = Library(connect = False)
+        #self.library.moveToThread(self)
+        #self.started.connect(self.connect_library)
+        #self.finished.connect(self.disconnect_library)
+
+    #def connect_library(self):
+    #    self.library.connect()
+    #    _libraries.library = self.library
+        
+    def disconnect_library(self):
+        _libraries.library.connection.close()
+        _libraries.library = None
 
 class Librarian(QObject):
     def __init__(self):
         super().__init__()        
-        self.bg_thread = QThread()
+        #self.bg_thread = QThread()
+        self.bg_thread = TMThread()
         app.aboutToQuit.connect(self.bg_thread.exit)
-        self.bg_library = Library(connect = False)
-        self.bg_library.moveToThread(self.bg_thread)
-        self.bg_thread.started.connect(self.bg_library.connect)
-        self.bg_queries_start.connect(self.bg_library.bg_queries)
-        self.bg_library.bg_queries_done.connect(self.bg_process_result)
+        #self.bg_library = Library(connect = False)
+        #self.bg_library.moveToThread(self.bg_thread)
+        #self.bg_thread.started.connect(self.bg_library.connect)
+        self.bg_thread.started.connect(self.connect_signals)
+        #self.bg_thread.library.bg_queries_done.connect(self.bg_process_result)
         self.queue = []
         self.processing = False
         self.bg_thread.start()
 
+    def connect_signals(self):
+        library().bg_queries_done.connect(self.bg_process_result)
+        self.bg_queries_start.connect(library().bg_queries)
+        
     def bg_queries(self, queries):
         if queries:
             self.queue.append(queries)

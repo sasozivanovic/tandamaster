@@ -18,7 +18,7 @@ class TMPlayer(QObject):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.play_order = PlayOrderMilongaMode() #PlayOrderStandard()
+        self.play_order = PlayOrderStandard()
 
         self._state = self.STOPPED
         self._volume = 1.0

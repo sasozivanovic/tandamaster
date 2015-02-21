@@ -39,7 +39,6 @@ class TandaMasterWindow(QMainWindow):
         if self.player.current and self.player.current.model:
             widget = self.player.current.model.view
             while widget.parent():
-                print(widget)
                 widget.setFocus(Qt.OtherFocusReason)
                 widget = widget.parent()
                 
@@ -263,7 +262,6 @@ class TandaMasterWindow(QMainWindow):
         menubar.addMenu(self.toolsmenu)
 
         self.musicmenu.addAction(action_quit)
-        menubar.addMenu(self.musicmenu)        
         
         self.setMenuBar(menubar)
 
@@ -393,16 +391,29 @@ class TandaMasterWindow(QMainWindow):
         self.toolbar.update()
 
     def update_library(self):
-        thread = QThread(self)
+        #thread = QThread(self)
+        thread = TMThread(self)
         app.aboutToQuit.connect(thread.exit)
-        thread.library = Library(connect = False)
-        thread.library.moveToThread(thread)
-        thread.started.connect(thread.library.connect)
-        thread.started.connect(thread.library.refresh_all_libraries)
-        thread.library.refresh_finished.connect(thread.exit)
-        thread.library.refresh_finished.connect(lambda: print('Finished updating library'))
-        thread.library.refresh_finished.connect(lambda: self.statusBar().showMessage('Finished updating library'))
-        thread.library.refresh_finished.connect(self.reset_all)
+        #thread.library = Library(connect = False)
+        #thread.library.moveToThread(thread)
+        #thread.started.connect(thread.library.connect)
+        update_progress = QProgressBar()
+        update_progress.setMaximumWidth(150)
+        update_progress.setMinimum(0)
+        update_progress.setMaximum(library().connection.execute('SELECT COUNT(*) FROM files;').fetchone()[0])
+        update_progress.setFormat('Updating library: %p%')
+        self.statusBar().addPermanentWidget(update_progress)
+        def _update_library_progress():
+            update_progress.setValue(update_progress.value()+1)
+        def _update_library_thread_started():
+            library().refresh_all_libraries()
+            library().refresh_finished.connect(thread.exit)
+            library().refresh_finished.connect(lambda: print('Finished updating library'))
+            library().refresh_finished.connect(lambda: self.statusBar().showMessage('Finished updating library'))
+            library().refresh_finished.connect(lambda: self.statusBar().removeWidget(update_progress))
+            library().refresh_finished.connect(self.reset_all)
+            library().refresh_next.connect(_update_library_progress)
+        thread.started.connect(_update_library_thread_started)
         thread.finished.connect(lambda: self.action_update_library.setEnabled(True))
         #thread.library.refreshing.connect(self.statusBar().showMessage)
         self.action_update_library.setEnabled(False)
@@ -827,8 +838,9 @@ class PlayTreeWidget(QWidget, TMWidget):
             triggered = self.search.clear))
 
     def maybe_refilter(self):
+        return
         text = self.search.text()
-        if len(text) > 2:
+        if len(text) == 0 or len(text) > 2:
             self.ptv.model().refilter(text)
     def refilter(self):
         self.ptv.model().refilter(self.search.text())
@@ -907,7 +919,7 @@ class PlayTreeView(QTreeView):
         super().currentChanged(current, previous)
         self.update_current_song_from_file(current)
         current_item = self.model().item(current)
-        save_revert = isinstance(current_item, PlayTreeFile) and library.dirty(current_item.song_id, self.model().columns[current.column()])
+        save_revert = isinstance(current_item, PlayTreeFile) and library().dirty(current_item.song_id, self.model().columns[current.column()])
         self.window().action_save_tag.setEnabled(False) # todo: saving a SINGLE tag
         self.window().action_revert_tag.setEnabled(save_revert)
 
@@ -1411,7 +1423,7 @@ class PlayTreeView(QTreeView):
         current_index = self.currentIndex()
         item = self.model().item(current_index)
         tag = self.model().columns[current_index.column()]
-        old_value = library.tag_by_song_id(item.song_id, tag, sources = ('file',))
+        old_value = library().tag_by_song_id(item.song_id, tag, sources = ('file',))
         EditTagsCommand(self.model(), [item], tag, old_value, command_prefix = 'Revert')
 
 class TMItemDelegate(QStyledItemDelegate):
@@ -1423,7 +1435,7 @@ class TMItemDelegate(QStyledItemDelegate):
             completer.setCompletionMode(QCompleter.PopupCompletion)
             completer.setCaseSensitivity(False)
             completer.setModel(QStringListModel(
-                [v for v,n in library.query_tags_iter(tag, (('_library', 'tango'),), '')])) # todo: 'tango' -> whatever lib
+                [v for v,n in library().query_tags_iter(tag, (('_library', 'tango'),), '')])) # todo: 'tango' -> whatever lib
             editor.setCompleter(completer)
         return editor
 

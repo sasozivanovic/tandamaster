@@ -178,7 +178,7 @@ class Library(QObject):
         if not self.dir_iterator or not self.dir_iterator.hasNext():
             if not self.queue:
                 self.connection.commit()
-                self.refresh.emit()
+                self.refresh_finished.emit()
             else:
                 self.name, folder = self.queue.pop(0)
                 self.dir_iterator = QDirIterator(

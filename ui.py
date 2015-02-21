@@ -808,7 +808,9 @@ class PlayTreeWidget(QWidget, TMWidget):
         widget_layout.addWidget(controls)
         widget_layout.addWidget(self.ptv)
 
-        self.search.textChanged.connect(lambda: QTimer.singleShot(50, self.refilter))
+        self.search.textChanged.connect(
+            lambda: QTimer.singleShot(50, self.maybe_refilter))
+        self.search.returnPressed.connect(self.refilter)
 
         self.addAction(QAction(
             self, 
@@ -824,6 +826,10 @@ class PlayTreeWidget(QWidget, TMWidget):
             shortcutContext = Qt.WidgetWithChildrenShortcut,
             triggered = self.search.clear))
 
+    def maybe_refilter(self):
+        text = self.search.text()
+        if len(text) > 2:
+            self.ptv.model().refilter(text)
     def refilter(self):
         self.ptv.model().refilter(self.search.text())
         

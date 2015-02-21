@@ -91,9 +91,27 @@ class PlayTreeItem:
     def isPlayable(self):
         return False
 
-    def filter(self, model):
-        return True
+    def filter(self, model, filter_expr, library):
+        raise RunTimeError
 
+    def _copy_children(self, model_from, model_to):
+        """Recursively copy children from model_from to model_to.
+        
+        Stop recursion when model_to is not a key in children.  This deals with PlayTreeBrowses, which fill model_fromdirectly."""
+
+        if not (self.children and model_from in self.children):
+            return
+        self.children[model_to] = self.children[model_from]
+        del self.children[model_from]
+        if 'value' in self.__dict__ and model_from in self.value: # za browse
+            self.value[model_to] = self.value[model_from]
+            del self.value[model_from]
+        if 'song_count' in self.__dict__ and model_from in self.song_count: # za browse
+            self.song_count[model_to] = self.song_count[model_from]
+            del self.song_count[model_from]
+        for child in self.children[model_to]:
+            child._copy_children(model_from, model_to)
+    
     def iter(self, model, condition_yield, condition_propagate):
         if condition_yield(self):
             yield self
@@ -138,7 +156,7 @@ class PlayTreeItem:
         if populate:
             self.populate(model)
         d = 0
-        if model not in self.children:
+        if model not in self.children or self.children[model] is None:
             return None
         for child in self.children[model]:
             cd = child.duration(model, mode, populate = populate)
@@ -225,17 +243,35 @@ class PlayTreeList(PlayTreeItem):
 
     def populate(self, model, force = False, recursive = False):
         if force or model not in self.children or self.children[model] is None:
-            self.children[model] = [ child for child in self.children[None]
-                                      if child.filter(model) ]
+            self.children[model] = [
+                child for child in self.children[None]
+                if not isinstance(child, PlayTreeFile) or child.filter(model, model.filter_expr, library)
+            ]
         if recursive:
             for child in self.children[model]:
                 child.populate(model, force = force, recursive = recursive)
 
-    def filter(self, model):
+    def filter(self, model, filter_expr, library):
+        if not filter_expr:
+            if model in self.children:
+                del self.children[model]
+            if self.children[None]:
+                for child in self.children[None]:
+                    child.filter(model, None, library)
+            return self
+        self.children[(model, 'f')] = []
+        filtered_children = self.children[(model, 'f')]
         for child in self.children[None]:
-            if child.filter(model):
-                return True
-        return all(filter_word in self.name.lower() for filter_word in model.filter_expr)
+            filtered = child.filter(model, filter_expr, library)
+            if filtered:
+                filtered_children.append(filtered)
+        if filtered_children:
+            return self
+        elif all(filter_word in self.name.lower() for filter_word in filter_expr):
+            self.children[(model, 'f')] = None
+            return self
+        else:
+            return None
 
     def iter_width(self, model, condition_yield, condition_propagate):
         items = [self]
@@ -255,8 +291,9 @@ class PlayTreeList(PlayTreeItem):
         for model in self.children.keys():
             if model:
                 parent_index = self.index(model)
-                model_new_items = [item for item in new_items
-                                   if item.filter(model)]
+                #model_new_items = [item for item in new_items
+                #                   if item.filter(model)]
+                model_new_items = new_items # show all new items
                 model_children = self.children[model]
                 target_i = len(model_children)
                 for child in children[row:]:
@@ -385,6 +422,8 @@ class PlayTreeFile(PlayTreeItem):
     def Id(self):
         return None
 
+    children = {}
+    
     def copy(self, parent = None):
         return PlayTreeFile(self.filename, song_id = self.song_id, parent = parent)
 
@@ -430,13 +469,13 @@ class PlayTreeFile(PlayTreeItem):
     def isPlayable(self):
         return True
 
-    def filter(self, model):
-        if not model.filter_expr:
-            return True
+    def filter(self, model, filter_expr, library):
+        if not filter_expr:
+            return self
         for row in library.query_songs_iter(
-                [('song_id', self.song_id)], model.filter_expr, []):
-            return True
-        return False
+                [], filter_expr, [], [self.song_id]):
+            return self
+        return None
 
     def maybe_refresh_models(self, queries):
         if queries[0].result:
@@ -595,20 +634,39 @@ class PlayTreeFolder(PlayTreeItem):
                     self.children[None].append(
                         PlayTreeFile(filename=fullfn, parent = self))
         if self.children[model] is None:
-            self.children[model] = [child for child in self.children[None] if child.filter(model) ]
+            self.children[model] = [
+                child
+                for child in self.children[None]
+                if not isinstance(child, PlayTreeFile) or child.filter(model, model.filter_expr, library)
+            ]
             self.children[model] = self.children[None]
         if recursive:
             for child in self.children[model]:
                 child.populate(model, force = force, recursive = recursive)
 
-    def filter(self, model):
-        if self.children[None] is None or model not in self.children:
-            return all(filter_word in self.filename.lower() for filter_word in model.filter_expr)
+    def filter(self, model, filter_expr, library):
+        if not filter_expr:
+            if model in self.children:
+                del self.children[model]
+            if self.children[None]:
+                for child in self.children[None]:
+                    child.filter(model, None, library)
+            return self
+        self.children[(model, 'f')] = []
+        filtered_children = self.children[(model, 'f')]
         for child in self.children[None]:
-            if child.filter(model):
-                return True
-        return all(filter_word in self.filename.lower() for filter_word in model.filter_expr)
+            filtered = child.filter(model, filter_expr, library)
+            if filtered:
+                filtered_children.append(filtered)
+        if filtered_children:
+            return self
+        elif all(filter_word in self.filename.lower() for filter_word in filter_expr):
+            self.children[(model, 'f')] = None
+            return self
+        else:
+            return None
 
+        
 @register_xml_tag_handler('browse')
 class PlayTreeBrowse(PlayTreeItem):
     @classmethod
@@ -716,12 +774,12 @@ class PlayTreeBrowse(PlayTreeItem):
                     library.query_tags_iter(
                         (('_library', self.library),) + self.fixed_tags,
                         model.filter_expr,
-                        self.browse_by_tags))
+                        self.browse_by_tags[0:1]))
 
     def _populate(self, model, rows):
         self.children[model] = []
         for row in rows:
-            cols = list(row[0:-3])
+            cols = list(row[0:(-3 if row[-2] else -2)])
             if cols:
                 last_browse = self._populate_create_structure(model, cols)
             else:
@@ -750,7 +808,20 @@ class PlayTreeBrowse(PlayTreeItem):
             new_browse.value[model] = value
             children.append(new_browse)
         return children[-1]._populate_create_structure(model, values)
-        
+
+    def filter(self, model, filter_expr, library):
+        if not filter_expr:
+            if model in self.children:
+                del self.children[model]
+            return self
+        library.query_songs_create_playitems(
+            self,
+            (model,'f'),
+            (('_library', self.library),) + self.fixed_tags,
+            filter_expr,
+            self.browse_by_tags
+        )
+        return self if self.children[(model,'f')] else None
     
 @register_xml_tag_handler('link')
 class PlayTreeLink(PlayTreeItem):
@@ -945,36 +1016,27 @@ class PlayTreeModel(QAbstractItemModel):
         self.filter_expr = filter_expr
         if not filter_expr:
             self.beginResetModel()
+            self.root_item.filter(self, None, library)
             self.root_item.populate(self, force = True)
             self.endResetModel()
             return
-        self.root_item.filter(self)
-        queries = BgQueries([],
+        queries = BgQueries(
+            [BgQuery(Library.filter_model, (self, filter_expr))],
             self.refilter_update_model, 
             lambda: self.filter_expr == filter_expr
         )
-        for browse in self.root_item.iter(self,
-                lambda item: isinstance(item, PlayTreeBrowse),
-                lambda item: isinstance(item, PlayTreeList)):
-            query = BgQuery(
-                Library.query_songs_create_playitems,
-                (browse,
-                 self,
-                 (('_library', browse.library),) + browse.fixed_tags,
-                 filter_expr,
-                 browse.browse_by_tags)
-            )
-            query.browse = browse
-            queries.append(query)
         librarian.bg_queries(queries)
 
     def refilter_update_model(self, queries):
         self.beginResetModel()
         for query in queries:
-            query.browse.children[self] = query.result.children[self]
+            self.root_item._copy_children((self, 'f'), self)
         self.endResetModel()
-        for browse in self.root_item.iter(self, lambda i: isinstance(i, PlayTreeBrowse), lambda i: isinstance(i, PlayTreeBrowse) or isinstance(i, PlayTreeList)):
-            self.view.expand(browse.index(self))
+        for playitem in self.root_item.iter(
+                self,
+                lambda i: self in i.children and i.children[self],
+                lambda i: self in i.children and i.children[self]):
+            self.view.expand(playitem.index(self))
 
     def flags(self, index):
         return self.item(index).flags(self.columns[index.column()])

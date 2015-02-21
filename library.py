@@ -154,6 +154,10 @@ class Library(QObject):
             'CREATE INDEX IF NOT EXISTS tags_search ON tags'
             '(ascii, tag)'
         )
+        self.connection.execute(
+            'CREATE INDEX IF NOT EXISTS tags_browse_index ON tags'
+            '(tag, value)'
+        )
         self.connection.commit()
 
     refresh_next = pyqtSignal()
@@ -367,19 +371,21 @@ class Library(QObject):
                 # todo: notify ui
         self.connection.commit() # must be here: if it's in the loop, all hell breaks loose
 
-    def _query(self, fixed_tags, filter_words, browse_by_tags, tags_only):
+    def _query(self, fixed_tags, filter_words, browse_by_tags, tags_only, song_ids):
         what = "".join("tags_browse_{}.value, ".format(i) for i in range(len(browse_by_tags)))
         def tables():
             for i in range(len(fixed_tags)):
                 yield 'INNER', 'tags', 'tags_' + str(i)
             for i in range(len(filter_words)):
                 yield 'INNER', 'tags', 'tags_filter_' + str(i)
-            for i in range(len(browse_by_tags)):
-                yield 'LEFT', 'tags', 'tags_browse_' + str(i)
+            #for i in range(len(browse_by_tags)):
+            #    yield 'LEFT', 'tags', 'tags_browse_' + str(i)
         join = " ".join(
             "{} JOIN {} AS {} USING(song_id)".format(j,t,a)
             for j,t,a in list(tables()))
         where = " AND ".join(filter(None,(
+            "files.song_id IN ({})".format(",".join(str(sid) for sid in song_ids))
+            if song_ids else None,
             " AND ".join(
                 "tags_{n}.tag=? AND tags_{n}.value=?".format(n=n)
                 if tv[1] is not None else
@@ -389,21 +395,26 @@ class Library(QObject):
             " AND ".join(# todo: value OR ascii
                 "tags_filter_{}.ascii LIKE ?".format(i) for i in range(len(filter_words))
             ),
-            " AND ".join(
-                "tags_browse_{}.tag=?".format(i) for i in range(len(browse_by_tags))
-            )
+            #" AND ".join(
+            #    "tags_browse_{}.tag=?".format(i) for i in range(len(browse_by_tags))
+            #)
         )))
         group = ("GROUP BY " + ", ".join(
             "tags_browse_" + str(i) + '.value' for i in range(len(browse_by_tags)))
            ) if tags_only and browse_by_tags else ""
-        statement = 'SELECT {} {}{},{} FROM files {} {}{} {}'.format(
-            '' if tags_only else ' DISTINCT ',
+        statement = 'SELECT {}{},{} FROM (SELECT DISTINCT files.song_id FROM files {} {}{}) AS songs {} {}'.format(
             what,
-            'NULL' if tags_only else 'files.song_id',
+            'NULL' if tags_only else 'songs.song_id',
             'COUNT(*)' if tags_only else '1',
             join,
-            'WHERE ' if where else '', where,
-            group)
+            'WHERE ' if where else '',
+            where,
+            " ".join(
+                "LEFT JOIN tags AS tags_browse_{} ON songs.song_id=tags_browse_{}.song_id AND tags_browse_{}.tag=?".format(i,i,i)
+                for i in range(len(browse_by_tags))
+            ),
+            group
+        )
         def params():
             for t,v in fixed_tags:
                 yield t
@@ -413,31 +424,33 @@ class Library(QObject):
                 yield '%' + filter_word + '%'
             for t in browse_by_tags:
                 yield t
+        print(statement, list(params()))
         return self.connection.execute(statement, list(params()))
 
-    def query_tags_iter(self, fixed_tags, filter_words, browse_by_tags):
-        cursor = self._query(fixed_tags, filter_words, browse_by_tags, True)
+    def query_tags_iter(self, fixed_tags, filter_words, browse_by_tags, song_ids = None):
+        cursor = self._query(fixed_tags, filter_words, browse_by_tags, True, song_ids)
         row = cursor.fetchone()
         while row:
             yield row
             row = cursor.fetchone()
-    def query_tags_all(self, fixed_tags, filter_words, browse_by_tags):
-        return self._query(fixed_tags, filter_words, browse_by_tags, True).fetchall()
+    def query_tags_all(self, fixed_tags, filter_words, browse_by_tags, song_ids = None):
+        return self._query(fixed_tags, filter_words, browse_by_tags, True, song_ids).fetchall()
 
-    def query_songs_iter(self, fixed_tags, filter_words, browse_by_tags):
-        cursor = self._query(fixed_tags, filter_words, browse_by_tags, False)
+    def query_songs_iter(self, fixed_tags, filter_words, browse_by_tags, song_ids = None):
+        cursor = self._query(fixed_tags, filter_words, browse_by_tags, False, song_ids)
         row = cursor.fetchone()
         while row:
             yield row
             row = cursor.fetchone()
-    def query_songs_all(self, fixed_tags, filter_words, browse_by_tags):
-        return self._query(fixed_tags, filter_words, browse_by_tags, False).fetchall()
-    def query_songs_create_playitems(self, browse, model, fixed_tags, filter_words, browse_by_tags):
-        rows = self.query_songs_iter(fixed_tags, filter_words, browse_by_tags)
-        temp_root_browse = browse.copy()
-        temp_root_browse._populate(model, rows)
-        return temp_root_browse
+    def query_songs_all(self, fixed_tags, filter_words, browse_by_tags, song_ids = None):
+        return self._query(fixed_tags, filter_words, browse_by_tags, False, song_ids).fetchall()
+    def query_songs_create_playitems(self, browse, model, fixed_tags, filter_words, browse_by_tags, song_ids = None):
+        rows = self.query_songs_iter(fixed_tags, filter_words, browse_by_tags, song_ids)
+        browse._populate(model, rows)
     
+    def filter_model(self, model, filter_expr):
+        return model.root_item.filter(model, filter_expr, self)
+        
     bg_queries_done = pyqtSignal(BgQueries)
     def bg_queries(self, queries):
         for query in queries:

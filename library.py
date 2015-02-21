@@ -159,6 +159,10 @@ class Library(QObject):
             'CREATE INDEX IF NOT EXISTS tags_browse_index ON tags'
             '(tag, value)'
         )
+        self.connection.execute(
+            'CREATE INDEX IF NOT EXISTS tags_tag ON tags'
+            '(song_id, tag)'
+        )
         self.connection.commit()
 
     refresh_next = pyqtSignal()

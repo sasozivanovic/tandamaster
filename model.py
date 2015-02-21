@@ -646,9 +646,7 @@ class PlayTreeFolder(PlayTreeItem):
 
     def populate(self, model, force = False, recursive = False, filter_expr = None):
         filter_expr = filter_expr if filter_expr or not model else model.filter_expr
-        if force:
-            self.unpopulate(model)
-        if self.unpopulated(None):
+        if force or self.unpopulated(None):
             folders = []
             files = []
             for fn in os.listdir(self.filename):
@@ -678,7 +676,12 @@ class PlayTreeFolder(PlayTreeItem):
                 child.populate(model, force = force, recursive = recursive)
 
     def filter(self, model, filter_expr):
-        self.populate(None)
+        if self.unpopulated(None):
+            if all(filter_word in self.filename.lower() for filter_word in filter_expr):
+                self.want_all_children(model)
+                return self
+            else:
+                return None
         if not filter_expr:
             self.children[model] = self.children[None]
             return self

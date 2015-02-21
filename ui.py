@@ -838,7 +838,6 @@ class PlayTreeWidget(QWidget, TMWidget):
             triggered = self.search.clear))
 
     def maybe_refilter(self):
-        return
         text = self.search.text()
         if len(text) == 0 or len(text) > 2:
             self.ptv.model().refilter(text)

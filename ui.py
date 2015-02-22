@@ -89,7 +89,7 @@ class TandaMasterWindow(QMainWindow):
             self.tr('&Play'), 
             self,
             shortcut = QKeySequence('space'),
-            triggered = self.player.play)
+            triggered = self.play)
         self.playbackmenu.addAction(self.action_play)
         self.action_pause =  QAction(
             #self.style().standardIcon(QStyle.SP_MediaPause), 
@@ -426,6 +426,16 @@ class TandaMasterWindow(QMainWindow):
             model.root_item.populate(model, force = True)
             model.endResetModel()
 
+    def play(self):
+        if self.player.state == self.player.STOPPED:
+            ptv = app.focusWidget()
+            if isinstance(ptv, PlayTreeView):
+                self.player.play_index(ptv.currentIndex())
+            else:
+                self.player.play_next()
+        else:
+            self.player.play()    
+        
     def playtree_cut(self):
         ptv = app.focusWidget()
         if not isinstance(ptv, PlayTreeView): return

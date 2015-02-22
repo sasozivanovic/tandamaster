@@ -462,7 +462,7 @@ class Library(QObject):
         self.bg_queries_done.emit(queries)
 
 
-_libraries = threading.local()
+#_libraries = threading.local()
 #_libraries.library = Library()
 def library():
     try:
@@ -471,7 +471,11 @@ def library():
         _libraries.library = Library()
         #print('Created', _libraries.library, 'in thread', threading.get_ident())
         return _libraries.library
-        
+
+_library = Library()
+def library():
+    return _library
+    
 library().create_tables()
 
 class TMThread(QThread):

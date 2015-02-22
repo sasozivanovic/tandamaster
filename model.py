@@ -428,8 +428,11 @@ class PlayTreeFile(PlayTreeItem):
         self.unavailable = False
         
     def got_song_id(self, queries):
-        self._song_id = queries[0].result
         self._querying = False
+        if queries[0].result:
+            self._song_id = queries[0].result
+        else:
+            self.unavailable = True
         self.refresh_models()
 
     @property

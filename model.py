@@ -437,7 +437,7 @@ class PlayTreeFile(PlayTreeItem):
 
     @property
     def song_id(self):
-        if self._song_id is None:
+        if self._song_id is None and not self.unavailable:
             self._song_id = library().song_id_from_filename(self._filename)
             if not self._song_id:
                 if not self._querying:

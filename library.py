@@ -503,16 +503,13 @@ class Librarian(QObject):
         #self.bg_library = Library(connect = False)
         #self.bg_library.moveToThread(self.bg_thread)
         #self.bg_thread.started.connect(self.bg_library.connect)
-        self.bg_thread.started.connect(self.connect_signals)
+        self.bg_queries_start.connect(library().bg_queries)
+        library().bg_queries_done.connect(self.bg_process_result)
         #self.bg_thread.library.bg_queries_done.connect(self.bg_process_result)
         self.queue = []
         self.processing = False
         self.bg_thread.start()
 
-    def connect_signals(self):
-        library().bg_queries_done.connect(self.bg_process_result)
-        self.bg_queries_start.connect(library().bg_queries)
-        
     def bg_queries(self, queries):
         if queries:
             self.queue.append(queries)

@@ -345,11 +345,11 @@ class PlayTreeView(QTreeView):
         model = self.model()
         current_index = self.currentIndex()
         current_item = model.item(current_index)
+        next_index = model.sibling(current_index.row() + 1, None, current_index)
+        next_item = model.item(next_index) if next_index.isValid() else None
+        parent_item = current_item.parent if current_item and current_item.parent else None
         new_item = PlayTreeList(name)
-        if current_index.isValid():
-            InsertPlayTreeItemsCommand([new_item], current_item.parent, current_item, Id = 1)
-        else:
-            InsertPlayTreeItemsCommand([new_item], model.root_item, None, Id = 1)
+        InsertPlayTreeItemsCommand([new_item], parent_item, next_item, Id = 1)
         new_index = new_item.index(model)
         self.setCurrentIndex(new_index)
         self.edit(new_index)
@@ -1050,8 +1050,8 @@ class TandaMasterWindow(QMainWindow):
         
         self.action_ungroup = QAction(
             QIcon('icons/iconfinder/farm-fresh/ungroup.png'),
-            self.tr('&Group'), self, triggered = swcm(PlayTreeView, PlayTreeView.ungroup),
-            shortcut = QKeySequence('Ctrl+g'))
+            self.tr('&Ungroup'), self, triggered = swcm(PlayTreeView, PlayTreeView.ungroup),
+            shortcut = QKeySequence('Ctrl+u'))
         
         self.action_move_up = QAction(
             #QIcon('icons/iconfinder/32pxmania/up.png'),
@@ -1246,9 +1246,8 @@ class TandaMasterWindow(QMainWindow):
                 inner.addAction(action)
             toolbar.addWidget(inner)
         
-        add_actions_to_toolbar(action_undo, action_redo)
-        toolbar.addSeparator()
-        add_actions_to_toolbar(self.action_cut, self.action_copy)
+        add_actions_to_toolbar(self.action_cut, action_undo)
+        add_actions_to_toolbar(self.action_copy, action_redo)
         add_actions_to_toolbar(self.action_paste)
         toolbar.addSeparator()
         add_actions_to_toolbar(self.action_insert, self.action_delete)

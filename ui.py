@@ -15,653 +15,6 @@ import os, os.path
 
 import collections, weakref, binascii, datetime
 
-class TandaMasterWindow(QMainWindow):
-
-    def __init__(self, parent = None):
-        super().__init__(parent)
-        self.setWindowTitle('TandaMaster')        
-        self.setWindowIcon(QIcon('icons/iconarchive/icons8/tandamaster-Sports-Dancing-icon.png'))
-
-        self.player = TMPlayer()
-        #self.player2 = TMPlayer() # pre-listening
-
-        try:
-            self.ui_xml = etree.parse('ui.xml')
-        except:
-            self.ui_xml = etree.ElementTree(etree.fromstring(b'<MainWindow><CentralWidget><Splitter><TabbedPlayTreesWidget tabPosition="2"><PlayTreeWidget/></TabbedPlayTreesWidget><TabbedPlayTreesWidget tabPosition="0"><PlayTreeWidget/></TabbedPlayTreesWidget></Splitter></CentralWidget></MainWindow>'))
-
-        geometry = self.ui_xml.getroot().get('geometry')
-        if geometry:
-            self.restoreGeometry(binascii.unhexlify(geometry))
-        self.setCentralWidget(TMWidget.create_from_xml(self.ui_xml.find('CentralWidget')[0],self))
-
-
-        if self.player.current and self.player.current.model:
-            widget = self.player.current.model.view
-            while widget.parent():
-                widget.setFocus(Qt.OtherFocusReason)
-                widget = widget.parent()
-                
-        menubar = QMenuBar()
-
-        self.musicmenu = QMenu(self.tr('&Music'))
-        action_save_playtree = QAction(
-            self.tr("&Save"), self,
-            shortcut=QKeySequence.Save,
-            triggered = self.save)
-        self.musicmenu.addAction(action_save_playtree)
-        action_save_tags = QAction(
-            self.tr("&Save tags"), self,
-            shortcut=QKeySequence('ctrl+shift+s'),
-            triggered = self.save_tags)
-        self.musicmenu.addAction(action_save_tags)
-        self.action_update_library = QAction(
-            self.tr("&Update library"), self,
-            triggered = self.update_library)
-        self.musicmenu.addAction(self.action_update_library)
-        action_save_playtree_to_folder = QAction(
-            self.tr("&Save playtree files to folder in order"), self,
-            triggered=self.save_playtree_to_folder)
-        self.musicmenu.addAction(action_save_playtree_to_folder)
-        action_adhoc = QAction(
-            self.tr("&AdHoc"), self,
-            statusTip="Adhoc action", triggered=self.adhoc)
-        self.musicmenu.addAction(action_adhoc)
-        action_quit = QAction(
-            self.tr("&Quit"), self, shortcut=QKeySequence.Quit,
-            statusTip="Quit the program", triggered=self.close)
-        self.musicmenu.addAction(action_quit)
-        menubar.addMenu(self.musicmenu)
-
-        self.playbackmenu = QMenu(self.tr('&Playback'))
-        self.action_back = QAction(
-            #self.style().standardIcon(QStyle.SP_MediaSkipBackward), 
-            #MyIcon('Tango', 'actions', 'media-skip-backward'),
-            QIcon('button_rewind_green.png'),
-            #QIcon('icons/iconfinder/32pxmania/previous.png'),
-            self.tr('P&revious'), self, triggered = self.player.play_previous)
-        self.playbackmenu.addAction(self.action_back)        
-        self.action_play = QAction(
-            #self.style().standardIcon(QStyle.SP_MediaPlay), 
-            #MyIcon('Tango', 'actions', 'media-playback-start'),
-            QIcon('button_play_green.png'),
-            #QIcon('icons/iconfinder/32pxmania/play.png'),
-            self.tr('&Play'), 
-            self,
-            shortcut = QKeySequence('space'),
-            triggered = self.play)
-        self.playbackmenu.addAction(self.action_play)
-        self.action_pause =  QAction(
-            #self.style().standardIcon(QStyle.SP_MediaPause), 
-            #MyIcon('Tango', 'actions', 'media-playback-pause'),
-            QIcon('button_pause_green.png'),
-            #QIcon('icons/iconfinder/32pxmania/pause.png'),
-            self.tr('&Pause'), self, 
-            shortcut = QKeySequence('space'),
-            triggered = self.player.pause)
-        self.playbackmenu.addAction(self.action_pause)        
-        self.action_stop = QAction(
-            #self.style().standardIcon(QStyle.SP_MediaStop), 
-            #MyIcon('Tango', 'actions', 'media-playback-stop'),
-            QIcon('button_stop_green.png'),
-            #QIcon('icons/iconfinder/32pxmania/stop.png'),
-            self.tr('&Stop'), self, triggered = self.player.stop)
-        self.playbackmenu.addAction(self.action_stop)        
-        self.action_forward = QAction(
-            #self.style().standardIcon(QStyle.SP_MediaSkipForward), 
-            #MyIcon('Tango', 'actions', 'media-skip-forward'),
-            QIcon('button_fastforward_green.png'),
-            #QIcon('icons/iconfinder/32pxmania/next.png'),
-            self.tr('&Next'), self, triggered = self.player.play_next,
-            shortcut = QKeySequence('ctrl+n'),
-        )
-        self.playbackmenu.addAction(self.action_forward)
-        self.playbackmenu.addSeparator()
-        # todo: disablaj lock kadar je state STOPPED, na koncu seznama pa avtomatsko odkleni
-        self.action_lock = QAction(
-            QIcon('icons/iconfinder/iconza/unlocked.png'),
-            self.tr('Un&locked'), self, toggled = self.lock)
-        self.action_lock.setCheckable(True)
-        self.playbackmenu.addAction(self.action_lock)
-        self.playbackmenu.addSeparator()
-        self.action_mark_start_end = QAction(
-            self.tr('Mark start/end'), self,
-            triggered = self.mark_start_end,
-            shortcut = QKeySequence('.'))
-        self.playbackmenu.addAction(self.action_mark_start_end)
-        menubar.addMenu(self.playbackmenu)
-
-        self.editmenu = QMenu(self.tr('&Edit'))
-        self.action_cut = QAction(
-            #MyIcon('Tango', 'actions', 'edit-cut'),
-            QIcon('icons/tango/edit-cut'),
-            self.tr('Cu&t'), self, triggered = self.playtree_cut,
-            shortcut = QKeySequence(QKeySequence.Cut))
-        self.action_copy = QAction(
-            QIcon('icons/tango/edit-copy'),
-            #MyIcon('Tango', 'actions', 'edit-copy'),
-            self.tr('&Copy'), self, triggered = self.playtree_copy,
-            shortcut = QKeySequence(QKeySequence.Copy))
-        self.action_paste = QAction(
-            #MyIcon('Tango', 'actions', 'edit-paste'),
-            QIcon('icons/tango/edit-paste'),
-            self.tr('&Paste'), self, triggered = self.playtree_paste,
-            shortcut = QKeySequence(QKeySequence.Paste))
-        self.action_insert = QAction(
-            QIcon('icons/iconfinder/32pxmania/insert.png'),
-            self.tr('&Insert'), self, triggered = self.playtree_insert,
-            shortcut = QKeySequence('insert'))        
-        self.action_delete = QAction(
-            QIcon('icons/iconfinder/32pxmania/delete.png'),
-            self.tr('&Delete'), self, triggered = self.playtree_delete,
-            shortcut = QKeySequence(QKeySequence.Delete))
-        self.action_group = QAction(
-            QIcon('icons/iconfinder/farm-fresh/group.png'),
-            self.tr('&Group'), self, triggered = self.playtree_group,
-            shortcut = QKeySequence('Ctrl+g'))
-        self.action_group_into_tandas = QAction(
-            QIcon('icons/iconfinder/farm-fresh/group.png'),
-            self.tr('Group into tandas'), self, triggered = self.playtree_group_into_tandas,
-            shortcut = QKeySequence('Ctrl+Shift+g'))
-        self.action_move_up = QAction(
-            QIcon('icons/iconfinder/32pxmania/up.png'),
-            self.tr('Move &up'), self, triggered = self.playtree_move_up,
-            shortcut = QKeySequence('alt+up'))
-        self.action_move_down = QAction(
-            QIcon('icons/iconfinder/32pxmania/down.png'),
-            self.tr('Move &down'), self, triggered = self.playtree_move_down,
-            shortcut = QKeySequence('alt+down'))
-        self.action_move_left = QAction(
-            QIcon('icons/iconfinder/momentum_glossy/arrow-up-left.png'),
-            self.tr('Move &out of parent'), self, triggered = self.playtree_move_left,
-            shortcut = QKeySequence('alt+left'))
-        self.action_move_right = QAction(
-            QIcon('icons/iconfinder/momentum_glossy/arrow-down-right.png'),
-            self.tr('Move into &next sibling'), self, triggered = self.playtree_move_right,
-            shortcut = QKeySequence('alt+right'))
-        self.action_move_home = QAction(
-            QIcon('icons/iconfinder/momentum_glossy/move_top.png'),
-            self.tr('Move to &top'), self, triggered = self.playtree_move_home,
-            shortcut = QKeySequence('alt+home'))
-        self.action_move_end = QAction(
-            QIcon('icons/iconfinder/momentum_glossy/move_bottom.png'),
-            self.tr('Move to &bottom'), self, triggered = self.playtree_move_end,
-            shortcut = QKeySequence('alt+end'))
-        self.action_edit_tag = QAction(
-            #QIcon('icons/iconfinder/32pxmania/up.png'),
-            self.tr('&Edit tag'), self, triggered = self.edit_tag)
-        self.action_save_tag = QAction(
-            #QIcon('icons/iconfinder/32pxmania/up.png'),
-            self.tr('&Save tag'), self, triggered = self.save_tag)
-        self.action_revert_tag = QAction(
-            #QIcon('icons/iconfinder/32pxmania/up.png'),
-            self.tr('&Revert tag'), self, triggered = self.revert_tag,
-            shortcut=QKeySequence('ctrl+r'))
-        action_undo = undo_stack.createUndoAction(self)
-        action_redo = undo_stack.createRedoAction(self)
-        action_undo.setIcon(QIcon('icons/iconfinder/32pxmania/undo.png'))
-        action_redo.setIcon(QIcon('icons/iconfinder/32pxmania/redo.png'))
-        action_undo.setShortcut(QKeySequence(QKeySequence.Undo))
-        action_redo.setShortcut(QKeySequence(QKeySequence.Redo))
-        self.editmenu.addAction(action_undo)
-        self.editmenu.addAction(action_redo)
-        self.editmenu.addSeparator()
-        self.editmenu.addAction(self.action_cut)
-        self.editmenu.addAction(self.action_copy)
-        self.editmenu.addAction(self.action_paste)
-        self.editmenu.addSeparator()
-        self.editmenu.addAction(self.action_insert)
-        self.editmenu.addAction(self.action_delete)
-        self.editmenu.addAction(self.action_group)
-        self.editmenu.addAction(self.action_move_home)
-        self.editmenu.addAction(self.action_move_up)
-        self.editmenu.addAction(self.action_move_down)
-        self.editmenu.addAction(self.action_move_end)
-        self.editmenu.addAction(self.action_move_left)
-        self.editmenu.addAction(self.action_move_right)
-        self.editmenu.addSeparator()
-        self.editmenu.addAction(self.action_edit_tag)
-        self.editmenu.addAction(self.action_save_tag)
-        self.editmenu.addAction(self.action_revert_tag)
-        self.editmenu.addSeparator()
-        self.editmenu.addAction(self.action_group_into_tandas)
-        menubar.addMenu(self.editmenu)
-
-        self.viewmenu = QMenu(self.tr('View'))
-        self.action_columns_minimal = QAction(
-            app.tr('Columns: minimal'), 
-            self,
-            triggered = self.set_columns_minimal)
-        self.action_columns_normal = QAction(
-            app.tr('Columns: normal'), 
-            self,
-            triggered = self.set_columns_normal)
-        self.action_columns_all = QAction(
-            app.tr('Columns: all'), 
-            self,
-            triggered = self.set_columns_all)
-        self.viewmenu.addAction(self.action_columns_minimal)
-        self.viewmenu.addAction(self.action_columns_normal)  
-        self.viewmenu.addAction(self.action_columns_all)  
-        menubar.addMenu(self.viewmenu)
-
-        self.toolsmenu = QMenu(self.tr('Tools'))
-        self.action_calculate_replay_gain = QAction(
-            self.tr('Calculate &replay gain'), self, triggered = self.calculate_replay_gain)
-        self.toolsmenu.addAction(self.action_calculate_replay_gain)
-        self.action_milonga_info = QAction(
-            self.tr('Milonga &info'), self, triggered = self.milonga_info,
-            shortcut = QKeySequence('ctrl+shift+i'))
-        self.toolsmenu.addAction(self.action_milonga_info)
-        self.action_getfilesfromalja = QAction(
-            self.tr('Get files from &Alja'), self, triggered = lambda: self.run_on_selected_rows(GetFilesFromAlja))
-        self.toolsmenu.addAction(self.action_getfilesfromalja)
-        self.action_latexsonginfo = QAction(
-            self.tr('Make PDF for songs'), self, triggered = lambda: self.run_on_selected_rows(LaTeXSongInfo))
-        self.toolsmenu.addAction(self.action_latexsonginfo)
-        menubar.addMenu(self.toolsmenu)
-
-        self.musicmenu.addAction(action_quit)
-        
-        self.setMenuBar(menubar)
-
-        toolbar = QToolBar('ProgressBar', self)
-        pb = TMPositionProgressBar(self.player)
-        toolbar.addWidget(pb)
-        self.addToolBar(Qt.BottomToolBarArea, toolbar)
-
-        self.addToolBarBreak(Qt.BottomToolBarArea)
-
-        toolbar = QToolBar('Play controls', self)
-        toolbar.setAllowedAreas(Qt.TopToolBarArea | Qt.BottomToolBarArea)
-        toolbar.setFloatable(False)
-        toolbar.addAction(self.action_back)
-        toolbar.addAction(self.action_play)
-        toolbar.addAction(self.action_pause)
-        toolbar.addAction(self.action_stop)
-        toolbar.addAction(self.action_forward)
-        toolbar.addSeparator()
-        toolbar.addAction(self.action_lock)
-        self.stopafter_spinbox = QSpinBox()
-        self.stopafter_spinbox.setMinimum(0)
-        self.stopafter_spinbox.valueChanged.connect(self.player.play_order.set_stop_after)
-        toolbar.addWidget(self.stopafter_spinbox)
-        toolbar.addSeparator()
-        toolbar.addWidget(TMVolumeControl(Qt.Horizontal, self.player))
-        toolbar.addSeparator()
-        self.play_orders_combo = QComboBox()
-        for name, cls in PlayOrder.play_orders:
-            self.play_orders_combo.addItem(name, cls)
-        self.play_orders_combo.setCurrentText(self.player.play_order.name)
-        def set_play_order(index):
-            self.player.set_play_order(self.play_orders_combo.currentData()())
-        self.play_orders_combo.currentIndexChanged.connect(set_play_order)
-        toolbar.addWidget(self.play_orders_combo)
-
-        self.addToolBar(Qt.BottomToolBarArea, toolbar)
-        
-        toolbar = QToolBar('Edit', self)
-        toolbar.addAction(action_undo)
-        toolbar.addAction(action_redo)
-        toolbar.addSeparator()
-        toolbar.addAction(self.action_cut)
-        toolbar.addAction(self.action_copy)
-        toolbar.addAction(self.action_paste)
-        toolbar.addSeparator()
-        toolbar.addAction(self.action_insert)
-        toolbar.addAction(self.action_delete)
-        toolbar.addAction(self.action_group)
-        toolbar.addAction(self.action_move_home)
-        toolbar.addAction(self.action_move_up)
-        toolbar.addAction(self.action_move_down)
-        toolbar.addAction(self.action_move_end)
-        toolbar.addAction(self.action_move_left)
-        toolbar.addAction(self.action_move_right)
-        
-        self.addToolBar(toolbar)
-        self.toolbar = toolbar
-
-        self.setStatusBar(QStatusBar())
-        app.info.connect(self.status_bar_message)
-        self.fadeout_gap_pb = TMGapAndFadeoutProgressBar(self.player)
-
-        self.song_info = QLabel()
-        self.song_info.setContentsMargins(8,0,8,0)
-        self.statusBar().addPermanentWidget(self.song_info)
-        self.next_song_info = QLabel()
-        self.next_song_info.setContentsMargins(8,0,8,0)
-        self.next_song_info.hide()
-
-        self.player.current_changed.connect(self.update_song_info, type = Qt.QueuedConnection)
-        self.player.duration_changed.connect(self.update_song_info, type = Qt.QueuedConnection)
-        self.player.next_changed.connect(self.update_next_song_info, type = Qt.QueuedConnection)
-        self.player.current_changed.connect(lambda: self.lock_action_forward(), type = Qt.QueuedConnection)
-        self.player.state_changed.connect(self.on_player_state_changed, type = Qt.QueuedConnection)
-        self.on_player_state_changed(TMPlayer.STOPPED)
-        QApplication.clipboard().changed.connect(self.on_clipboard_data_changed)
-
-        self.autosave_timer = QTimer(self)
-        self.autosave_timer.timeout.connect(self.save)
-        self.autosave_timer.start(config.autosave_interval*60*1000)
-
-    def sizeHint(self):
-        return QSize(1800, 800)
-
-    song_info_formatter = PartialFormatter()
-    def update_song_info(self):
-        if self.player.current:
-            tags = self.player.current.item.get_tags(only_first = True)
-            self.setWindowTitle(self.song_info_formatter.format(
-                "{artist} - {title} | TandaMaster", **tags))
-            self.song_info.setText(self.song_info_formatter.format(
-                "{artist} <b>{title}</b>{duration}", duration = ' ' + time_to_text(self.player.duration,unit='ns',include_ms=False) if self.player.duration else '', **tags))
-        else:
-            self.setWindowTitle("TandaMaster")
-            self.song_info.setText("")
-            
-    def update_next_song_info(self):
-        next = self.player.concrete(self.player.next)
-        if next:
-            tags = next.item.get_tags(only_first = True)
-            self.next_song_info.setText(self.song_info_formatter.format(
-                "{artist} <b>{title}</b>", **tags))
-        else:
-            self.next_song_info.setText('')
-        self.next_song_info.update()
-            
-    def on_player_state_changed(self, state):
-        if state in (TMPlayer.PLAYING, TMPlayer.PLAYING_FADEOUT, TMPlayer.PLAYING_GAP, TMPlayer.PLAYING_FADEOUT):
-            self.action_play.setVisible(False)
-            self.action_pause.setVisible(True)
-            self.action_stop.setEnabled(not self.action_lock.isChecked())
-        else:
-            self.action_play.setVisible(True)
-            self.action_pause.setVisible(False)
-            self.action_stop.setEnabled(state != TMPlayer.STOPPED and not self.action_lock.isChecked())
-        if state in (TMPlayer.PLAYING_FADEOUT, TMPlayer.PLAYING_GAP):
-            self.fadeout_gap_pb.setMaximumHeight(self.song_info.height())
-            self.statusBar().addPermanentWidget(self.fadeout_gap_pb)
-            self.update_next_song_info()
-            self.statusBar().addPermanentWidget(self.next_song_info)
-            self.fadeout_gap_pb.show()
-            self.next_song_info.show()
-        else:
-            self.statusBar().removeWidget(self.fadeout_gap_pb)
-            self.statusBar().removeWidget(self.next_song_info)
-        self.toolbar.update()
-
-    def update_library(self):
-        #thread = QThread(self)
-        thread = TMThread(self)
-        app.aboutToQuit.connect(thread.exit)
-        #thread.library = Library(connect = False)
-        #thread.library.moveToThread(thread)
-        #thread.started.connect(thread.library.connect)
-        update_progress = QProgressBar()
-        update_progress.setMaximumWidth(150)
-        update_progress.setMinimum(0)
-        update_progress.setMaximum(library().connection.execute('SELECT COUNT(*) FROM files;').fetchone()[0])
-        update_progress.setFormat('Updating library: %p%')
-        self.statusBar().addPermanentWidget(update_progress)
-        def _update_library_progress():
-            update_progress.setValue(update_progress.value()+1)
-        def _update_library_thread_started():
-            library().refresh_all_libraries()
-            library().refresh_finished.connect(thread.exit)
-            library().refresh_finished.connect(lambda: print('Finished updating library'))
-            library().refresh_finished.connect(lambda: self.statusBar().showMessage('Finished updating library'))
-            library().refresh_finished.connect(lambda: self.statusBar().removeWidget(update_progress))
-            library().refresh_finished.connect(self.reset_all)
-            library().refresh_next.connect(_update_library_progress)
-        thread.started.connect(_update_library_thread_started)
-        thread.finished.connect(lambda: self.action_update_library.setEnabled(True))
-        #thread.library.refreshing.connect(self.statusBar().showMessage)
-        self.action_update_library.setEnabled(False)
-        thread.start()
-
-    def reset_all(self):
-        for w in self.window().findChildren(PlayTreeView):
-            model = w.model()
-            model.beginResetModel()
-            model.root_item.populate(model, force = True)
-            model.endResetModel()
-
-    def play(self):
-        if self.player.state == self.player.STOPPED:
-            ptv = app.focusWidget()
-            if isinstance(ptv, PlayTreeView):
-                self.player.play_index(ptv.currentIndex())
-            else:
-                self.player.play_next()
-        else:
-            self.player.play()    
-        
-    def playtree_cut(self):
-        ptv = app.focusWidget()
-        if not isinstance(ptv, PlayTreeView): return
-        ptv.cut()
-
-    def playtree_copy(self):
-        ptv = app.focusWidget()
-        if not isinstance(ptv, PlayTreeView): return
-        ptv.copy()
-
-    def playtree_paste(self):
-        ptv = app.focusWidget()
-        if not isinstance(ptv, PlayTreeView): return
-        ptv.paste()
-
-    def on_clipboard_data_changed(self, mode):
-        if mode == QClipboard.Clipboard:
-            ptv = app.focusWidget()
-            if not isinstance(ptv, PlayTreeView): return
-            self.window().action_paste.setEnabled(ptv.can_paste())
-
-    def playtree_delete(self):
-        ptv = app.focusWidget()
-        if not isinstance(ptv, PlayTreeView): return
-        ptv.delete()
-
-    def playtree_insert(self):
-        ptv = app.focusWidget()
-        if not isinstance(ptv, PlayTreeView): return
-        ptv.insert()
-
-    def playtree_group(self):
-        ptv = app.focusWidget()
-        if not isinstance(ptv, PlayTreeView): return
-        ptv.group()
-
-    def playtree_group_into_tandas(self):
-        ptv = app.focusWidget()
-        if not isinstance(ptv, PlayTreeView): return
-        ptv.group_into_tandas()
-
-    def playtree_move_up(self):
-        ptv = app.focusWidget()
-        if not isinstance(ptv, PlayTreeView): return
-        ptv.move_up()
-
-    def playtree_move_down(self):
-        ptv = app.focusWidget()
-        if not isinstance(ptv, PlayTreeView): return
-        ptv.move_down()
-
-    def playtree_move_left(self):
-        ptv = app.focusWidget()
-        if not isinstance(ptv, PlayTreeView): return
-        ptv.move_left()
-
-    def playtree_move_right(self):
-        ptv = app.focusWidget()
-        if not isinstance(ptv, PlayTreeView): return
-        ptv.move_right()
-
-    def playtree_move_home(self):
-        ptv = app.focusWidget()
-        if not isinstance(ptv, PlayTreeView): return
-        ptv.move_home()
-
-    def playtree_move_end(self):
-        ptv = app.focusWidget()
-        if not isinstance(ptv, PlayTreeView): return
-        ptv.move_end()
-
-    def edit_tag(self):
-        ptv = app.focusWidget()
-        if not isinstance(ptv, PlayTreeView): return
-        ptv.edit_tag()
-    def save_tag(self):
-        ptv = app.focusWidget()
-        if not isinstance(ptv, PlayTreeView): return
-        ptv.save_tag()
-    def revert_tag(self):
-        ptv = app.focusWidget()
-        if not isinstance(ptv, PlayTreeView): return
-        ptv.revert_tag()
-    def milonga_info(self):
-        ptv = app.focusWidget()
-        if not isinstance(ptv, PlayTreeView): return
-        ptv.milonga_info()
-
-    def lock(self, locked):
-        if locked:
-            self.action_lock.setIcon(QIcon('icons/iconfinder/iconza/locked.png'))
-            self.action_lock.setText(app.tr('&Locked'))
-            self.action_play.setEnabled(locked)
-        else:
-            self.action_lock.setIcon(QIcon('icons/iconfinder/iconza/unlocked.png'))
-            self.action_lock.setText(app.tr('Un&locked'))
-        self.action_back.setEnabled(not locked)
-        self.action_play.setEnabled(not locked)
-        self.action_pause.setEnabled(not locked)
-        self.action_stop.setEnabled(not locked)
-        self.stopafter_spinbox.setEnabled(not locked)
-        self.play_orders_combo.setEnabled(not locked)
-        self.lock_action_forward(locked)
-
-    def lock_action_forward(self, locked = None):
-        if locked is None:
-            locked = self.action_lock.isChecked()
-        self.action_forward.setEnabled(not locked or (self.player.current and self.player.current.item.function() == 'cortina'))
-
-    # todo: update duration on play
-    def mark_start_end(self):
-        position = self.player.playbin.query_position(Gst.Format.TIME)
-        if position[0]:
-            duration = self.player.playbin.query_duration(Gst.Format.TIME)
-            if not duration[0] or position[1] < duration[1] / 2:
-                self.player.current.song_begin = position[1]
-                self.player.current.item.set_tag(# todo: undoable!
-                    'tm:song_start',
-                    [float(position[1])/Gst.SECOND])
-            else:
-                self.player.current.song_end = position[1]
-                self.player.current.item.set_tag(
-                    'tm:song_end',
-                    [float(position[1])/Gst.SECOND])
-                
-    def mark_end_cut(self):
-        position = self.player.playbin.query_position(Gst.Format.TIME)
-        if position[0]:
-            self.player.current.song_end = position[1]
-            self.player.current.item.set_tag(
-                'tm:song_end',
-                [float(position[1])/Gst.SECOND])
-        
-    def adhoc(self):
-        ptv = app.focusWidget()
-        if not isinstance(ptv, PlayTreeView): return
-        current_index = ptv.currentIndex()
-        model = ptv.model()
-        current_item = model.item(current_index)
-        filename = current_item.filename
-        path = os.path.dirname(filename)
-        config = [line.strip() for line in open('/home/alja/.audacity-data/audacity.cfg')]
-        in_export = False
-        for n, line in enumerate(config):
-            if line == '[Export]':
-                in_export = True
-            elif in_export and line.startswith('Path='):
-                config[n] = 'Path=' + path
-                break
-        with open('/home/alja/.audacity-data/audacity.cfg', 'w') as f:
-            for line in config:
-                print(line, file = f)
-        import subprocess
-        subprocess.Popen(['/usr/bin/audacity', filename])
-
-    def run_on_selected_rows(self, qrunnable):
-        ptv = app.focusWidget()
-        if not isinstance(ptv, PlayTreeView): return
-        QThreadPool.globalInstance().start(qrunnable(ptv.selectionModel().selectedRows()))
-
-    def save_playtree_to_folder(self):
-        ptv = app.focusWidget()
-        if not isinstance(ptv, PlayTreeView): return
-        import shutil
-        for item in ptv.model().root_item.iter_depth(
-                ptv.model(),
-                lambda item: isinstance(item, PlayTreeFile),
-                lambda item: isinstance(item, PlayTreeList)):
-            p = "-".join("{:03}".format(part) 
-                         for part in ptv.model().index_to_path(item.index(ptv.model())))
-            new_fn = "/home/alja/temp/milonga_backup/" + p + "-" + os.path.basename(item.filename)
-            shutil.copyfile(item.filename, new_fn)
-
-    def closeEvent(self, event):
-        if self.action_lock.isChecked():
-            event.ignore()
-        else:
-            self.save()
-            super().closeEvent(event)
-
-    def save(self):
-        self.ui_xml.getroot().set(
-            'geometry', 
-            binascii.hexlify(self.saveGeometry().data()).decode())
-        cw = self.ui_xml.find('CentralWidget')
-        cw.clear()
-        cw.append(self.centralWidget().to_xml())
-        with open_autobackup('ui.xml', 'w') as outfile:
-            self.ui_xml.write(outfile, encoding='unicode')
-        save_playtree()
-
-    def save_tags(self):
-        librarian.bg_queries(BgQueries([BgQuery(Library.save_changed_tags, ())], lambda qs: self.statusBar().showMessage('Finished saving tags')))
-    
-    def set_columns_minimal(self):
-        ptv = app.focusWidget()
-        if not isinstance(ptv, PlayTreeView): return
-        ptv.set_columns( ('',) )
-
-    def set_columns_all(self):
-        ptv = app.focusWidget()
-        if not isinstance(ptv, PlayTreeView): return
-        ptv.set_columns( PlayTreeModel.columns )
-
-    def set_columns_normal(self):
-        ptv = app.focusWidget()
-        if not isinstance(ptv, PlayTreeView): return
-        ptv.set_columns( ('', 'artist', 'performer:vocals', 'date', 'genre', '_length') )
-
-    _status_bar_duration = ''
-    _status_bar_remaining = ''
-    def update_status_bar(self, duration = None, remaining = None):
-        if duration is not None:
-            self._status_bar_duration = duration
-        if remaining is not None:
-            self._status_bar_remaining = remaining
-        msg = " | ".join([m for m in (self._status_bar_duration, self._status_bar_remaining) if m])
-        self.window().statusBar().showMessage(msg)
-
-    def status_bar_message(self, msg):
-        self.update_status_bar(remaining = msg)
-        
-    def calculate_replay_gain(self):
-        ptv = app.focusWidget()
-        if not isinstance(ptv, PlayTreeView): return
-        TMReplayGain(ptv.model())
 
 class TMWidget:
     xml_tag_registry = {}
@@ -1505,7 +858,609 @@ class TMPositionProgressBar(QProgressBar):
             painter.drawLine(song_begin, 0, song_begin, self.height())
         if song_end:
             painter.drawLine(song_end, 0, song_end, self.height())
+
+
+
+class TandaMasterWindow(QMainWindow):
+
+    def __init__(self, parent = None):
+        super().__init__(parent)
+        self.setWindowTitle('TandaMaster')        
+        self.setWindowIcon(QIcon('icons/iconarchive/icons8/tandamaster-Sports-Dancing-icon.png'))
+
+        self.player = TMPlayer()
+        #self.player2 = TMPlayer() # pre-listening
+
+        try:
+            self.ui_xml = etree.parse('ui.xml')
+        except:
+            self.ui_xml = etree.ElementTree(etree.fromstring(b'<MainWindow><CentralWidget><Splitter><TabbedPlayTreesWidget tabPosition="2"><PlayTreeWidget/></TabbedPlayTreesWidget><TabbedPlayTreesWidget tabPosition="0"><PlayTreeWidget/></TabbedPlayTreesWidget></Splitter></CentralWidget></MainWindow>'))
+
+        geometry = self.ui_xml.getroot().get('geometry')
+        if geometry:
+            self.restoreGeometry(binascii.unhexlify(geometry))
+        self.setCentralWidget(TMWidget.create_from_xml(self.ui_xml.find('CentralWidget')[0],self))
+
+
+        if self.player.current and self.player.current.model:
+            widget = self.player.current.model.view
+            while widget.parent():
+                widget.setFocus(Qt.OtherFocusReason)
+                widget = widget.parent()
+                
+        menubar = QMenuBar()
+
+        self.musicmenu = QMenu(self.tr('&Music'))
         
+        action_save_playtree = QAction(
+            self.tr("&Save"), self,
+            shortcut=QKeySequence.Save,
+            triggered = self.save)
+        self.musicmenu.addAction(action_save_playtree)
+        
+        action_save_tags = QAction(
+            self.tr("&Save tags"), self,
+            shortcut=QKeySequence('ctrl+shift+s'),
+            triggered = self.save_tags)
+        self.musicmenu.addAction(action_save_tags)
+        
+        self.action_update_library = QAction(
+            self.tr("&Update library"), self,
+            triggered = self.update_library)
+        self.musicmenu.addAction(self.action_update_library)
+        
+        action_save_playtree_to_folder = QAction(
+            self.tr("&Save playtree files to folder in order"), self,
+            triggered=self.save_playtree_to_folder)
+        self.musicmenu.addAction(action_save_playtree_to_folder)
+        
+        action_adhoc = QAction(
+            self.tr("&AdHoc"), self,
+            statusTip="Adhoc action", triggered=self.adhoc)
+        self.musicmenu.addAction(action_adhoc)
+        
+        action_quit = QAction(
+            self.tr("&Quit"), self, shortcut=QKeySequence.Quit,
+            statusTip="Quit the program", triggered=self.close)
+        self.musicmenu.addAction(action_quit)
+        
+        menubar.addMenu(self.musicmenu)
+
+        self.playbackmenu = QMenu(self.tr('&Playback'))
+        
+        self.action_back = QAction(
+            #self.style().standardIcon(QStyle.SP_MediaSkipBackward), 
+            #MyIcon('Tango', 'actions', 'media-skip-backward'),
+            QIcon('button_rewind_green.png'),
+            #QIcon('icons/iconfinder/32pxmania/previous.png'),
+            self.tr('P&revious'), self, triggered = self.player.play_previous)
+        self.playbackmenu.addAction(self.action_back)
+        
+        self.action_play = QAction(
+            #self.style().standardIcon(QStyle.SP_MediaPlay), 
+            #MyIcon('Tango', 'actions', 'media-playback-start'),
+            QIcon('button_play_green.png'),
+            #QIcon('icons/iconfinder/32pxmania/play.png'),
+            self.tr('&Play'), 
+            self,
+            shortcut = QKeySequence('space'),
+            triggered = self.play)
+        self.playbackmenu.addAction(self.action_play)
+        
+        self.action_pause =  QAction(
+            #self.style().standardIcon(QStyle.SP_MediaPause), 
+            #MyIcon('Tango', 'actions', 'media-playback-pause'),
+            QIcon('button_pause_green.png'),
+            #QIcon('icons/iconfinder/32pxmania/pause.png'),
+            self.tr('&Pause'), self, 
+            shortcut = QKeySequence('space'),
+            triggered = self.player.pause)
+        self.playbackmenu.addAction(self.action_pause)
+        
+        self.action_stop = QAction(
+            #self.style().standardIcon(QStyle.SP_MediaStop), 
+            #MyIcon('Tango', 'actions', 'media-playback-stop'),
+            QIcon('button_stop_green.png'),
+            #QIcon('icons/iconfinder/32pxmania/stop.png'),
+            self.tr('&Stop'), self, triggered = self.player.stop)
+        self.playbackmenu.addAction(self.action_stop)
+        
+        self.action_forward = QAction(
+            #self.style().standardIcon(QStyle.SP_MediaSkipForward), 
+            #MyIcon('Tango', 'actions', 'media-skip-forward'),
+            QIcon('button_fastforward_green.png'),
+            #QIcon('icons/iconfinder/32pxmania/next.png'),
+            self.tr('&Next'), self, triggered = self.player.play_next,
+            shortcut = QKeySequence('ctrl+n'),
+        )
+        self.playbackmenu.addAction(self.action_forward)
+        
+        self.playbackmenu.addSeparator()
+        
+        # todo: disablaj lock kadar je state STOPPED, na koncu seznama pa avtomatsko odkleni
+        self.action_lock = QAction(
+            QIcon('icons/iconfinder/iconza/unlocked.png'),
+            self.tr('Un&locked'), self, toggled = self.lock)
+        self.action_lock.setCheckable(True)
+        self.playbackmenu.addAction(self.action_lock)
+        
+        self.playbackmenu.addSeparator()
+        
+        self.action_mark_start_end = QAction(
+            self.tr('Mark start/end'), self,
+            triggered = self.mark_start_end,
+            shortcut = QKeySequence('.'))
+        self.playbackmenu.addAction(self.action_mark_start_end)
+        
+        menubar.addMenu(self.playbackmenu)
+
+        self.editmenu = QMenu(self.tr('&Edit'))
+        
+        self.action_cut = QAction(
+            #MyIcon('Tango', 'actions', 'edit-cut'),
+            QIcon('icons/tango/edit-cut'),
+            self.tr('Cu&t'), self, triggered = swcm(PlayTreeView, PlayTreeView.cut),
+            shortcut = QKeySequence(QKeySequence.Cut))
+        
+        self.action_copy = QAction(
+            QIcon('icons/tango/edit-copy'),
+            #MyIcon('Tango', 'actions', 'edit-copy'),
+            self.tr('&Copy'), self, triggered = swcm(PlayTreeView, PlayTreeView.copy),
+            shortcut = QKeySequence(QKeySequence.Copy))
+        
+        self.action_paste = QAction(
+            #MyIcon('Tango', 'actions', 'edit-paste'),
+            QIcon('icons/tango/edit-paste'),
+            self.tr('&Paste'), self, triggered = swcm(PlayTreeView, PlayTreeView.paste),
+            shortcut = QKeySequence(QKeySequence.Paste))
+        
+        self.action_insert = QAction(
+            QIcon('icons/iconfinder/32pxmania/insert.png'),
+            self.tr('&Insert'), self, triggered = swcm(PlayTreeView, PlayTreeView.insert),
+            shortcut = QKeySequence('insert'))
+        
+        self.action_delete = QAction(
+            QIcon('icons/iconfinder/32pxmania/delete.png'),
+            self.tr('&Delete'), self, triggered = swcm(PlayTreeView, PlayTreeView.delete),
+            shortcut = QKeySequence(QKeySequence.Delete))
+        
+        self.action_group = QAction(
+            QIcon('icons/iconfinder/farm-fresh/group.png'),
+            self.tr('&Group'), self, triggered = swcm(PlayTreeView, PlayTreeView.group),
+            shortcut = QKeySequence('Ctrl+g'))
+        
+        self.action_group_into_tandas = QAction(
+            QIcon('icons/iconfinder/farm-fresh/group.png'),
+            self.tr('Group into tandas'), self, triggered = swcm(PlayTreeView, PlayTreeView.group_into_tandas),
+            shortcut = QKeySequence('Ctrl+Shift+g'))
+        
+        self.action_move_up = QAction(
+            QIcon('icons/iconfinder/32pxmania/up.png'),
+            self.tr('Move &up'), self,
+            triggered = swcm(PlayTreeView, PlayTreeView.move_up),
+            shortcut = QKeySequence('alt+up'))
+        
+        self.action_move_down = QAction(
+            QIcon('icons/iconfinder/32pxmania/down.png'),
+            self.tr('Move &down'), self, triggered = swcm(PlayTreeView, PlayTreeView.move_down),
+            shortcut = QKeySequence('alt+down'))
+        
+        self.action_move_left = QAction(
+            QIcon('icons/iconfinder/momentum_glossy/arrow-up-left.png'),
+            self.tr('Move &out of parent'), self, triggered = swcm(PlayTreeView, PlayTreeView.move_left),
+            shortcut = QKeySequence('alt+left'))
+        
+        self.action_move_right = QAction(
+            QIcon('icons/iconfinder/momentum_glossy/arrow-down-right.png'),
+            self.tr('Move into &next sibling'), self, triggered = swcm(PlayTreeView, PlayTreeView.move_right),
+            shortcut = QKeySequence('alt+right'))
+        
+        self.action_move_home = QAction(
+            QIcon('icons/iconfinder/momentum_glossy/move_top.png'),
+            self.tr('Move to &top'), self, triggered = swcm(PlayTreeView, PlayTreeView.move_home),
+            shortcut = QKeySequence('alt+home'))
+        
+        self.action_move_end = QAction(
+            QIcon('icons/iconfinder/momentum_glossy/move_bottom.png'),
+            self.tr('Move to &bottom'), self, triggered = swcm(PlayTreeView, PlayTreeView.move_end),
+            shortcut = QKeySequence('alt+end'))
+
+        self.action_edit_tag = QAction(
+            #QIcon('icons/iconfinder/32pxmania/up.png'),
+            self.tr('&Edit tag'), self, triggered = swcm(PlayTreeView, PlayTreeView.edit_tag))
+        
+        self.action_save_tag = QAction(
+            #QIcon('icons/iconfinder/32pxmania/up.png'),
+            self.tr('&Save tag'), self, triggered = swcm(PlayTreeView, PlayTreeView.save_tag))
+        
+        self.action_revert_tag = QAction(
+            #QIcon('icons/iconfinder/32pxmania/up.png'),
+            self.tr('&Revert tag'), self, triggered = swcm(PlayTreeView, PlayTreeView.revert_tag))
+
+        action_undo = undo_stack.createUndoAction(self)
+        action_redo = undo_stack.createRedoAction(self)
+        action_undo.setIcon(QIcon('icons/iconfinder/32pxmania/undo.png'))
+        action_redo.setIcon(QIcon('icons/iconfinder/32pxmania/redo.png'))
+        action_undo.setShortcut(QKeySequence(QKeySequence.Undo))
+        action_redo.setShortcut(QKeySequence(QKeySequence.Redo))
+        
+        self.editmenu.addAction(action_undo)
+        self.editmenu.addAction(action_redo)
+        self.editmenu.addSeparator()
+        self.editmenu.addAction(self.action_cut)
+        self.editmenu.addAction(self.action_copy)
+        self.editmenu.addAction(self.action_paste)
+        self.editmenu.addSeparator()
+        self.editmenu.addAction(self.action_insert)
+        self.editmenu.addAction(self.action_delete)
+        self.editmenu.addAction(self.action_group)
+        self.editmenu.addAction(self.action_move_home)
+        self.editmenu.addAction(self.action_move_up)
+        self.editmenu.addAction(self.action_move_down)
+        self.editmenu.addAction(self.action_move_end)
+        self.editmenu.addAction(self.action_move_left)
+        self.editmenu.addAction(self.action_move_right)
+        self.editmenu.addSeparator()
+        self.editmenu.addAction(self.action_edit_tag)
+        self.editmenu.addAction(self.action_save_tag)
+        self.editmenu.addAction(self.action_revert_tag)
+        self.editmenu.addSeparator()
+        self.editmenu.addAction(self.action_group_into_tandas)
+        
+        menubar.addMenu(self.editmenu)
+
+        self.viewmenu = QMenu(self.tr('View'))
+        
+        self.action_columns_minimal = QAction(
+            app.tr('Columns: minimal'), 
+            self,
+            triggered = swcm(PlayTreeView, PlayTreeView.set_columns, ('',) ))
+        
+        self.action_columns_normal = QAction(
+            app.tr('Columns: normal'), 
+            self,
+            triggered = swcm(
+                PlayTreeView, PlayTreeView.set_columns,
+                ('', 'artist', 'performer:vocals', 'date', 'genre', '_length')))
+        
+        self.action_columns_all = QAction(
+            app.tr('Columns: all'), 
+            self,
+            triggered = swcm(PlayTreeView, PlayTreeView.set_columns, PlayTreeModel.columns))
+        
+        self.viewmenu.addAction(self.action_columns_minimal)
+        self.viewmenu.addAction(self.action_columns_normal)  
+        self.viewmenu.addAction(self.action_columns_all)
+        
+        menubar.addMenu(self.viewmenu)
+
+        self.toolsmenu = QMenu(self.tr('Tools'))
+        
+        self.action_calculate_replay_gain = QAction(
+            self.tr('Calculate &replay gain'), self,
+            triggered = swcm(PlayTreeView, lambda ptv: TMReplayGain(ptv.model())))
+        self.toolsmenu.addAction(self.action_calculate_replay_gain)
+        
+        self.action_milonga_info = QAction(
+            self.tr('Milonga &info'), self,
+            triggered = swcm(PlayTreeView, PlayTreeView.milonga_info),
+            shortcut = QKeySequence('ctrl+shift+i'))
+        self.toolsmenu.addAction(self.action_milonga_info)
+        
+        self.action_getfilesfromalja = QAction(
+            self.tr('Get files from &Alja'), self,
+            triggered = lambda: self.run_on_selected_rows(GetFilesFromAlja))
+        self.toolsmenu.addAction(self.action_getfilesfromalja)
+        
+        self.action_latexsonginfo = QAction(
+            self.tr('Make PDF for songs'), self,
+            triggered = lambda: self.run_on_selected_rows(LaTeXSongInfo))
+        self.toolsmenu.addAction(self.action_latexsonginfo)
+        
+        menubar.addMenu(self.toolsmenu)
+
+        self.musicmenu.addAction(action_quit)
+        
+        self.setMenuBar(menubar)
+
+        toolbar = QToolBar('ProgressBar', self)
+        pb = TMPositionProgressBar(self.player)
+        toolbar.addWidget(pb)
+        self.addToolBar(Qt.BottomToolBarArea, toolbar)
+
+        self.addToolBarBreak(Qt.BottomToolBarArea)
+
+        toolbar = QToolBar('Play controls', self)
+        toolbar.setAllowedAreas(Qt.TopToolBarArea | Qt.BottomToolBarArea)
+        toolbar.setFloatable(False)
+        toolbar.addAction(self.action_back)
+        toolbar.addAction(self.action_play)
+        toolbar.addAction(self.action_pause)
+        toolbar.addAction(self.action_stop)
+        toolbar.addAction(self.action_forward)
+        toolbar.addSeparator()
+        toolbar.addAction(self.action_lock)
+        self.stopafter_spinbox = QSpinBox()
+        self.stopafter_spinbox.setMinimum(0)
+        self.stopafter_spinbox.valueChanged.connect(self.player.play_order.set_stop_after)
+        toolbar.addWidget(self.stopafter_spinbox)
+        toolbar.addSeparator()
+        toolbar.addWidget(TMVolumeControl(Qt.Horizontal, self.player))
+        toolbar.addSeparator()
+        self.play_orders_combo = QComboBox()
+        for name, cls in PlayOrder.play_orders:
+            self.play_orders_combo.addItem(name, cls)
+        self.play_orders_combo.setCurrentText(self.player.play_order.name)
+        def set_play_order(index):
+            self.player.set_play_order(self.play_orders_combo.currentData()())
+        self.play_orders_combo.currentIndexChanged.connect(set_play_order)
+        toolbar.addWidget(self.play_orders_combo)
+
+        self.addToolBar(Qt.BottomToolBarArea, toolbar)
+        
+        toolbar = QToolBar('Edit', self)
+        toolbar.addAction(action_undo)
+        toolbar.addAction(action_redo)
+        toolbar.addSeparator()
+        toolbar.addAction(self.action_cut)
+        toolbar.addAction(self.action_copy)
+        toolbar.addAction(self.action_paste)
+        toolbar.addSeparator()
+        toolbar.addAction(self.action_insert)
+        toolbar.addAction(self.action_delete)
+        toolbar.addAction(self.action_group)
+        toolbar.addAction(self.action_move_home)
+        toolbar.addAction(self.action_move_up)
+        toolbar.addAction(self.action_move_down)
+        toolbar.addAction(self.action_move_end)
+        toolbar.addAction(self.action_move_left)
+        toolbar.addAction(self.action_move_right)
+        
+        self.addToolBar(toolbar)
+        self.toolbar = toolbar
+
+        self.setStatusBar(QStatusBar())
+        app.info.connect(self.status_bar_message)
+        self.fadeout_gap_pb = TMGapAndFadeoutProgressBar(self.player)
+
+        self.song_info = QLabel()
+        self.song_info.setContentsMargins(8,0,8,0)
+        self.statusBar().addPermanentWidget(self.song_info)
+        self.next_song_info = QLabel()
+        self.next_song_info.setContentsMargins(8,0,8,0)
+        self.next_song_info.hide()
+
+        self.player.current_changed.connect(self.update_song_info, type = Qt.QueuedConnection)
+        self.player.duration_changed.connect(self.update_song_info, type = Qt.QueuedConnection)
+        self.player.next_changed.connect(self.update_next_song_info, type = Qt.QueuedConnection)
+        self.player.current_changed.connect(lambda: self.lock_action_forward(), type = Qt.QueuedConnection)
+        self.player.state_changed.connect(self.on_player_state_changed, type = Qt.QueuedConnection)
+        self.on_player_state_changed(TMPlayer.STOPPED)
+        QApplication.clipboard().changed.connect(self.on_clipboard_data_changed)
+
+        self.autosave_timer = QTimer(self)
+        self.autosave_timer.timeout.connect(self.save)
+        self.autosave_timer.start(config.autosave_interval*60*1000)
+
+    def sizeHint(self):
+        return QSize(1800, 800)
+
+    song_info_formatter = PartialFormatter()
+    def update_song_info(self):
+        if self.player.current:
+            tags = self.player.current.item.get_tags(only_first = True)
+            self.setWindowTitle(self.song_info_formatter.format(
+                "{artist} - {title} | TandaMaster", **tags))
+            self.song_info.setText(self.song_info_formatter.format(
+                "{artist} <b>{title}</b>{duration}", duration = ' ' + time_to_text(self.player.duration,unit='ns',include_ms=False) if self.player.duration else '', **tags))
+        else:
+            self.setWindowTitle("TandaMaster")
+            self.song_info.setText("")
+            
+    def update_next_song_info(self):
+        next = self.player.concrete(self.player.next)
+        if next:
+            tags = next.item.get_tags(only_first = True)
+            self.next_song_info.setText(self.song_info_formatter.format(
+                "{artist} <b>{title}</b>", **tags))
+        else:
+            self.next_song_info.setText('')
+        self.next_song_info.update()
+            
+    def on_player_state_changed(self, state):
+        if state in (TMPlayer.PLAYING, TMPlayer.PLAYING_FADEOUT, TMPlayer.PLAYING_GAP, TMPlayer.PLAYING_FADEOUT):
+            self.action_play.setVisible(False)
+            self.action_pause.setVisible(True)
+            self.action_stop.setEnabled(not self.action_lock.isChecked())
+        else:
+            self.action_play.setVisible(True)
+            self.action_pause.setVisible(False)
+            self.action_stop.setEnabled(state != TMPlayer.STOPPED and not self.action_lock.isChecked())
+        if state in (TMPlayer.PLAYING_FADEOUT, TMPlayer.PLAYING_GAP):
+            self.fadeout_gap_pb.setMaximumHeight(self.song_info.height())
+            self.statusBar().addPermanentWidget(self.fadeout_gap_pb)
+            self.update_next_song_info()
+            self.statusBar().addPermanentWidget(self.next_song_info)
+            self.fadeout_gap_pb.show()
+            self.next_song_info.show()
+        else:
+            self.statusBar().removeWidget(self.fadeout_gap_pb)
+            self.statusBar().removeWidget(self.next_song_info)
+        self.toolbar.update()
+
+    def update_library(self):
+        #thread = QThread(self)
+        thread = TMThread(self)
+        app.aboutToQuit.connect(thread.exit)
+        #thread.library = Library(connect = False)
+        #thread.library.moveToThread(thread)
+        #thread.started.connect(thread.library.connect)
+        update_progress = QProgressBar()
+        update_progress.setMaximumWidth(150)
+        update_progress.setMinimum(0)
+        update_progress.setMaximum(library().connection.execute('SELECT COUNT(*) FROM files;').fetchone()[0])
+        update_progress.setFormat('Updating library: %p%')
+        self.statusBar().addPermanentWidget(update_progress)
+        def _update_library_progress():
+            update_progress.setValue(update_progress.value()+1)
+        def _update_library_thread_started():
+            library().refresh_all_libraries()
+            library().refresh_finished.connect(thread.exit)
+            library().refresh_finished.connect(lambda: print('Finished updating library'))
+            library().refresh_finished.connect(lambda: self.statusBar().showMessage('Finished updating library'))
+            library().refresh_finished.connect(lambda: self.statusBar().removeWidget(update_progress))
+            library().refresh_finished.connect(self.reset_all)
+            library().refresh_next.connect(_update_library_progress)
+        thread.started.connect(_update_library_thread_started)
+        thread.finished.connect(lambda: self.action_update_library.setEnabled(True))
+        #thread.library.refreshing.connect(self.statusBar().showMessage)
+        self.action_update_library.setEnabled(False)
+        thread.start()
+
+    def reset_all(self):
+        for w in self.window().findChildren(PlayTreeView):
+            model = w.model()
+            model.beginResetModel()
+            model.root_item.populate(model, force = True)
+            model.endResetModel()
+
+    def play(self):
+        if self.player.state == self.player.STOPPED:
+            ptv = app.focusWidget()
+            if isinstance(ptv, PlayTreeView):
+                self.player.play_index(ptv.currentIndex())
+            else:
+                self.player.play_next()
+        else:
+            self.player.play()
+
+    def on_clipboard_data_changed(self, mode):
+        if mode == QClipboard.Clipboard:
+            ptv = app.focusWidget()
+            if not isinstance(ptv, PlayTreeView): return
+            self.window().action_paste.setEnabled(ptv.can_paste())
+
+    def lock(self, locked):
+        if locked:
+            self.action_lock.setIcon(QIcon('icons/iconfinder/iconza/locked.png'))
+            self.action_lock.setText(app.tr('&Locked'))
+            self.action_play.setEnabled(locked)
+        else:
+            self.action_lock.setIcon(QIcon('icons/iconfinder/iconza/unlocked.png'))
+            self.action_lock.setText(app.tr('Un&locked'))
+        self.action_back.setEnabled(not locked)
+        self.action_play.setEnabled(not locked)
+        self.action_pause.setEnabled(not locked)
+        self.action_stop.setEnabled(not locked)
+        self.stopafter_spinbox.setEnabled(not locked)
+        self.play_orders_combo.setEnabled(not locked)
+        self.lock_action_forward(locked)
+
+    def lock_action_forward(self, locked = None):
+        if locked is None:
+            locked = self.action_lock.isChecked()
+        self.action_forward.setEnabled(not locked or (self.player.current and self.player.current.item.function() == 'cortina'))
+
+    # todo: update duration on play
+    def mark_start_end(self):
+        position = self.player.playbin.query_position(Gst.Format.TIME)
+        if position[0]:
+            duration = self.player.playbin.query_duration(Gst.Format.TIME)
+            if not duration[0] or position[1] < duration[1] / 2:
+                self.player.current.song_begin = position[1]
+                self.player.current.item.set_tag(# todo: undoable!
+                    'tm:song_start',
+                    [float(position[1])/Gst.SECOND])
+            else:
+                self.player.current.song_end = position[1]
+                self.player.current.item.set_tag(
+                    'tm:song_end',
+                    [float(position[1])/Gst.SECOND])
+                
+    def mark_end_cut(self):
+        position = self.player.playbin.query_position(Gst.Format.TIME)
+        if position[0]:
+            self.player.current.song_end = position[1]
+            self.player.current.item.set_tag(
+                'tm:song_end',
+                [float(position[1])/Gst.SECOND])
+        
+    def adhoc(self):
+        ptv = app.focusWidget()
+        if not isinstance(ptv, PlayTreeView): return
+        current_index = ptv.currentIndex()
+        model = ptv.model()
+        current_item = model.item(current_index)
+        filename = current_item.filename
+        path = os.path.dirname(filename)
+        config = [line.strip() for line in open('/home/alja/.audacity-data/audacity.cfg')]
+        in_export = False
+        for n, line in enumerate(config):
+            if line == '[Export]':
+                in_export = True
+            elif in_export and line.startswith('Path='):
+                config[n] = 'Path=' + path
+                break
+        with open('/home/alja/.audacity-data/audacity.cfg', 'w') as f:
+            for line in config:
+                print(line, file = f)
+        import subprocess
+        subprocess.Popen(['/usr/bin/audacity', filename])
+
+    def run_on_selected_rows(self, qrunnable):
+        ptv = app.focusWidget()
+        if not isinstance(ptv, PlayTreeView): return
+        QThreadPool.globalInstance().start(qrunnable(ptv.selectionModel().selectedRows()))
+
+    def save_playtree_to_folder(self):
+        ptv = app.focusWidget()
+        if not isinstance(ptv, PlayTreeView): return
+        import shutil
+        for item in ptv.model().root_item.iter_depth(
+                ptv.model(),
+                lambda item: isinstance(item, PlayTreeFile),
+                lambda item: isinstance(item, PlayTreeList)):
+            p = "-".join("{:03}".format(part) 
+                         for part in ptv.model().index_to_path(item.index(ptv.model())))
+            new_fn = "/home/alja/temp/milonga_backup/" + p + "-" + os.path.basename(item.filename)
+            shutil.copyfile(item.filename, new_fn)
+
+    def closeEvent(self, event):
+        if self.action_lock.isChecked():
+            event.ignore()
+        else:
+            self.save()
+            super().closeEvent(event)
+
+    def save(self):
+        self.ui_xml.getroot().set(
+            'geometry', 
+            binascii.hexlify(self.saveGeometry().data()).decode())
+        cw = self.ui_xml.find('CentralWidget')
+        cw.clear()
+        cw.append(self.centralWidget().to_xml())
+        with open_autobackup('ui.xml', 'w') as outfile:
+            self.ui_xml.write(outfile, encoding='unicode')
+        save_playtree()
+
+    def save_tags(self):
+        librarian.bg_queries(BgQueries([BgQuery(Library.save_changed_tags, ())], lambda qs: self.statusBar().showMessage('Finished saving tags')))
+    
+    _status_bar_duration = ''
+    _status_bar_remaining = ''
+    def update_status_bar(self, duration = None, remaining = None):
+        if duration is not None:
+            self._status_bar_duration = duration
+        if remaining is not None:
+            self._status_bar_remaining = remaining
+        msg = " | ".join([m for m in (self._status_bar_duration, self._status_bar_remaining) if m])
+        self.window().statusBar().showMessage(msg)
+
+    def status_bar_message(self, msg):
+        self.update_status_bar(remaining = msg)
+        
+
+            
 class TMPositionProgressBar_Interaction(QObject):
     def eventFilter(self, obj, event):
         if event.type() == QEvent.MouseMove:   

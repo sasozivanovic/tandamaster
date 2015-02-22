@@ -98,3 +98,11 @@ import unidecode
 def search_value(value):
     return unidecode.unidecode(value).lower() if isinstance(value, str) else value
 
+from app import app
+def swcm(cls, f, *args, **kwargs):
+    """"Return Selected Widget's Class Method."""
+    def bound_method():
+        w = app.focusWidget()
+        if not isinstance(w, cls): return
+        f(w, *args, **kwargs)
+    return bound_method

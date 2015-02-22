@@ -893,8 +893,8 @@ class PlayTreeModel(QAbstractItemModel):
         self.root_item = root_item
         root_item.populate(self)
 
-    def item(self, index):
-        return index.internalPointer() if index.isValid() else self.root_item
+    def item(self, index, invalid = 'root'):
+        return index.internalPointer() if index.isValid() else (self.root_item if invalid == 'root' else invalid)
 
     # column "" provides browsing info (folder name, file name, ...)
     columns = ('', 'artist', 'performer:vocals',

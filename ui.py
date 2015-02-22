@@ -250,7 +250,9 @@ class PlayTreeView(QTreeView):
 
         self.setDragDropMode(QAbstractItemView.DragDrop)
         self.setEditTriggers(QAbstractItemView.EditKeyPressed)
-        self.setItemDelegate(TMItemDelegate())
+        delegate = TMItemDelegate()
+        delegate.closeEditor.connect(self.on_close_editor)
+        self.setItemDelegate(delegate)
 
     def on_expanded(self, index):
         model = self.model()
@@ -286,7 +288,13 @@ class PlayTreeView(QTreeView):
                     self._autoexpanded = index
                     index = model.parent(index)
 
-    def on_activated(self, index = None):
+    def on_activated(self, index):
+        if self.window().action_edit_tags_mode.isChecked():
+            self.edit(index)
+        else:
+            self.play_this(index)
+            
+    def play_this(self, index = None):
         if index is None:
             index = self.currentIndex()
         if not self.window().action_lock.isChecked() or self.player.current.item.function() == 'cortina':
@@ -845,6 +853,26 @@ class PlayTreeView(QTreeView):
         old_value = library().tag_by_song_id(item.song_id, tag, sources = ('file',))
         EditTagsCommand(self.model(), [item], tag, old_value, command_prefix = 'Revert')
 
+    def on_close_editor(self, editor, hint):
+        model = self.model()
+        current_index = self.currentIndex()
+        next_index = None
+        if hint == QAbstractItemDelegate.EditNextItem:
+            if current_index.row() == model.columnCount(current_index)-1:
+                next_index = model.next(current_index)
+                next_index = model.sibling(None, 0, next_index)
+            else:
+                next_index = model.sibling(None, current_index.column() + 1, current_index)
+        elif hint == QAbstractItemDelegate.EditPreviousItem:
+            if current_index.row() == 0:
+                next_index = model.previous(current_index)
+                next_index = model.sibling(None, model.columnCount(next_index)-1, next_index)
+            else:
+                next_index = model.sibling(None, current_index.column() - 1, current_index)
+        if next_index:
+            self.setCurrentIndex(next_index)
+            self.edit(next_index)
+        
 class TMItemDelegate(QStyledItemDelegate):
     def createEditor(self, parent, option, index):
         editor = super().createEditor(parent, option, index)
@@ -914,8 +942,7 @@ class TMPositionProgressBar(QProgressBar):
             painter.drawLine(song_begin, 0, song_begin, self.height())
         if song_end:
             painter.drawLine(song_end, 0, song_end, self.height())
-
-
+            
 
 class TandaMasterWindow(QMainWindow):
 
@@ -1011,7 +1038,7 @@ class TandaMasterWindow(QMainWindow):
             self.tr('Play this'), 
             self,
             shortcut = QKeySequence('ctrl+space'),
-            triggered = swcm(PlayTreeView, PlayTreeView.on_activated))
+            triggered = swcm(PlayTreeView, PlayTreeView.play_this))
         self.addAction(action_play_this)
         
         self.action_pause =  QAction(
@@ -1214,10 +1241,17 @@ class TandaMasterWindow(QMainWindow):
             app.tr('Columns: all'), 
             self,
             triggered = swcm(PlayTreeView, PlayTreeView.set_columns, PlayTreeModel.columns))
-        
+
+        self.action_edit_tags_mode = QAction(
+            QIcon('icons/iconfinder/farm-fresh/edit.png'),
+            self.tr('&Edit tags mode'), self, toggled = self.edit_tags_mode)
+        self.action_edit_tags_mode.setCheckable(True)
+
         self.viewmenu.addAction(self.action_columns_minimal)
         self.viewmenu.addAction(self.action_columns_normal)  
         self.viewmenu.addAction(self.action_columns_all)
+        self.viewmenu.addSeparator()
+        self.viewmenu.addAction(self.action_edit_tags_mode)
 
         menubar.addMenu(self.viewmenu)
 
@@ -1307,7 +1341,8 @@ class TandaMasterWindow(QMainWindow):
         add_actions_to_toolbar(self.action_move_up_left, self.action_move_down_left)
         add_actions_to_toolbar(self.action_move_up, self.action_move_down)
         add_actions_to_toolbar(self.action_move_up_right, self.action_move_down_right)
-        
+        toolbar.addSeparator()
+        add_actions_to_toolbar(self.action_edit_tags_mode)
         self.addToolBar(toolbar)
         #self.toolbar = toolbar
 
@@ -1551,7 +1586,10 @@ class TandaMasterWindow(QMainWindow):
     def status_bar_message(self, msg):
         self.update_status_bar(remaining = msg)
         
-
+    def edit_tags_mode(self, checked):
+        for ptv in self.window().findChildren(PlayTreeView):
+            #ptv.setAllColumnsShowFocus(not checked)
+            ptv.setSelectionBehavior(QAbstractItemView.SelectItems if checked else QAbstractItemView.SelectRows)
             
 class TMPositionProgressBar_Interaction(QObject):
     def eventFilter(self, obj, event):

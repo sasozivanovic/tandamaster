@@ -856,26 +856,38 @@ class PlayTreeView(QTreeView):
     def on_close_editor(self, editor, hint):
         model = self.model()
         current_index = self.currentIndex()
-        next_index = None
+        next_index = QModelIndex()
         if hint == QAbstractItemDelegate.EditNextItem:
             if current_index.row() == model.columnCount(current_index)-1:
-                next_index = model.next(current_index)
+                next_index = model.next_song(current_index)
                 next_index = model.sibling(None, 0, next_index)
             else:
                 next_index = model.sibling(None, current_index.column() + 1, current_index)
         elif hint == QAbstractItemDelegate.EditPreviousItem:
             if current_index.row() == 0:
-                next_index = model.previous(current_index)
+                next_index = model.previous_song(current_index)
                 next_index = model.sibling(None, model.columnCount(next_index)-1, next_index)
             else:
                 next_index = model.sibling(None, current_index.column() - 1, current_index)
-        if next_index:
+        elif hint == TMItemDelegate.EditPreviousRow:
+            next_index = model.previous_song(current_index)
+            if next_index.isValid():
+                next_index = model.sibling(None, current_index.column(), next_index)
+        elif hint == TMItemDelegate.EditNextRow:
+            next_index = model.next_song(current_index)
+            if next_index.isValid():
+                next_index = model.sibling(None, current_index.column(), next_index)
+        if next_index.isValid():
             self.setCurrentIndex(next_index)
             self.edit(next_index)
         
 class TMItemDelegate(QStyledItemDelegate):
+    EditNextRow = 11
+    EditPreviousRow = 12
     def createEditor(self, parent, option, index):
         editor = super().createEditor(parent, option, index)
+        editor.addAction(QAction(self, shortcut='up', triggered = lambda: self.closeEditor.emit(editor, self.EditPreviousRow)))
+        editor.addAction(QAction(self, shortcut='down', triggered = lambda: self.closeEditor.emit(editor, self.EditNextRow)))
         tag = index.model().columns[index.column()]
         if tag:
             completer = QCompleter()

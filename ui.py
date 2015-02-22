@@ -576,7 +576,7 @@ class PlayTreeView(QTreeView):
                 current_item.index(model), QItemSelectionModel.NoUpdate)
 
 
-    def move_left(self):
+    def move_up_left(self):
         model = self.model()
         selection_model = self.selectionModel()
         selected_indexes = selection_model.selectedRows()
@@ -593,7 +593,7 @@ class PlayTreeView(QTreeView):
             selection_model.select(item.index(model),QItemSelectionModel.Select|QItemSelectionModel.Rows)
         selection_model.setCurrentIndex(current_item.index(model), QItemSelectionModel.NoUpdate)
 
-    def move_right(self):
+    def move_down_right(self):
         model = self.model()
         selection_model = self.selectionModel()
         selected_indexes = selection_model.selectedRows()
@@ -612,6 +612,15 @@ class PlayTreeView(QTreeView):
             selection_model.select(item.index(model),QItemSelectionModel.Select|QItemSelectionModel.Rows)
         selection_model.setCurrentIndex(current_item.index(model), QItemSelectionModel.NoUpdate)
 
+    def move_down_left(self):
+        pass
+    def move_up_right(self):
+        pass
+    def move_left(self):
+        pass
+    def move_right(self):
+        pass
+        
     def move_home(self):
         model = self.model()
         selection_model = self.selectionModel()
@@ -730,7 +739,9 @@ class PlayTreeView(QTreeView):
         MovePlayTreeItemsCommand(items, new_item, None, command_parent = group_command, push = False)
         return [new_item]
         
-
+    def ungroup(self):
+        pass
+    
     def common_tags(self, items):
         if not items or any(not isinstance(item, PlayTreeFile) for item in items): 
             return []
@@ -998,19 +1009,22 @@ class TandaMasterWindow(QMainWindow):
         
         self.action_cut = QAction(
             #MyIcon('Tango', 'actions', 'edit-cut'),
-            QIcon('icons/tango/edit-cut'),
+            #QIcon('icons/tango/edit-cut'),
+            QIcon('icons/iconfinder/farm-fresh/cut.png'),
             self.tr('Cu&t'), self, triggered = swcm(PlayTreeView, PlayTreeView.cut),
             shortcut = QKeySequence(QKeySequence.Cut))
         
         self.action_copy = QAction(
-            QIcon('icons/tango/edit-copy'),
+            #QIcon('icons/tango/edit-copy'),
             #MyIcon('Tango', 'actions', 'edit-copy'),
+            QIcon('icons/iconfinder/farm-fresh/copy.png'),
             self.tr('&Copy'), self, triggered = swcm(PlayTreeView, PlayTreeView.copy),
             shortcut = QKeySequence(QKeySequence.Copy))
         
         self.action_paste = QAction(
             #MyIcon('Tango', 'actions', 'edit-paste'),
-            QIcon('icons/tango/edit-paste'),
+            #QIcon('icons/tango/edit-paste'),
+            QIcon('icons/iconfinder/farm-fresh/paste.png'),
             self.tr('&Paste'), self, triggered = swcm(PlayTreeView, PlayTreeView.paste),
             shortcut = QKeySequence(QKeySequence.Paste))
         
@@ -1034,24 +1048,47 @@ class TandaMasterWindow(QMainWindow):
             self.tr('Group into tandas'), self, triggered = swcm(PlayTreeView, PlayTreeView.group_into_tandas),
             shortcut = QKeySequence('Ctrl+Shift+g'))
         
+        self.action_ungroup = QAction(
+            QIcon('icons/iconfinder/farm-fresh/ungroup.png'),
+            self.tr('&Group'), self, triggered = swcm(PlayTreeView, PlayTreeView.ungroup),
+            shortcut = QKeySequence('Ctrl+g'))
+        
         self.action_move_up = QAction(
-            QIcon('icons/iconfinder/32pxmania/up.png'),
+            #QIcon('icons/iconfinder/32pxmania/up.png'),
+            QIcon('icons/iconfinder/momentum_glossy/arrow-up.png'),
             self.tr('Move &up'), self,
             triggered = swcm(PlayTreeView, PlayTreeView.move_up),
             shortcut = QKeySequence('alt+up'))
         
         self.action_move_down = QAction(
-            QIcon('icons/iconfinder/32pxmania/down.png'),
+            #QIcon('icons/iconfinder/32pxmania/down.png'),
+            QIcon('icons/iconfinder/momentum_glossy/arrow-down.png'),
             self.tr('Move &down'), self, triggered = swcm(PlayTreeView, PlayTreeView.move_down),
             shortcut = QKeySequence('alt+down'))
         
-        self.action_move_left = QAction(
+        self.action_move_up_left = QAction(
             QIcon('icons/iconfinder/momentum_glossy/arrow-up-left.png'),
+            self.tr('Move &out of parent'), self, triggered = swcm(PlayTreeView, PlayTreeView.move_up_left))
+        
+        self.action_move_down_right = QAction(
+            QIcon('icons/iconfinder/momentum_glossy/arrow-down-right.png'),
+            self.tr('Move into &next sibling'), self, triggered = swcm(PlayTreeView, PlayTreeView.move_down_right))
+        
+        self.action_move_down_left = QAction(
+            QIcon('icons/iconfinder/momentum_glossy/arrow-down-left.png'),
+            self.tr('Move &out of parent'), self, triggered = swcm(PlayTreeView, PlayTreeView.move_down_left))
+        
+        self.action_move_up_right = QAction(
+            QIcon('icons/iconfinder/momentum_glossy/arrow-up-right.png'),
+            self.tr('Move into &next sibling'), self, triggered = swcm(PlayTreeView, PlayTreeView.move_up_right))
+
+        self.action_move_left = QAction(
+            QIcon('icons/iconfinder/momentum_glossy/arrow-left.png'),
             self.tr('Move &out of parent'), self, triggered = swcm(PlayTreeView, PlayTreeView.move_left),
             shortcut = QKeySequence('alt+left'))
         
         self.action_move_right = QAction(
-            QIcon('icons/iconfinder/momentum_glossy/arrow-down-right.png'),
+            QIcon('icons/iconfinder/momentum_glossy/arrow-right.png'),
             self.tr('Move into &next sibling'), self, triggered = swcm(PlayTreeView, PlayTreeView.move_right),
             shortcut = QKeySequence('alt+right'))
         
@@ -1098,8 +1135,8 @@ class TandaMasterWindow(QMainWindow):
         self.editmenu.addAction(self.action_move_up)
         self.editmenu.addAction(self.action_move_down)
         self.editmenu.addAction(self.action_move_end)
-        self.editmenu.addAction(self.action_move_left)
-        self.editmenu.addAction(self.action_move_right)
+        self.editmenu.addAction(self.action_move_up_left)
+        self.editmenu.addAction(self.action_move_down_right)
         self.editmenu.addSeparator()
         self.editmenu.addAction(self.action_edit_tag)
         self.editmenu.addAction(self.action_save_tag)
@@ -1213,8 +1250,8 @@ class TandaMasterWindow(QMainWindow):
         toolbar.addAction(self.action_move_up)
         toolbar.addAction(self.action_move_down)
         toolbar.addAction(self.action_move_end)
-        toolbar.addAction(self.action_move_left)
-        toolbar.addAction(self.action_move_right)
+        toolbar.addAction(self.action_move_up_left)
+        toolbar.addAction(self.action_move_down_right)
         
         self.addToolBar(toolbar)
         self.toolbar = toolbar
@@ -1625,3 +1662,8 @@ class LaTeXSongInfo(QRunnable):
         import subprocess
         subprocess.call(['xelatex', 'naslov'])
         subprocess.call(['xdg-open', 'naslov.pdf'])
+
+
+# icon sets:
+# https://www.iconfinder.com/iconsets/Momentum_GlossyEntireSet
+# https://www.iconfinder.com/iconsets/fatcow

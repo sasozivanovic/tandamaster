@@ -345,23 +345,39 @@ class PlayTreeView(QTreeView):
             selection_model.setCurrentIndex(current_index, QItemSelectionModel.ClearAndSelect)
 
     def copy(self):
-        QApplication.clipboard().setMimeData(
-            self.model().mimeData(self.selectedIndexes()))
+        if self.window().action_edit_tags_mode.isChecked():
+            current_index = self.currentIndex()
+            model = self.model()
+            current_item = model.item(current_index)
+            QApplication.clipboard().setText(
+                current_item.get_tag(model.columns[current_index.column()], only_first = True))
+        else:
+            QApplication.clipboard().setMimeData(
+                self.model().mimeData(self.selectedIndexes()))
 
     def paste(self):
-        model = self.model()
-        current_index = self.currentIndex()
-        current_path = model.index_to_path(current_index)
-        parent_item, row, column = (model.item(current_index).parent, current_index.row(), current_index.column()) if current_index.isValid() else (QModelIndex(), -1, -1)
-        new_items = parent_item.dropMimeData(QApplication.clipboard().mimeData(), Qt.CopyAction, row, command_prefix = 'Paste')
-        inserted_items = [item for item in new_items
-                          if item in item.parent.children[model]]
-        selection_model = self.selectionModel()
-        selection_model.clear()
-        for item in inserted_items:
-            selection_model.select(item.index(model),QItemSelectionModel.Select|QItemSelectionModel.Rows)
-        selection_model.setCurrentIndex(
-            model.path_to_index(current_path), QItemSelectionModel.NoUpdate)
+        if self.window().action_edit_tags_mode.isChecked():
+            text = QApplication.clipboard().text()
+            if not text:
+                return
+            model = self.model()
+            selected_indexes = self.selectionModel().selectedIndexes()
+            for index in selected_indexes:
+                model.setData(index, text, Qt.EditRole)
+        else:
+            model = self.model()
+            current_index = self.currentIndex()
+            current_path = model.index_to_path(current_index)
+            parent_item, row, column = (model.item(current_index).parent, current_index.row(), current_index.column()) if current_index.isValid() else (QModelIndex(), -1, -1)
+            new_items = parent_item.dropMimeData(QApplication.clipboard().mimeData(), Qt.CopyAction, row, command_prefix = 'Paste')
+            inserted_items = [item for item in new_items
+                              if item in item.parent.children[model]]
+            selection_model = self.selectionModel()
+            selection_model.clear()
+            for item in inserted_items:
+                selection_model.select(item.index(model),QItemSelectionModel.Select|QItemSelectionModel.Rows)
+            selection_model.setCurrentIndex(
+                model.path_to_index(current_path), QItemSelectionModel.NoUpdate)
 
     def insert(self, name = 'New playtree'):
         model = self.model()
@@ -387,11 +403,14 @@ class PlayTreeView(QTreeView):
         return bool(self.selectedIndexes())
 
     def can_paste(self):
-        if self.can_insert():
-            mime_data = QApplication.clipboard().mimeData()
-            return isinstance(mime_data, PlayTreeMimeData) or mime_data.hasFormat('audio/x-mpegurl') or mime_data.hasFormat('text/uri-list')
+        if self.window().action_edit_tags_mode.isChecked():
+            return self.selectionModel().hasSelection()
         else:
-            return False
+            if self.can_insert():
+                mime_data = QApplication.clipboard().mimeData()
+                return isinstance(mime_data, PlayTreeMimeData) or mime_data.hasFormat('audio/x-mpegurl') or mime_data.hasFormat('text/uri-list')
+            else:
+                return False
 
     def can_insert(self):
         if self.currentIndex().isValid():

@@ -350,7 +350,7 @@ class PlayTreeView(QTreeView):
             model = self.model()
             current_item = model.item(current_index)
             QApplication.clipboard().setText(
-                current_item.get_tag(model.columns[current_index.column()], only_first = True))
+                model.data(current_index, role = Qt.EditRole))
         else:
             QApplication.clipboard().setMimeData(
                 self.model().mimeData(self.selectedIndexes()))

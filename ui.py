@@ -1236,25 +1236,31 @@ class TandaMasterWindow(QMainWindow):
         self.addToolBar(Qt.BottomToolBarArea, toolbar)
         
         toolbar = QToolBar('Edit', self)
-        toolbar.addAction(action_undo)
-        toolbar.addAction(action_redo)
+        
+        def add_actions_to_toolbar(*actions):
+            inner = QToolBar()
+            inner.setFloatable(False)
+            inner.setMovable(False)
+            inner.setOrientation(Qt.Vertical)
+            for action in actions:
+                inner.addAction(action)
+            toolbar.addWidget(inner)
+        
+        add_actions_to_toolbar(action_undo, action_redo)
         toolbar.addSeparator()
-        toolbar.addAction(self.action_cut)
-        toolbar.addAction(self.action_copy)
-        toolbar.addAction(self.action_paste)
+        add_actions_to_toolbar(self.action_cut, self.action_copy)
+        add_actions_to_toolbar(self.action_paste)
         toolbar.addSeparator()
-        toolbar.addAction(self.action_insert)
-        toolbar.addAction(self.action_delete)
-        toolbar.addAction(self.action_group)
-        toolbar.addAction(self.action_move_home)
-        toolbar.addAction(self.action_move_up)
-        toolbar.addAction(self.action_move_down)
-        toolbar.addAction(self.action_move_end)
-        toolbar.addAction(self.action_move_up_left)
-        toolbar.addAction(self.action_move_down_right)
+        add_actions_to_toolbar(self.action_insert, self.action_delete)
+        add_actions_to_toolbar(self.action_group, self.action_ungroup)
+        add_actions_to_toolbar(self.action_move_home, self.action_move_end)
+        toolbar.addSeparator()
+        add_actions_to_toolbar(self.action_move_up_left, self.action_move_down_left)
+        add_actions_to_toolbar(self.action_move_up, self.action_move_down)
+        add_actions_to_toolbar(self.action_move_up_right, self.action_move_down_right)
         
         self.addToolBar(toolbar)
-        self.toolbar = toolbar
+        #self.toolbar = toolbar
 
         self.setStatusBar(QStatusBar())
         app.info.connect(self.status_bar_message)
@@ -1323,7 +1329,7 @@ class TandaMasterWindow(QMainWindow):
         else:
             self.statusBar().removeWidget(self.fadeout_gap_pb)
             self.statusBar().removeWidget(self.next_song_info)
-        self.toolbar.update()
+        #self.toolbar.update()
 
     def update_library(self):
         #thread = QThread(self)

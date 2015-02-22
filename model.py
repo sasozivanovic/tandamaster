@@ -1125,16 +1125,7 @@ class PlayTreeModel(QAbstractItemModel):
             if item in ca:
                 if item == ca[0] or not self.view.isExpanded(index):
                     return True
-    # for refreshing at current_changed
-    def refresh_first_expanded_row(self, candidates,
-                                   roles = (Qt.ForegroundRole, Qt.FontRole)):
-        for candidate in candidates:
-            if self.view.isExpanded(candidate):
-                self.dataChanged.emit(
-                    self.sibling(None, 0, candidate),
-                    self.sibling(None, -1, candidate),
-                    roles)
-                break
+                
             
 from app import app
 def save_playtree():

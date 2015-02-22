@@ -250,9 +250,9 @@ class PlayTreeView(QTreeView):
 
         self.setDragDropMode(QAbstractItemView.DragDrop)
         self.setEditTriggers(QAbstractItemView.EditKeyPressed)
-        delegate = TMItemDelegate()
-        delegate.closeEditor.connect(self.on_close_editor)
-        self.setItemDelegate(delegate)
+        self.delegate = TMItemDelegate()
+        self.delegate.closeEditor.connect(self.on_close_editor)
+        self.setItemDelegate(self.delegate)
 
     def on_expanded(self, index):
         model = self.model()
@@ -276,17 +276,21 @@ class PlayTreeView(QTreeView):
         index = self.player.current.index
         if self._autoexpand_on:
             if self._autoexpanded and old_model == self.model():
+                current_ancestors = old_model.ancestors(self.currentIndex())
+                del current_ancestors[0:1]
                 while old_index.isValid():
-                    if old_index.isValid():
+                    if not old_model.item(old_index).isTerminal and self.isExpanded(old_index) and old_index not in current_ancestors:
                         self.collapse(old_index)
                     if old_index == self._autoexpanded:
                         break
                     old_index = old_model.parent(old_index)
             if model == self.model():
                 while index.isValid() and not self.isExpanded(index):
-                    self.expand(index)
+                    if not model.item(index).isTerminal:
+                        self.expand(index)
                     self._autoexpanded = index
                     index = model.parent(index)
+        self.viewport().update()
 
     def on_activated(self, index):
         if self.window().action_edit_tags_mode.isChecked():
@@ -896,6 +900,7 @@ class PlayTreeView(QTreeView):
             next_index = model.next_song(current_index)
             if next_index.isValid():
                 next_index = model.sibling(None, current_index.column(), next_index)
+        
         if next_index.isValid():
             self.setCurrentIndex(next_index)
             self.edit(next_index)

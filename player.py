@@ -83,14 +83,11 @@ class TMPlayer(QObject):
     @current.setter
     def current(self, current):
         old_current = self._current
-        if old_current and old_current.model:
-            old_current.model.refresh_first_expanded_row(
-                [a.index(old_current.model) for a in self.current_ancestors])
         if current and current.model:
-            current_ancestors_indexes = current.model.ancestors(current.index)
-            self.current_ancestors = [current.model.item(a) for a in current_ancestors_indexes]
-            current.model.refresh_first_expanded_row(current_ancestors_indexes)
+            self.current_ancestors_indexes = current.model.ancestors(current.index)
+            self.current_ancestors = [current.model.item(a) for a in self.current_ancestors_indexes]
         else:
+            self.current_ancestors_indexes = []
             self.current_ancestors = []
         self.old_current = old_current
         self._current = current

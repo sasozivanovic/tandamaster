@@ -1621,6 +1621,7 @@ class TandaMasterWindow(QMainWindow):
         for ptv in self.window().findChildren(PlayTreeView):
             #ptv.setAllColumnsShowFocus(not checked)
             ptv.setSelectionBehavior(QAbstractItemView.SelectItems if checked else QAbstractItemView.SelectRows)
+            ptv.setEditTriggers(QAbstractItemView.EditKeyPressed | QAbstractItemView.SelectedClicked)
             
 class TMPositionProgressBar_Interaction(QObject):
     def eventFilter(self, obj, event):

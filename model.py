@@ -133,8 +133,8 @@ class PlayTreeItem:
     def __str__(self):
         return 'playtreeitem'
 
-    def flags(self, column = ''):
-        return Qt.ItemIsSelectable | Qt.ItemIsDragEnabled | Qt.ItemIsEnabled | (Qt.ItemIsEditable if not (column and column[0] == '_') else 0)
+    def flags(self, column):
+        return Qt.ItemIsSelectable | Qt.ItemIsDragEnabled | Qt.ItemIsEnabled | (Qt.ItemIsEditable if PlayTreeModel.columns[column][0] != '_' else 0)
 
     duration_mode_all = 0
     duration_mode_cortinas = 1
@@ -391,8 +391,8 @@ class PlayTreeList(PlayTreeItem):
                     command_prefix = command_prefix)
         return new_items
         
-    def flags(self, column = ''):
-        return Qt.ItemIsSelectable | Qt.ItemIsDragEnabled | Qt.ItemIsEnabled | Qt.ItemIsDropEnabled | (Qt.ItemIsEditable if not (column and column[0] == '_') else 0)
+    def flags(self, column):
+        return super().flags(column) | Qt.ItemIsDropEnabled
 
     def setData(self, model, column_name, value):
         if column_name == '':
@@ -502,6 +502,9 @@ class PlayTreeFile(PlayTreeItem):
     def isPlayable(self):
         return True
 
+    def flags(self, column):
+        return super().flags(column) & (~0 if self._song_id else ~Qt.ItemIsEditable)
+    
     def filter(self, model, filter_expr):
         if not filter_expr:
             return self
@@ -568,12 +571,6 @@ class PlayTreeFile(PlayTreeItem):
         elif self.unavailable and role == Qt.ForegroundRole:
             return QBrush(QColor(Qt.gray))
 
-    def flags(self, column = ''):
-        if not (column and column[0] == '_'):
-            return super().flags(column) | Qt.ItemIsEditable
-        else:
-            return super().flags(column)
-
     def setData(self, model, column_name, value):
         if not column_name:
             EditTagsCommand(model, [self], 'title', [value])
@@ -638,6 +635,9 @@ class PlayTreeFolder(PlayTreeItem):
     def __str__(self):
         return os.path.basename(self.filename)
 
+    def flags(self, column):
+        return super().flags(column) & (~Qt.ItemIsEditable if column == 0 else ~0)
+    
     def data(self, model, column_name, role):
         if column_name:
             return None
@@ -897,13 +897,13 @@ class PlayTreeModel(QAbstractItemModel):
         return index.internalPointer() if index.isValid() else (self.root_item if invalid == 'root' else invalid)
 
     # column "" provides browsing info (folder name, file name, ...)
-    columns = ('', 'artist', 'performer:vocals',
+    columns = ('title', 'artist', 'performer:vocals',
                #'quodlibet::recordingdate',
                'date', 'genre', '_length', 'tm:song_start', 'tm:song_end')
     #columns = ('',)
 
     column_display_names = bidict.bidict({
-        '': 'Title',
+        #'': 'Title',
         #'artist': 'Artist',
         #'album': 'Album',
         #'title': 'Title',
@@ -1074,7 +1074,7 @@ class PlayTreeModel(QAbstractItemModel):
             self.view.expand(playitem.index(self))
 
     def flags(self, index):
-        return self.item(index).flags(self.columns[index.column()])
+        return self.item(index).flags(index.column())
 
     def supportedDropActions(self):
         return Qt.CopyAction | Qt.MoveAction

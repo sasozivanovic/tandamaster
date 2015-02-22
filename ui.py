@@ -286,7 +286,9 @@ class PlayTreeView(QTreeView):
                     self._autoexpanded = index
                     index = model.parent(index)
 
-    def on_activated(self, index):
+    def on_activated(self, index = None):
+        if index is None:
+            index = self.currentIndex()
         if not self.window().action_lock.isChecked() or self.player.current.item.function() == 'cortina':
             self.player.play_index(index)
 
@@ -1000,6 +1002,17 @@ class TandaMasterWindow(QMainWindow):
             shortcut = QKeySequence('space'),
             triggered = self.play)
         self.playbackmenu.addAction(self.action_play)
+
+        action_play_this = QAction(
+            #self.style().standardIcon(QStyle.SP_MediaPlay), 
+            #MyIcon('Tango', 'actions', 'media-playback-start'),
+            QIcon('button_play_green.png'),
+            #QIcon('icons/iconfinder/32pxmania/play.png'),
+            self.tr('Play this'), 
+            self,
+            shortcut = QKeySequence('ctrl+space'),
+            triggered = swcm(PlayTreeView, PlayTreeView.on_activated))
+        self.addAction(action_play_this)
         
         self.action_pause =  QAction(
             #self.style().standardIcon(QStyle.SP_MediaPause), 

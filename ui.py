@@ -819,8 +819,9 @@ class PlayTreeWidget(QWidget, TMWidget):
         widget_layout.addWidget(controls)
         widget_layout.addWidget(self.ptv)
 
-        self.search.textChanged.connect(
-            lambda: QTimer.singleShot(50, self.maybe_refilter))
+        if not config.ui_search_wait_for_enter:
+            self.search.textChanged.connect(
+                lambda: QTimer.singleShot(50, self.maybe_refilter))
         self.search.returnPressed.connect(self.refilter)
 
         self.addAction(QAction(

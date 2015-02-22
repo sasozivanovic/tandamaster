@@ -24,3 +24,5 @@ gap_duration = collections.defaultdict(
 
 _TMPlayer_timer_precision = 100 # ms
 previous_restarts_song__min_time = 3 * Gst.SECOND
+
+ui_search_wait_for_enter = False

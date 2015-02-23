@@ -22,6 +22,7 @@ class TMPlayer(QObject):
 
         self._state = self.STOPPED
         self._volume = 1.0
+        self._fadeout_position = 0.0
         self.duration = None
 
         self._current = PlaybackConfig()
@@ -64,6 +65,8 @@ class TMPlayer(QObject):
         ghost_pad.set_active(True)
         bin.add_pad(ghost_pad)
         self.playbin.set_property("audio-sink", bin)
+        self.update_playbin_volume()
+        self.playbin.connect("notify::volume", self.on_playbin_volume_changed)
 
         self.bus = self.playbin.get_bus()
         self.bus.add_signal_watch()
@@ -120,8 +123,32 @@ class TMPlayer(QObject):
     @volume.setter
     def volume(self, volume):
         self._volume = volume
-        self.playbin.set_property('volume', volume)
+        self.update_playbin_volume()
         self.volume_changed.emit(volume)
+    @property
+    def fadeout_position(self):
+        return self._fadeout_position
+    @fadeout_position.setter
+    def fadeout_position(self, position):
+        self._fadeout_position = position
+        self.update_playbin_volume()
+        self.fadeout_position_changed.emit(position)
+    @property
+    def fadeout_factor(self):
+        ff = self.fadeout_position / self.current.fadeout_duration if self.state == self.PLAYING_FADEOUT and self.current and self.current.fadeout_duration else 1.0
+        return max(0.0, min(1.0, ff))
+    def update_playbin_volume(self):
+        self.playbin.freeze_notify()
+        self.playbin.set_property('volume', self.volume * self.fadeout_factor)
+        self.playbin.thaw_notify()
+    def on_playbin_volume_changed(self, playbin, gparam):
+        if self.state == self.PLAYING_FADEOUT:
+            return
+        volume = playbin.get_property("volume")
+        fadeout_factor = self.fadeout_factor
+        if fadeout_factor:
+            self._volume = volume / fadeout_factor
+            self.volume_changed.emit(volume)
         
     _signal_uri_change = pyqtSignal()
     def play_previous(self):
@@ -204,7 +231,7 @@ class TMPlayer(QObject):
             position = self.playbin.query_position(Gst.Format.TIME)
             if position[0]:
                 self.position_changed.emit(position[1])
-            self.playbin.set_property('volume', self.volume)
+            self.update_playbin_volume()
         elif state == self.STOPPED:
             self.playbin.set_state(Gst.State.READY)
             self.current = PlaybackConfig(self.current.model)
@@ -251,7 +278,7 @@ class TMPlayer(QObject):
             if not self.current:
                 self.state = self.STOPPED
                 return
-            self.playbin.set_property('volume', self.volume)
+            self.update_playbin_volume()
             self.playbin.set_property('uri', QUrl.fromLocalFile(self.current.item.filename).toString())
             self.playbin.set_state(Gst.State.PAUSED)
             if self.current.song_begin:
@@ -326,12 +353,10 @@ class TMPlayer(QObject):
             fadeout_elapsed = position - self._fadeout_start
             if fadeout_elapsed > self.current.fadeout_duration:
                 self.playbin.set_state(Gst.State.PAUSED)
-                self.playbin.set_property('volume', self.volume)
+                self.fadeout_position = 0
                 self.state = self.PLAYING_GAP
             else:
-                fadeout_volume = self.volume * (1 - fadeout_elapsed / self.current.fadeout_duration)
-                self.playbin.set_property('volume', fadeout_volume)
-                self.fadeout_position_changed.emit(self.current.fadeout_duration - fadeout_elapsed)
+                self.fadeout_position = self.current.fadeout_duration - fadeout_elapsed
         elif self.state == self.PLAYING_GAP:
             gap_remaining = self._gap_timer.remainingTime()
             self.gap_position_changed.emit(max(0, self.current.gap_duration - gap_remaining * Gst.MSECOND))

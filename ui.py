@@ -1692,26 +1692,30 @@ class TMGapAndFadeoutProgressBar(QProgressBar):
     def text(self):
         return self._text
 
+from gi.repository import GstAudio
 class TMVolumeControl(QSlider):
     def __init__(self, orientation, player, parent = None):
         super().__init__(orientation, parent)
-        #self.setMaximumWidth(100)
         self.player = player
         self.setMinimum(0)
         self.setMaximum(1000)
-        self._changing_value = False
         self.on_volume_changed(self.player.volume)
         self.player.volume_changed.connect(self.on_volume_changed)
         self.valueChanged.connect(self.on_value_changed)
 
     def on_volume_changed(self, volume):
-        if not self._changing_value:
-            self.setValue(int(volume*1000))
+        self.blockSignals(True)
+        self.setValue(int(1000*GstAudio.stream_volume_convert_volume(
+            GstAudio.StreamVolumeFormat.LINEAR,
+            GstAudio.StreamVolumeFormat.CUBIC,
+            volume)))
+        self.blockSignals(False)
 
     def on_value_changed(self, value):
-        self._changing_value = True        
-        self.player.volume = value / 1000
-        self._changing_value = False
+        self.player.volume = GstAudio.stream_volume_convert_volume(
+            GstAudio.StreamVolumeFormat.CUBIC,
+            GstAudio.StreamVolumeFormat.LINEAR,
+            value/1000)
         
 class GetFilesFromAlja(QRunnable):
     def __init__(self, selected_indexes):

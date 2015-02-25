@@ -1791,10 +1791,10 @@ class LaTeXSongInfo(QRunnable):
 \node at (-1,-1)[anchor=south west,align=center,font=\fs{2cm}]{""" + year + r"""};
 \node at (1,-1)[anchor=south east,align=center,font=\fs{2cm}]{""" + singer + r"""};
 """ + ((r"""\node at (1,1)[anchor=north east,align=center,outer ysep=5mm,font=\fs{2cm}]{\textsc{""" + genre.lower() + r"""}};
-}""") if genre.lower() in ('vals', 'milonga') else ''), file = f)
+""") if genre.lower() in ('vals', 'milonga') else '') + """}""", file = f)
             print(r"""\end{document}""", file=f)
         import subprocess
-        subprocess.call(['xelatex', 'naslov'])
+        subprocess.call(['xelatex', '-interaction', 'nonstopmode', 'naslov'])
         subprocess.call(['xdg-open', 'naslov.pdf'])
 
 

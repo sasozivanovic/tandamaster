@@ -343,12 +343,15 @@ class Library(QObject):
                 (from_source,)):
             fileinfo = QFileInfo(filename)
             if fileinfo.lastModified().toTime_t() <= mtime and fileinfo.size() == filesize:
-                audiofile = mutagen.File(filename, easy = True)
-                for t in list(audiofile.keys()):
-                    del audiofile[t]
-                new_tags = self.tags_by_song_id(song_id, sources = (from_source, update_source), internal = False)
-                audiofile.update(new_tags)
-                audiofile.save()
+                try:
+                    audiofile = mutagen.File(filename, easy = True)
+                    for t in list(audiofile.keys()):
+                        del audiofile[t]
+                    new_tags = self.tags_by_song_id(song_id, sources = (from_source, update_source), internal = False)
+                    audiofile.update(new_tags)
+                    audiofile.save()
+                except:
+                    continue
                 cursor.execute(
                     'DELETE FROM tags '
                     'WHERE song_id=? AND substr(tag,1,1)!="_" AND source IN (?,?)',

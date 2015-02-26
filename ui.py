@@ -876,6 +876,11 @@ class PlayTreeView(QTreeView):
         old_value = library().tag_by_song_id(item.song_id, tag, sources = ('file',))
         EditTagsCommand(self.model(), [item], tag, old_value, command_prefix = 'Revert')
 
+    def edit_tags(self):
+        item = self.model().item(self.currentIndex())
+        if isinstance(item, PlayTreeFile):
+            EditTags(item)
+
     def on_close_editor(self, editor, hint):
         model = self.model()
         current_index = self.currentIndex()
@@ -1227,6 +1232,10 @@ class TandaMasterWindow(QMainWindow):
             #QIcon('icons/iconfinder/32pxmania/up.png'),
             self.tr('&Revert tag'), self, triggered = swcm(PlayTreeView, PlayTreeView.revert_tag))
 
+        self.action_edit_tags = QAction(
+            #QIcon('icons/iconfinder/32pxmania/up.png'),
+            self.tr('&Edit tags'), self, triggered = swcm(PlayTreeView, PlayTreeView.edit_tags), shortcut='ctrl+e')
+        
         action_undo = undo_stack.createUndoAction(self)
         action_redo = undo_stack.createRedoAction(self)
         action_undo.setIcon(QIcon('icons/iconfinder/32pxmania/undo.png'))
@@ -1254,6 +1263,7 @@ class TandaMasterWindow(QMainWindow):
         self.editmenu.addAction(self.action_edit_tag)
         self.editmenu.addAction(self.action_save_tag)
         self.editmenu.addAction(self.action_revert_tag)
+        self.editmenu.addAction(self.action_edit_tags)
         self.editmenu.addSeparator()
         self.editmenu.addAction(self.action_group_into_tandas)
         
@@ -1593,6 +1603,8 @@ class TandaMasterWindow(QMainWindow):
             event.ignore()
         else:
             self.save()
+            for w in EditTags.windows:
+                w.close()
             super().closeEvent(event)
 
     def save(self):
@@ -1801,3 +1813,82 @@ class LaTeXSongInfo(QRunnable):
 # icon sets:
 # https://www.iconfinder.com/iconsets/Momentum_GlossyEntireSet
 # https://www.iconfinder.com/iconsets/fatcow
+
+
+
+class EditTags(QWidget):
+    windows = []
+    def __init__(self, fileitem):
+        super().__init__()
+        self.setWindowTitle(str(fileitem))
+        self.windows.append(self)
+
+        self.view = EditTagsView(fileitem)
+
+        layout = QVBoxLayout()
+        layout.addWidget(self.view)
+        self.setLayout(layout)
+        self.show()
+
+    def sizeHint(self):
+        return self.view.viewportSizeHint() + QSize(0,50)
+
+class EditTagsView(QTreeView):
+    def __init__(self, fileitem, parent = None):
+        super().__init__(parent)
+        self.setModel(EditTagsModel(fileitem))
+        self.setIndentation(0)
+        for column in range(self.model().columnCount(QModelIndex())):
+            self.resizeColumnToContents(column)
+    def viewportSizeHint(self):
+        qs = super().viewportSizeHint()
+        return QSize(sum(self.columnWidth(column) for column in range(self.model().columnCount(QModelIndex()))), qs.height())
+        
+        
+class EditTagsModel(QAbstractTableModel):
+    def __init__(self, fileitem, parent = None):
+        super().__init__(parent)
+        self._fileitem = fileitem
+        self.values = []
+        self.populate()
+        
+    def columnCount(self, parent):
+        return len(self.sources) + 1  if not parent.isValid() else 0
+
+    def rowCount(self, parent):
+        return len(self.values) if not parent.isValid() else 0
+    
+    sources = ['file', 'user']
+    
+    def populate(self):
+        if not self._fileitem.song_id:
+            return
+        cursor = library().connection.execute(
+            "SELECT tag, source, value FROM tags WHERE song_id = ?",
+            (self._fileitem.song_id, ))
+        row = cursor.fetchone()
+        while row:
+            value = [row[0]] + [None]*len(self.sources)
+            value[self.sources.index(row[1])+1] = row[2]
+            self.values.append(value)
+            row = cursor.fetchone()
+    
+    def data(self, index, role = Qt.DisplayRole):
+        if role in (Qt.DisplayRole, Qt.EditRole):
+            return self.values[index.row()][index.column()]
+
+    def setData(self, index, value, role):
+        if role == Qt.EditRole:
+            self.values[index.row()][index.column()] = value
+            return True
+        return False
+
+    def flags(self, index):
+        return Qt.ItemIsSelectable | Qt.ItemIsEnabled | (
+            Qt.ItemIsEditable
+            if self.values[index.row()][0] != '_'
+            else 0)
+
+    def headerData(self, section, orientation, role = Qt.DisplayRole):
+        if orientation == Qt.Horizontal and role == Qt.DisplayRole:
+            return 'Tag' if section == 0 else self.sources[section-1].title()

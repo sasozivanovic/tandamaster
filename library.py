@@ -376,7 +376,8 @@ class Library(QObject):
                 # todo: notify ui
         self.connection.commit() # must be here: if it's in the loop, all hell breaks loose
 
-    def _query(self, fixed_tags, filter_words, browse_by_tags, tags_only, song_ids):
+    def _query(self, fixed_tags, filter_words, browse_by_tags, tags_only, song_ids, source = 'file'):
+        assert source in ('file', 'user')
         what = "".join("tags_browse_{}.value, ".format(i) for i in range(len(browse_by_tags)))
         def tables():
             for i in range(len(fixed_tags)):
@@ -392,13 +393,13 @@ class Library(QObject):
             "files.song_id IN ({})".format(",".join(str(sid) for sid in song_ids))
             if song_ids else None,
             " AND ".join(
-                "tags_{n}.tag=? AND tags_{n}.value=?".format(n=n)
+                "tags_{n}.source = '{source}' AND tags_{n}.tag=? AND tags_{n}.value=?".format(n=n,source=source)
                 if tv[1] is not None else
-                'NOT EXISTS (SELECT song_id FROM tags WHERE song_id=tags_{}.song_id AND tag=?)'.format(n)
+                'NOT EXISTS (SELECT song_id FROM tags WHERE song_id=tags_{n}.song_id AND tags_{n}.source = "{source}" and tag=?)'.format(n=n, source=source)
                 for n,tv in enumerate(fixed_tags)
             ),
             " AND ".join(# todo: value OR ascii
-                "tags_filter_{}.ascii LIKE ?".format(i) for i in range(len(filter_words))
+                "tags_filter_{i}.source = '{source}' AND tags_filter_{i}.ascii LIKE ?".format(i=i,source=source) for i in range(len(filter_words))
             ),
             #" AND ".join(
             #    "tags_browse_{}.tag=?".format(i) for i in range(len(browse_by_tags))
@@ -415,7 +416,7 @@ class Library(QObject):
             'WHERE ' if where else '',
             where,
             " ".join(
-                "LEFT JOIN tags AS tags_browse_{} ON songs.song_id=tags_browse_{}.song_id AND tags_browse_{}.tag=?".format(i,i,i)
+                "LEFT JOIN tags AS tags_browse_{i} ON songs.song_id=tags_browse_{i}.song_id AND tags_browse_{i}.source = '{source}' AND tags_browse_{i}.tag=?".format(i=i,source=source)
                 for i in range(len(browse_by_tags))
             ),
             group

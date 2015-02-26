@@ -133,8 +133,12 @@ class PlayTreeItem:
     def __str__(self):
         return 'playtreeitem'
 
-    def flags(self, column):
-        return Qt.ItemIsSelectable | Qt.ItemIsDragEnabled | Qt.ItemIsEnabled | (Qt.ItemIsEditable if PlayTreeModel.columns[column][0] != '_' else 0)
+    def column_to_tag(self, model, column):
+        return model.columns[column]
+    
+    def flags(self, model, column):
+        tag = self.column_to_tag(model, column)
+        return Qt.ItemIsSelectable | Qt.ItemIsDragEnabled | Qt.ItemIsEnabled | (Qt.ItemIsEditable if tag and tag[0] != '_' else 0)
 
     duration_mode_all = 0
     duration_mode_cortinas = 1
@@ -150,9 +154,9 @@ class PlayTreeItem:
                 for item in child.iter_depth(model, condition_yield, condition_propagate):
                     yield item
 
-    def setData(self, model, column_name, value):
-        if column_name != '':
-            EditTagsCommand(model, [self], column_name, [value])
+    def setData(self, model, tag, value):
+        if tag:
+            EditTagsCommand(model, [self], tag, [value])
             return True
         return False
 
@@ -250,26 +254,29 @@ class PlayTreeList(PlayTreeItem):
     def __str__(self):
         return self.name if self.name is not None else ''
 
-    def data(self, model, column_name, role):
+    def column_to_tag(self, model, column):
+        return '@name' if column == 0 else super().column_to_tag(model, column)
+    
+    def data(self, model, tag, role):
         if role in (Qt.DisplayRole, Qt.EditRole):
-            if column_name == '_length':
+            if tag == '_length':
                 duration = self.duration(model)
                 return hmsms_to_text(*ms_to_hmsms(1000*duration), include_ms=False) if duration is not None else duration
-            if column_name:
+            elif tag == '@name':
+                return str(self)
+            else:
                 first = True
                 for child in self.children[None]:
                     if not child.isPlayable:
                         return
-                    child_data = child.data(model, column_name, role)
+                    child_data = child.data(model, tag, role)
                     if first:
                         data = child_data
                         first = False
                     elif child_data != data:
                         return
                 return data if not first else None
-            else:
-                return str(self)
-        elif not column_name and role == Qt.DecorationRole:
+        elif tag == '@name' and role == Qt.DecorationRole:
             return QIcon('icons/iconfinder/silk/list.png')
 
     def populate(self, model, force = False, recursive = False, filter_expr = None):
@@ -391,15 +398,15 @@ class PlayTreeList(PlayTreeItem):
                     command_prefix = command_prefix)
         return new_items
         
-    def flags(self, column):
-        return super().flags(column) | Qt.ItemIsDropEnabled
+    def flags(self, model, column):
+        return super().flags(model, column) | Qt.ItemIsDropEnabled
 
-    def setData(self, model, column_name, value):
-        if column_name == '':
+    def setData(self, model, tag, value):
+        if tag == '@name':
             EditPlayTreeNameCommand(self, value)
             return True
         else:
-            return super().setData(model, column_name, value)
+            return super().setData(model, tag, value)
 
 
 @register_xml_tag_handler('file')
@@ -502,9 +509,9 @@ class PlayTreeFile(PlayTreeItem):
     def isPlayable(self):
         return True
 
-    def flags(self, column):
-        return super().flags(column) & (~0 if self._song_id else ~Qt.ItemIsEditable)
-    
+    def flags(self, model, column):
+        return super().flags(model, column) & (~Qt.ItemIsEditable if self.unavailable else ~0)
+
     def filter(self, model, filter_expr):
         if not filter_expr:
             return self
@@ -541,41 +548,31 @@ class PlayTreeFile(PlayTreeItem):
         d = self.get_tag('_length', only_first = True)
         return float(d) if d is not None else None
 
-    def data(self, model, column_name, role):
+    def data(self, model, tag, role):
         if role in (Qt.DisplayRole, Qt.EditRole):
-            if column_name == '_length':
+            if tag == '_length':
                 duration = self.duration(model)
                 return hmsms_to_text(*ms_to_hmsms(1000*duration), include_ms=False) if duration is not None else duration
-            elif column_name:
-                value = self.get_tag(column_name)
-                return value[0] if value else None
+            elif tag == 'title':
+                value = self.get_tag(tag, only_first = True)
+                return value if value else os.path.basename(self.filename)
+            elif tag:
+                return self.get_tag(tag, only_first = True)
             else:
-                if 'value' in self.__dict__:
-                    data = self.value
-                else:
-                    column_name = 'title'
-                    titles = self.get_tag('title')
-                    data = titles[0] if titles else str(self)
-            return data
-        elif not column_name and role == Qt.DecorationRole:
+                return None
+        elif not tag and role == Qt.DecorationRole:
             #return tmSongIcon
             #return QIcon('crazyeye_dance.png')
             if self.function() == 'cortina':
                 return QIcon('icons/iconfinder/farm-fresh/curtain.png')
             else:
                 return QIcon('icons/happy-dance.gif')
-        elif role == Qt. BackgroundRole and library().dirty(self.song_id, column_name if column_name else 'title'):
+        elif role == Qt. BackgroundRole and library().dirty(self.song_id, tag):
             return QBrush(QColor(Qt.yellow))
-        elif role == Qt.ToolTipRole and library().dirty(self.song_id, column_name if column_name else 'title'):
-            return app.tr('Original value') + ': ' + library().tag_by_song_id(column_name if column_name else 'title', self.song_id, sources = ('file',))[0]
+        elif role == Qt.ToolTipRole and library().dirty(self.song_id, tag):
+            return app.tr('Original value') + ': ' + library().tag_by_song_id(tag, self.song_id, sources = ('file',))[0]
         elif self.unavailable and role == Qt.ForegroundRole:
             return QBrush(QColor(Qt.gray))
-
-    def setData(self, model, column_name, value):
-        if not column_name:
-            EditTagsCommand(model, [self], 'title', [value])
-        else:
-            return super().setData(model, column_name, value)
 
     def get_song_begin(self):
         try:
@@ -635,17 +632,18 @@ class PlayTreeFolder(PlayTreeItem):
     def __str__(self):
         return os.path.basename(self.filename)
 
-    def flags(self, column):
-        return super().flags(column) & (~Qt.ItemIsEditable if column == 0 else ~0)
+    def flags(self, model, column):
+        return super().flags(model, column) & (~Qt.ItemIsEditable if column == 0 else ~0)
+
+    def column_to_tag(self, model, column):
+        return '_filename' if column == 0 else super().column_to_tag(model, column)
     
-    def data(self, model, column_name, role):
-        if column_name:
-            return None
-        elif role == Qt.DisplayRole:
-            return str(self)
-        elif column_name == '' and role == Qt.DecorationRole:
-            #return app.style().standardIcon(QStyle.SP_DirIcon)
-            return MyIcon('Tango', 'places', 'folder')
+    def data(self, model, tag, role):
+        if tag == '_filename':
+            if role == Qt.DisplayRole:
+                return str(self)
+            elif role == Qt.DecorationRole:
+                return MyIcon('Tango', 'places', 'folder')
 
     def populate(self, model, force = False, recursive = False, filter_expr = None):
         filter_expr = filter_expr if filter_expr or not model else model.filter_expr
@@ -773,25 +771,38 @@ class PlayTreeBrowse(PlayTreeItem):
             # ", ".join(tag.lower() for tag in self.browse_by_tags)
 
 
-    icons = { None: 'library.png', 'artist': 'personal.png', 'album': 'image_album.png' }
-    def data(self, model, column_name, role):
-        if column_name:
-            return None
-        elif role == Qt.DisplayRole:
-            #if model in self.song_count:
-            #    return (self.value[model] if model in self.value and self.value[model] else '') + \
-            #        ' (' + str(self.song_count[model]) + ')'
-            if isinstance(self.parent, PlayTreeBrowse):
-                return self.value[model] if model in self.value and self.value[model] else ''
-            else:
-                return str(self)
-        elif column_name == '' and role == Qt.DecorationRole:
-            #return app.style().standardIcon(QStyle.SP_DriveCDIcon)
-            try:
-                return QIcon(self.icons[self.tag])
-            except:
-                return QIcon(self.icons[None])
+    def column_to_tag(self, model, column):
+        if column == 0:
+            return self.tag if self.tag else '@name'
+        else:
+            return super().column_to_tag(model, column)
             
+    icons = { None: 'library.png', 'artist': 'personal.png', 'album': 'image_album.png' }
+    def data(self, model, tag, role):
+        if tag in (self.tag, '@name'):
+            if role in (Qt.DisplayRole, Qt.EditRole):
+                #if model in self.song_count:
+                #    return (self.value[model] if model in self.value and self.value[model] else '') + \
+                #        ' (' + str(self.song_count[model]) + ')'
+                if isinstance(self.parent, PlayTreeBrowse):
+                    return self.value[model] if model in self.value and self.value[model] else ''
+                else:
+                    return str(self)
+            elif role == Qt.DecorationRole:
+                #return app.style().standardIcon(QStyle.SP_DriveCDIcon)
+                try:
+                    return QIcon(self.icons[self.tag])
+                except:
+                    return QIcon(self.icons[None])
+
+    def setData(self, model, tag, value):
+        if tag == self.tag:
+            self.populate(model, recursive = True)
+            for song in self.iter(model, lambda it: isinstance(it, PlayTreeFile), lambda it: not isinstance(it, PlayTreeFile)):
+                song.setData(model, tag, value)
+            return True
+        return False
+                
     def populate(self, model, force = False, recursive = False, filter_expr = None):
         filter_expr = filter_expr if filter_expr or not model else model.filter_expr
         if force:
@@ -914,6 +925,7 @@ class PlayTreeModel(QAbstractItemModel):
         #'_Length': 'Length',
         'tm:song_start': 'Start of song',
         'tm:song_end': 'End of song',
+        '@name': '',
     })
 
     def index(self, row, column, parent):
@@ -953,10 +965,12 @@ class PlayTreeModel(QAbstractItemModel):
                     font = QFont()
                     font.setWeight(QFont.Bold)
                     return font
-        return self.item(index).data(self, self.columns[index.column()], role)
+        item = self.item(index)
+        return item.data(self, item.column_to_tag(self, index.column()), role)
     
     def headerData(self, section, orientation, role):
         if orientation == Qt.Horizontal and role == Qt.DisplayRole:
+            #tag = self.root_item.column_to_tag(self, section)
             tag = self.columns[section]
             return self.column_display_names[tag] if tag in self.column_display_names else tag.strip('_').title()
 
@@ -1074,7 +1088,7 @@ class PlayTreeModel(QAbstractItemModel):
             self.view.expand(playitem.index(self))
 
     def flags(self, index):
-        return self.item(index).flags(index.column())
+        return self.item(index).flags(self, index.column())
 
     def supportedDropActions(self):
         return Qt.CopyAction | Qt.MoveAction
@@ -1114,7 +1128,8 @@ class PlayTreeModel(QAbstractItemModel):
 
     def setData(self, index, value, role):
         if role == Qt.EditRole:
-            return self.item(index).setData(self, self.columns[index.column()], value)
+            item = self.item(index)
+            return item.setData(self, item.column_to_tag(self, index.column()), value)
         return False
 
     def mark_as_playing(self, index):

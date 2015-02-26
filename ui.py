@@ -114,8 +114,8 @@ class TabbedPlayTreesWidget(QTabWidget, TMWidget):
     def update_tab_title(self, index):
         widget = self.widget(index)
         model = widget.ptv.model()
-        icon = model.root_item.data(model, '', Qt.DecorationRole)
-        text = model.root_item.data(model, '', Qt.DisplayRole)
+        icon = model.root_item.data(model, model.root_item.column_to_tag(model, 0), Qt.DecorationRole)
+        text = model.root_item.data(model, model.root_item.column_to_tag(model, 0), Qt.DisplayRole)
         self.setTabIcon(index, icon if icon else QIcon())
         self.setTabText(index, text)
         
@@ -1271,7 +1271,7 @@ class TandaMasterWindow(QMainWindow):
             self,
             triggered = swcm(
                 PlayTreeView, PlayTreeView.set_columns,
-                ('', 'artist', 'performer:vocals', 'date', 'genre', '_length')))
+                ('title', 'artist', 'performer:vocals', 'date', 'genre', '_length')))
         
         self.action_columns_all = QAction(
             app.tr('Columns: all'), 

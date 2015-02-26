@@ -861,8 +861,16 @@ class PlayTreeView(QTreeView):
         super().keyPressEvent(event)
             
     def set_columns(self, columns):
+        root_item = self.model().root_item
+        columns = list(columns)
+        if isinstance(root_item, PlayTreeBrowse):
+            for tag in root_item.browse_by_tags[0:-1]:
+                try:
+                    del columns[columns.index(tag)]
+                except ValueError:
+                    pass
         self.model().beginResetModel()
-        self.model().columns = columns
+        self.model().columns = tuple(columns)
         self.model().endResetModel()
 
     def edit_tag(self):

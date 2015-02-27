@@ -11,6 +11,7 @@ from fnmatch import fnmatch
 from app import app
 import config
 from util import *
+from gi.repository import Gst
 
 def id3_performer_get(id3, key):
     people = []
@@ -103,6 +104,14 @@ mutagen.easyid3.EasyID3.RegisterTXXXKey('tm:song_start', "tm:song_start")
 mutagen.easyid3.EasyID3.RegisterTXXXKey('tm:song_end', "tm:song_end")
 mutagen.easymp4.EasyMP4Tags.RegisterFreeformKey('tm:song_start', "tm:song_start")
 mutagen.easymp4.EasyMP4Tags.RegisterFreeformKey('tm:song_end', "tm:song_end")
+
+mutagen.easyid3.EasyID3.RegisterTXXXKey(normalize_tag_name(Gst.TAG_TRACK_GAIN), normalize_tag_name(Gst.TAG_TRACK_GAIN))
+mutagen.easyid3.EasyID3.RegisterTXXXKey(normalize_tag_name(Gst.TAG_TRACK_PEAK), normalize_tag_name(Gst.TAG_TRACK_PEAK))
+mutagen.easyid3.EasyID3.RegisterTXXXKey(normalize_tag_name(Gst.TAG_REFERENCE_LEVEL), normalize_tag_name(Gst.TAG_REFERENCE_LEVEL))
+
+mutagen.easymp4.EasyMP4Tags.RegisterFreeformKey(normalize_tag_name(Gst.TAG_TRACK_GAIN), normalize_tag_name(Gst.TAG_TRACK_GAIN))
+mutagen.easymp4.EasyMP4Tags.RegisterFreeformKey(normalize_tag_name(Gst.TAG_TRACK_PEAK), normalize_tag_name(Gst.TAG_TRACK_PEAK))
+mutagen.easymp4.EasyMP4Tags.RegisterFreeformKey(normalize_tag_name(Gst.TAG_REFERENCE_LEVEL), normalize_tag_name(Gst.TAG_REFERENCE_LEVEL))
 
 def _strip(tags):
     """Pulls single list items out of lists."""
@@ -466,8 +475,8 @@ class Library(QObject):
         self.bg_queries_done.emit(queries)
 
 
-#_libraries = threading.local()
-#_libraries.library = Library()
+_libraries = threading.local()
+_libraries.library = Library()
 def library():
     try:
         return _libraries.library
@@ -476,9 +485,9 @@ def library():
         #print('Created', _libraries.library, 'in thread', threading.get_ident())
         return _libraries.library
 
-_library = Library()
-def library():
-    return _library
+#_library = Library()
+#def library():
+#    return _library
     
 library().create_tables()
 

@@ -106,3 +106,7 @@ def swcm(cls, f, *args, **kwargs):
         if not isinstance(w, cls): return
         f(w, *args, **kwargs)
     return bound_method
+
+# for gstreamer rgain
+def normalize_tag_name(tag):
+    return tag.lower().replace('-','_')

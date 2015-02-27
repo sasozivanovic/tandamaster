@@ -4,10 +4,13 @@ from gi.repository import GObject, Gst
 import mutagen
 
 from app import *
+from util import *
+from library import *
 
 class TMReplayGain(QObject):
     def __init__(self, model):
         super().__init__()
+        model.root_item.populate(model, recursive = True)
         self.bg_thread = QThread()
         app.aboutToQuit.connect(self.bg_thread.exit)
         self.worker = TMReplayGainWorker([item for item in model.root_item.iter(model, lambda it: it.isPlayable, lambda it: not it.isTerminal)])
@@ -61,18 +64,26 @@ class TMReplayGainWorker(QObject):
         while self.items:
             self.item = self.items.pop(0)
             self.taglist = None
-            app.info.emit('Calculating ReplayGain for ' + self.item.filename)
-            if not force:
-                audiofile = mutagen.File(self.item.filename, easy = True)
-                ok = True
-                for tag in (Gst.TAG_TRACK_GAIN, Gst.TAG_TRACK_PEAK, Gst.TAG_REFERENCE_LEVEL):
-                    ok = ok and normalize_tag_name(tag) in audiofile.tags.keys()
-                if ok:
-                   continue
-            self.playbin.set_state(Gst.State.READY)
-            self.playbin.set_property('uri', QUrl.fromLocalFile(self.item.filename).toString())
-            self.playbin.set_state(Gst.State.PLAYING)
-            break
+            #app.info.emit
+            try:
+                if not force:
+                    audiofile = mutagen.File(self.item.filename, easy = True)
+                    ok = bool(audiofile)
+                    if ok:
+                        for tag in (Gst.TAG_TRACK_GAIN, Gst.TAG_TRACK_PEAK, Gst.TAG_REFERENCE_LEVEL):
+                            ok = ok and normalize_tag_name(tag) in audiofile.tags.keys()
+                        if ok:
+                            print("ReplayGain tags already present in", self.item.filename)
+                            continue
+                print('Calculating ReplayGain for ' + self.item.filename)
+                self.playbin.set_state(Gst.State.READY)
+                self.playbin.set_property('uri', QUrl.fromLocalFile(self.item.filename).toString())
+                self.playbin.set_state(Gst.State.PLAYING)
+                break
+            except:
+                #app.info.emit
+                print('Failed to calculate ReplayGain for ' + self.item.filename)
+                continue
         else:
             app.info.emit('Finished calculating ReplayGain')
             self.thread().exit()
@@ -85,12 +96,23 @@ class TMReplayGainWorker(QObject):
             self.signal_next.emit()
 
     def store_rg_info(self, taglist):
-        audiofile = mutagen.File(self.item.filename, easy = True)
-        for tag, value in taglist:
-            audiofile.tags[normalize_tag_name(tag)] = [str(value)]
-        audiofile.save()
-        # todo: save into library
-
-
-def normalize_tag_name(tag):
-    return tag.upper().replace('-','_')
+        try:
+            audiofile = mutagen.File(self.item.filename, easy = True)
+            for tag, value in taglist:
+                audiofile[normalize_tag_name(tag)] = [str(value)]
+            audiofile.save()
+        except:
+            print("Could not save ReplayGain tags to", self.item.filename)
+            return
+        library().connection.execute(
+            "DELETE FROM tags WHERE song_id=? AND source=? AND tag IN (?,?,?)",
+            (self.item.song_id,
+            'file',
+            normalize_tag_name(Gst.TAG_TRACK_GAIN),
+            normalize_tag_name(Gst.TAG_TRACK_PEAK),
+            normalize_tag_name(Gst.TAG_REFERENCE_LEVEL)))
+        library().connection.executemany(
+            "INSERT INTO tags (song_id, source, tag, value, ascii) VALUES (?,?,?,?,?)",
+            ( (self.item.song_id, 'file', tag, value, value) for tag, value in taglist )
+        )
+        

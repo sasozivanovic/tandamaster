@@ -353,6 +353,7 @@ class Library(QObject):
             fileinfo = QFileInfo(filename)
             if fileinfo.lastModified().toTime_t() <= mtime and fileinfo.size() == filesize:
                 try:
+                    print("Saving tags to", filename)
                     audiofile = mutagen.File(filename, easy = True)
                     for t in list(audiofile.keys()):
                         del audiofile[t]
@@ -360,6 +361,7 @@ class Library(QObject):
                     audiofile.update(new_tags)
                     audiofile.save()
                 except:
+                    print(" ... Failed.")
                     continue
                 cursor.execute(
                     'DELETE FROM tags '
@@ -383,8 +385,9 @@ class Library(QObject):
                     (fileinfo.lastModified().toTime_t(), fileinfo.size(), song_id))
                 
             else:
+                pass
                 # update library from file
-                librarian.bg_queries(BgQueries([BgQuery(Library.update_song_from_file, (None, filename))], lambda qs: None, relevant = lambda: True))
+                ####librarian.bg_queries(BgQueries([BgQuery(Library.update_song_from_file, (None, filename))], lambda qs: None, relevant = lambda: True))
                 # todo: notify ui
         self.connection.commit() # must be here: if it's in the loop, all hell breaks loose
 

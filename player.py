@@ -450,7 +450,7 @@ class PlayOrderStandard(PlayOrder):
         if self._stop_after == 1:
             self._stop_after = self._stop_after_initial
             self.update_stop_after_spinbox(model)
-            return self.config_playback(state = TMPlayer.STOPPED)
+            return PlaybackConfig(state = TMPlayer.STOPPED)
         if self._stop_after:
             self._stop_after -= 1
             self.update_stop_after_spinbox(model)

@@ -21,5 +21,17 @@ from ui import TandaMasterWindow
 tm = TandaMasterWindow()
 tm.show()
 
+app.system_tray_icon = QSystemTrayIcon(QIcon('icons/iconarchive/icons8/tandamaster-Sports-Dancing-icon.png'))
+app.system_tray_icon.show()
+
+def show_hide_tmwindow():
+    if tm.isVisible():
+        tm.hide()
+    else:
+        tm.show()
+
+app.system_tray_icon.activated.connect(show_hide_tmwindow)
+
+
 #import cProfile; cProfile.run('app.exec()', sort="tottime")
 app.exec()

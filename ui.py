@@ -476,7 +476,7 @@ class PlayTreeView(QTreeView):
     def milonga_info(self):
         model = self.model()
         model.root_item.populate(model, recursive = True)
-        can_group, can_move_up, can_move_down, can_move_left, can_move_right, can_move_home, can_move_end = self.can_move()
+        can_group, can_move_up, can_move_down, can_move_left, can_move_up_right, can_move_down_right, can_move_home, can_move_end = self.can_move()
         mode = PlayTreeItem.duration_mode_cortinas
         selected_indexes = self.selectionModel().selectedRows()
         duration_playtree = model.root_item.duration(model, mode)

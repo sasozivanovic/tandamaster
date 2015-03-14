@@ -500,7 +500,7 @@ class TMThread(QThread):
         #self.library = Library(connect = False)
         #self.library.moveToThread(self)
         #self.started.connect(self.connect_library)
-        #self.finished.connect(self.disconnect_library)
+        self.finished.connect(self.disconnect_library)
 
     #def connect_library(self):
     #    self.library.connect()

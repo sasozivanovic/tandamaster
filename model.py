@@ -560,7 +560,7 @@ class PlayTreeFile(PlayTreeItem):
                 return self.get_tag(tag, only_first = True)
             else:
                 return None
-        elif not tag and role == Qt.DecorationRole:
+        elif role == Qt.DecorationRole and model.tag_to_column(tag) == 0:
             #return tmSongIcon
             #return QIcon('crazyeye_dance.png')
             if self.function() == 'cortina':
@@ -912,6 +912,12 @@ class PlayTreeModel(QAbstractItemModel):
                #'quodlibet::recordingdate',
                'date', 'genre', '_length', 'tm:song_start', 'tm:song_end')
     #columns = ('',)
+
+    def tag_to_column(self, tag):
+        try:
+            return self.columns.index(tag)
+        except ValueError:
+            return
 
     column_display_names = bidict.bidict({
         #'': 'Title',

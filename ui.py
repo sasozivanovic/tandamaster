@@ -11,7 +11,7 @@ from commands import *
 import config
 from replay_gain import TMReplayGain
 from gi.repository import GObject, Gst
-import os, os.path
+import os, os.path, subprocess
 
 import collections, weakref, binascii, datetime
 
@@ -1042,7 +1042,7 @@ class TandaMasterWindow(QMainWindow):
         self.musicmenu.addAction(self.action_update_library)
         
         action_save_playtree_to_folder = QAction(
-            self.tr("&Save playtree files to folder in order"), self,
+            self.tr("&Save playtree files to folder in order ..."), self,
             triggered=self.save_playtree_to_folder)
         self.musicmenu.addAction(action_save_playtree_to_folder)
         
@@ -1596,16 +1596,46 @@ class TandaMasterWindow(QMainWindow):
     def save_playtree_to_folder(self):
         ptv = app.focusWidget()
         if not isinstance(ptv, PlayTreeView): return
-        import shutil
-        for item in ptv.model().root_item.iter_depth(
-                ptv.model(),
+        model = ptv.model()
+        directory = QFileDialog.getSaveFileName(
+            self,
+            "Copy playtree to directory",
+            os.path.expanduser("~"),
+            "",
+            "",
+            QFileDialog.ShowDirsOnly
+        )[0]
+        if not directory:
+            return
+        os.makedirs(directory)
+        subprocess.call(['xdg-open', directory])
+        error = []
+        model.root_item.populate(model, recursive = True)
+        for item in model.root_item.iter_depth(
+                model,
                 lambda item: isinstance(item, PlayTreeFile),
                 lambda item: isinstance(item, PlayTreeList)):
             p = "-".join("{:03}".format(part) 
-                         for part in ptv.model().index_to_path(item.index(ptv.model())))
-            new_fn = "/home/alja/temp/milonga_backup/" + p + "-" + os.path.basename(item.filename)
-            shutil.copyfile(item.filename, new_fn)
-
+                         for part in model.index_to_path(item.index(model)))
+            new_fn = os.path.join(directory, p + "-" + os.path.basename(item.filename))
+            try:
+                #self.info.progress.emit(item.filename, new_fn)
+                shutil.copyfile(item.filename, new_fn)
+            except:
+                print("Could not copy", item.filename, "to", new_fn)
+                error.append("{} -> {}".format(item.filename, new_fn))
+        if error:
+            mb = QMessageBox(
+                QMessageBox.Warning,
+                "Warning",
+                "Some files could not be copied.",
+                QMessageBox.Ok,
+                None,
+                Qt.Window,
+            )
+            mb.setDetailedText("\n".join(error))
+            mb.exec()
+        
     def closeEvent(self, event):
         if self.action_lock.isChecked():
             event.ignore()
@@ -1823,7 +1853,7 @@ class LaTeXSongInfo(QRunnable):
 # https://www.iconfinder.com/iconsets/fatcow
 
 
-
+import shutil
 class EditTags(QWidget):
     windows = []
     def __init__(self, fileitem):

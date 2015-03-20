@@ -548,3 +548,58 @@ class Librarian(QObject):
         self.do()
 
 librarian = Librarian()
+
+import trim
+class TMTrim(QObject):
+    def __init__(self, model):
+        super().__init__()
+        model.root_item.populate(model, recursive = True)
+        self.bg_thread = QThread()
+        app.aboutToQuit.connect(self.bg_thread.exit)
+        self.worker = TMTrimWorker([item for item in model.root_item.iter(model, lambda it: it.isPlayable, lambda it: not it.isTerminal)])
+        self.worker.moveToThread(self.bg_thread)
+        self.bg_thread.started.connect(self.worker.run)
+        self.keepalive = self
+        self.bg_thread.finished.connect(self.finish)
+        self.bg_thread.start()
+
+    def finish(self):
+        self.keepalive = False
+
+class TMTrimWorker(QObject):
+    def __init__(self, items):
+        super().__init__()        
+        self.items = items
+
+    SPLT_OK = 0
+    
+    def run(self, force = False):
+        for item in self.items:
+            old = {'tm:song_start': None, 'tm:song_end': None} \
+                     if force else \
+                        dict((tag, item.get_tag(tag, only_first = True))
+                             for tag in ('tm:song_start', 'tm:song_end'))
+            if all (old.values()):
+                print("Skipping calculation of start and end of {}; the values are already known: {}, {}", old['tm:song_start'], old['tm:song_end'])
+                continue
+            try:
+                error, start, end = trim.trim(item.filename)
+                assert error == self.SPLT_OK
+            except:
+                print("Could not calculate start and end of", item.filename)
+                continue
+            new = {'tm:song_start': "{:03}".format(start/100),
+                   'tm:song_end': "{:03}".format(end/100) }
+            print("Calculated start and end of {}, id {}: {}, {}".format(
+                item.filename, item.song_id, new['tm:song_start'], new['tm:song_end']))
+            for tag in ('tm:song_start', 'tm:song_end'):
+                if not old[tag]:
+                    library().connection.execute(
+                        "DELETE FROM tags WHERE song_id=? AND source = ? AND tag = ?",
+                        (item.song_id, 'user', # to be changed,
+                        tag))
+                    library().connection.execute(
+                        "INSERT INTO tags (song_id, source, tag, value, ascii) VALUES (?,?,?,?,?)",
+                        (item.song_id, 'user', # to be changed,
+                         tag, new[tag], new[tag]))
+            library().connection.commit()

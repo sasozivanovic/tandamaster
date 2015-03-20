@@ -570,7 +570,9 @@ class PlayTreeFile(PlayTreeItem):
         elif role == Qt. BackgroundRole and library().dirty(self.song_id, tag):
             return QBrush(QColor(Qt.yellow))
         elif role == Qt.ToolTipRole and library().dirty(self.song_id, tag):
-            return app.tr('Original value') + ': ' + library().tag_by_song_id(tag, self.song_id, sources = ('file',))[0]
+            orig_values = library().tag_by_song_id(tag, self.song_id, sources = ('file',))
+            if orig_values:
+                return app.tr('Original value') + ': ' + orig_values[0]
         elif self.unavailable and role == Qt.ForegroundRole:
             return QBrush(QColor(Qt.gray))
 

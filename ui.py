@@ -1312,10 +1312,15 @@ class TandaMasterWindow(QMainWindow):
         self.toolsmenu = QMenu(self.tr('Tools'))
         
         self.action_calculate_replay_gain = QAction(
-            self.tr('Calculate &replay gain'), self,
+            self.tr('Calculate &replay gain of songs in playtree'), self,
             triggered = swcm(PlayTreeView, lambda ptv: TMReplayGain(ptv.model())))
         self.toolsmenu.addAction(self.action_calculate_replay_gain)
         
+        self.action_calculate_start_end = QAction(
+            self.tr('Calculate &start and end of songs in playtree'), self,
+            triggered = swcm(PlayTreeView, lambda ptv: TMTrim(ptv.model())))
+        self.toolsmenu.addAction(self.action_calculate_start_end)
+
         self.action_milonga_info = QAction(
             self.tr('Milonga &info'), self,
             triggered = swcm(PlayTreeView, PlayTreeView.milonga_info),

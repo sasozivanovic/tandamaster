@@ -8,7 +8,13 @@ arch=('any')
 url=""
 license=('GPL')
 groups=()
-depends=('python-pyqt5')
+depends=('python-pyqt5'
+	 'ipython' # temporary, for debugging purposes
+	 'python-unidecode'
+	 'python-mutagen'
+	 'gstreamer'
+	 'gst-plugins-good'
+	)
 makedepends=()
 checkdepends=()
 optdepends=()

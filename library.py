@@ -582,6 +582,8 @@ class TMTrimWorker(QObject):
             if all (old.values()):
                 print("Skipping calculation of start and end of {}; the values are already known: {}, {}", old['tm:song_start'], old['tm:song_end'])
                 continue
+            if not item.filename.endswith('.mp3'):
+                continue    
             try:
                 error, start, end = trim.trim(item.filename)
                 assert error == self.SPLT_OK

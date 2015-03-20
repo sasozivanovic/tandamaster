@@ -14,6 +14,7 @@ depends=('python-pyqt5'
 	 'python-mutagen'
 	 'gstreamer'
 	 'gst-plugins-good'
+	 'libmp3splt'
 	)
 makedepends=()
 checkdepends=()

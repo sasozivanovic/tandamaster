@@ -566,6 +566,7 @@ class TMTrim(QObject):
     def finish(self):
         self.keepalive = False
 
+import subprocess
 class TMTrimWorker(QObject):
     def __init__(self, items):
         super().__init__()        
@@ -580,12 +581,15 @@ class TMTrimWorker(QObject):
                         dict((tag, item.get_tag(tag, only_first = True))
                              for tag in ('tm:song_start', 'tm:song_end'))
             if all (old.values()):
-                print("Skipping calculation of start and end of {}; the values are already known: {}, {}", old['tm:song_start'], old['tm:song_end'])
+                print("Skipping calculation of start and end of {}; the values are already known: {}, {}".format(item.filename, old['tm:song_start'], old['tm:song_end']))
                 continue
             if not item.filename.endswith('.mp3'):
-                continue    
+                subprocess.call(['gst-launch-1.0', 'uridecodebin', "uri=file://" + item.filename, '!', 'audioconvert', '!', 'lamemp3enc', '!', 'filesink', 'location=' + os.path.expanduser("~/temp.mp3")])
+                fn = os.path.expanduser("~/temp.mp3")
+            else:
+                fn = item.filename
             try:
-                error, start, end = trim.trim(item.filename)
+                error, start, end = trim.trim(fn)
                 assert error == self.SPLT_OK
             except:
                 print("Could not calculate start and end of", item.filename)

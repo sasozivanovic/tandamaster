@@ -343,7 +343,7 @@ class PlayTreeView(QTreeView):
         current_index = self.currentIndex()
         current_path = model.index_to_path(current_index)
         DeletePlayTreeItemsCommand(
-            [model.item(index) for index in selection_model.selectedRows()])
+            [model.item(index) for index in selected_rows(selection_model)])
         current_index = model.path_to_index(current_path)
         if current_index.isValid():
             selection_model.setCurrentIndex(current_index, QItemSelectionModel.ClearAndSelect)
@@ -478,7 +478,7 @@ class PlayTreeView(QTreeView):
         model.root_item.populate(model, recursive = True)
         can_group, can_move_up, can_move_down, can_move_left, can_move_up_right, can_move_down_right, can_move_home, can_move_end = self.can_move()
         mode = PlayTreeItem.duration_mode_cortinas
-        selected_indexes = self.selectionModel().selectedRows()
+        selected_indexes = selected_rows(self.selectionModel())
         duration_playtree = model.root_item.duration(model, mode)
         if selected_indexes:
             try:
@@ -566,7 +566,7 @@ class PlayTreeView(QTreeView):
     def move_up(self):
         model = self.model()
         selection_model = self.selectionModel()
-        selected_indexes = selection_model.selectedRows()
+        selected_indexes = selected_rows(selection_model)
         selected_items = [model.item(index) for index in selected_indexes]
         parent_index = selected_indexes[0].parent()
         parent = model.item(parent_index)
@@ -594,7 +594,7 @@ class PlayTreeView(QTreeView):
     def move_down(self):
         model = self.model()
         selection_model = self.selectionModel()
-        selected_indexes = selection_model.selectedRows()
+        selected_indexes = selected_rows(selection_model)
         selected_items = [model.item(index) for index in selected_indexes]
         parent_index = selected_indexes[0].parent()
         parent = model.item(parent_index)
@@ -627,7 +627,7 @@ class PlayTreeView(QTreeView):
     def move_up_left(self):
         model = self.model()
         selection_model = self.selectionModel()
-        selected_indexes = selection_model.selectedRows()
+        selected_indexes = selected_rows(selection_model)
         selected_items = [model.item(index) for index in selected_indexes]
         current_item = model.item(self.currentIndex())
         parent_index = selected_indexes[0].parent()
@@ -644,7 +644,7 @@ class PlayTreeView(QTreeView):
     def move_down_left(self):
         model = self.model()
         selection_model = self.selectionModel()
-        selected_indexes = selection_model.selectedRows()
+        selected_indexes = selected_rows(selection_model)
         selected_items = [model.item(index) for index in selected_indexes]
         current_item = model.item(self.currentIndex())
         parent_index = selected_indexes[0].parent()
@@ -663,7 +663,7 @@ class PlayTreeView(QTreeView):
     def move_down_right(self):
         model = self.model()
         selection_model = self.selectionModel()
-        selected_indexes = selection_model.selectedRows()
+        selected_indexes = selected_rows(selection_model)
         selected_items = [model.item(index) for index in selected_indexes]
         current_item = model.item(self.currentIndex())
         parent_index = selected_indexes[0].parent()
@@ -682,7 +682,7 @@ class PlayTreeView(QTreeView):
     def move_up_right(self):
         model = self.model()
         selection_model = self.selectionModel()
-        selected_indexes = selection_model.selectedRows()
+        selected_indexes = selected_rows(selection_model)
         selected_items = [model.item(index) for index in selected_indexes]
         current_item = model.item(self.currentIndex())
         parent_index = selected_indexes[0].parent()
@@ -700,7 +700,7 @@ class PlayTreeView(QTreeView):
     def move_home(self):
         model = self.model()
         selection_model = self.selectionModel()
-        selected_indexes = selection_model.selectedRows()
+        selected_indexes = selected_rows(selection_model)
         selected_items = [model.item(index) for index in selected_indexes]
         top = min(index.row() for index in selected_indexes)
         new_parent_index = selected_indexes[0].parent() if top != 0 else QModelIndex()
@@ -716,7 +716,7 @@ class PlayTreeView(QTreeView):
     def move_end(self):
         model = self.model()
         selection_model = self.selectionModel()
-        selected_indexes = selection_model.selectedRows()
+        selected_indexes = selected_rows(selection_model)
         selected_items = [model.item(index) for index in selected_indexes]
         parent_index = selected_indexes[0].parent()
         bottom = max(index.row() for index in selected_indexes)
@@ -732,7 +732,7 @@ class PlayTreeView(QTreeView):
     def group(self):
         model = self.model()
         selection_model = self.selectionModel()
-        selected_indexes = selection_model.selectedRows()
+        selected_indexes = selected_rows(selection_model)
         selected_items = sorted((model.item(index) for index in selected_indexes),
                                 key = lambda ind: ind.row(model))
         parent_index = selected_indexes[0].parent()
@@ -767,7 +767,7 @@ class PlayTreeView(QTreeView):
     def group_into_tandas(self):
         model = self.model()
         selection_model = self.selectionModel()
-        selected_indexes = selection_model.selectedRows()
+        selected_indexes = selected_rows(selection_model)
         selected_items = sorted((model.item(index) for index in selected_indexes),
                                 key = lambda ind: ind.row(model))
         parent_index = selected_indexes[0].parent()
@@ -1598,7 +1598,7 @@ class TandaMasterWindow(QMainWindow):
     def run_on_selected_rows(self, qrunnable):
         ptv = app.focusWidget()
         if not isinstance(ptv, PlayTreeView): return
-        QThreadPool.globalInstance().start(qrunnable(ptv.selectionModel().selectedRows()))
+        QThreadPool.globalInstance().start(qrunnable(selected_rows(ptv.selectionModel())))
 
     def save_playtree_to_folder(self):
         ptv = app.focusWidget()
@@ -1937,3 +1937,19 @@ class EditTagsModel(QAbstractTableModel):
     def headerData(self, section, orientation, role = Qt.DisplayRole):
         if orientation == Qt.Horizontal and role == Qt.DisplayRole:
             return 'Tag' if section == 0 else self.sources[section-1].title()
+
+
+
+def selected_rows(selection):
+    if not selection.hasSelection():
+        return []
+    indexes = selection.selectedIndexes()
+    model = indexes[0].model()
+    items = collections.OrderedDict()
+    for index in indexes:
+        items[model.item(index)] = None
+    return [item.index(model) for item in items.keys()]
+
+
+        
+    

@@ -500,7 +500,10 @@ class PlayTreeFile(PlayTreeItem):
         return os.path.basename(self.filename)
 
     def function(self):
-        return 'tanda' if ('/tango/' in self.filename or self.get_tag('genre', only_first = True).lower() in ('tango', 'vals', 'milonga')) else 'cortina' # todo: configurable
+        if '/tango/' in self.filename:
+            return 'tanda'
+        genre = self.get_tag('genre', only_first = True)
+        return 'tanda' if genre and genre.lower() in ('tango', 'vals', 'milonga') else 'cortina' # todo: configurable
 
     def childs_row(self, model, child):
         raise RuntimeError

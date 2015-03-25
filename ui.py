@@ -1435,6 +1435,8 @@ class TandaMasterWindow(QMainWindow):
     def update_song_info(self):
         if self.player.current:
             tags = self.player.current.item.get_tags(only_first = True)
+            if not 'title' in tags:
+                tags['title'] = tags['_filename']
             self.setWindowTitle(self.song_info_formatter.format(
                 "{artist} - {title} | TandaMaster", **tags))
             self.song_info.setText(self.song_info_formatter.format(

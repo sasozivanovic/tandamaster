@@ -314,9 +314,16 @@ class TMPlayer(QObject):
     duration_changed = pyqtSignal('quint64')
     def on_message_duration_changed(self, bus = None, message = None):
         duration = self.playbin.query_duration(Gst.Format.TIME)
-        self.duration = duration[1] if duration[0] else None
         if duration[0]:
-            self.duration_changed.emit(duration[1])
+            self.duration = duration[1]
+        else:
+            duration = self.current.item.get_tag('_length', only_first = True)
+            if duration:
+                self.duration = int(float(duration) * Gst.SECOND)
+            else:
+                self.duration = 0
+        self.duration_changed.emit(self.duration)
+            
     def on_message_error(self, bus, message):
         self._pending_ops.clear()
         error = message.parse_error()

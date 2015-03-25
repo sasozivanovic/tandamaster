@@ -782,7 +782,8 @@ class PlayTreeBrowse(PlayTreeItem):
         else:
             return super().column_to_tag(model, column)
             
-    icons = { None: 'library.png', 'artist': 'personal.png', 'album': 'image_album.png' }
+    icons = { '__browse': 'library.png', '__search': 'icons/iconfinder/octicons/search.png',
+              'artist': 'personal.png', 'album': 'image_album.png' }
     def data(self, model, tag, role):
         if tag in (self.tag, '@name'):
             if role in (Qt.DisplayRole, Qt.EditRole):
@@ -798,7 +799,7 @@ class PlayTreeBrowse(PlayTreeItem):
                 try:
                     return QIcon(self.icons[self.tag])
                 except:
-                    return QIcon(self.icons[None])
+                    return QIcon(self.icons['__browse']) if len(self.browse_by_tags) != 1 else QIcon(self.icons['__search'])
 
     def setData(self, model, tag, value):
         if tag == self.tag:

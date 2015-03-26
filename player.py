@@ -392,7 +392,10 @@ state is not None: don't play anything, invoke a TMPlayer state
         self.state = state
     @property
     def index(self):
-        return self.item.index(self.model) if self.item else QModelIndex()
+        try:
+            return self.item.index(self.model) if self.item else QModelIndex()
+        except ValueError:
+            return QModelIndex()
     def __str__(self):
         return 'PlaybackConfig(state={},model={},item={},fadeout={},gap={},begin={},end={})'.format(self.state,self.model.root_item if self.model else None,self.item,self.fadeout_duration,self.gap_duration,self.song_begin,self.song_end)
     def __bool__(self):
@@ -418,7 +421,10 @@ class PlayOrderStandard(PlayOrder):
         self._stop_after = 0
 
     def previous(self, model, item):
-        index = model.previous_song(item.index(model))
+        try:
+            index = model.previous_song(item.index(model))
+        except ValueError:
+            index = QModelIndex()
         if not index.isValid():
             return PlaybackConfig(state = TMPlayer.STOPPED)
         si = self.config_playback(*model_item(index))
@@ -429,7 +435,10 @@ class PlayOrderStandard(PlayOrder):
             si = self.config_playback(*model_item(index))
         return si
     def next(self, model, item):
-        index = model.next_song(item.index(model))
+        try:
+            index = model.next_song(item.index(model))
+        except ValueError:
+            index = QModelIndex()
         if not index.isValid():
             return PlaybackConfig(state = TMPlayer.STOPPED)
         si = self.config_playback(*model_item(index))

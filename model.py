@@ -1125,6 +1125,7 @@ class PlayTreeModel(QAbstractItemModel):
             if mime_data.model != self:
                 action = Qt.CopyAction
         parent_item = self.item(parent)
+        parent_item.populate(self)
         new_items = parent_item.dropMimeData(
             mime_data, action, 
             -1 if (row == -1 or row >= parent_item.rowCount(self)) else

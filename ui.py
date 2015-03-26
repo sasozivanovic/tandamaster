@@ -1303,14 +1303,29 @@ class TandaMasterWindow(QMainWindow):
 
         self.action_edit_tags_mode = QAction(
             QIcon('icons/iconfinder/farm-fresh/edit.png'),
-            self.tr('&Edit tags mode'), self, toggled = self.edit_tags_mode)
+            self.tr('Edit &tags mode'), self, toggled = self.edit_tags_mode)
         self.action_edit_tags_mode.setCheckable(True)
+
+        self.action_expand_all = QAction(
+            app.tr('&Expand all'),
+            self,
+            triggered = swcm(PlayTreeView, PlayTreeView.expandAll)
+        )
+
+        self.action_collapse_all = QAction(
+            app.tr('&Collapse all'),
+            self,
+            triggered = swcm(PlayTreeView, PlayTreeView.collapseAll)
+        )
 
         self.viewmenu.addAction(self.action_columns_minimal)
         self.viewmenu.addAction(self.action_columns_normal)  
         self.viewmenu.addAction(self.action_columns_all)
         self.viewmenu.addSeparator()
         self.viewmenu.addAction(self.action_edit_tags_mode)
+        self.viewmenu.addSeparator()
+        self.viewmenu.addAction(self.action_expand_all)
+        self.viewmenu.addAction(self.action_collapse_all)
 
         menubar.addMenu(self.viewmenu)
 

@@ -372,7 +372,12 @@ class PlayTreeView(QTreeView):
             model = self.model()
             current_index = self.currentIndex()
             current_path = model.index_to_path(current_index)
-            parent_item, row, column = (model.item(current_index).parent, current_index.row(), current_index.column()) if current_index.isValid() else (QModelIndex(), -1, -1)
+            if current_index.isValid():
+                parent_item = model.item(current_index).parent
+                row = current_index.row() + 1 if current_index.row() + 1 < parent_item.rowCount(model) else -1
+                column = current_index.column()
+            else:
+                parent_item, row, column = (QModelIndex(), -1, -1)
             new_items = parent_item.dropMimeData(QApplication.clipboard().mimeData(), Qt.CopyAction, row, command_prefix = 'Paste')
             inserted_items = [item for item in new_items
                               if item in item.parent.children[model]]

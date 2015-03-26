@@ -145,6 +145,8 @@ class TabbedPlayTreesWidget(QTabWidget, TMWidget):
             elif m == model:
                 self.tabBar().setTabTextColor(i, QColor(Qt.darkGreen))
 
+    def _show(self, child, last_unused_child):
+        self.setCurrentWidget(last_unused_child)
                 
 @TMWidget.register_xml_tag_handler('PlayTreeWidget')
 class PlayTreeWidget(QWidget, TMWidget):
@@ -219,6 +221,10 @@ class PlayTreeWidget(QWidget, TMWidget):
             self.ptv.model().refilter(text)
     def refilter(self):
         self.ptv.model().refilter(self.search.text())
+
+    def _show(self, child, last_used_child):
+        pass
+
         
 class PlayTreeView(QTreeView):
 
@@ -922,6 +928,10 @@ class PlayTreeView(QTreeView):
         if next_index.isValid():
             self.setCurrentIndex(next_index)
             self.edit(next_index)
+
+    def _show(self, index, dummy):
+        self.scrollTo(index)
+        self.setCurrentIndex(index)
         
 class TMItemDelegate(QStyledItemDelegate):
     EditNextRow = 11
@@ -1318,6 +1328,12 @@ class TandaMasterWindow(QMainWindow):
             triggered = swcm(PlayTreeView, PlayTreeView.collapseAll)
         )
 
+        self.action_show_current = QAction(
+            app.tr('&Show current'),
+            self,
+            triggered = self.show_current
+        )
+
         self.viewmenu.addAction(self.action_columns_minimal)
         self.viewmenu.addAction(self.action_columns_normal)  
         self.viewmenu.addAction(self.action_columns_all)
@@ -1326,6 +1342,7 @@ class TandaMasterWindow(QMainWindow):
         self.viewmenu.addSeparator()
         self.viewmenu.addAction(self.action_expand_all)
         self.viewmenu.addAction(self.action_collapse_all)
+        self.viewmenu.addAction(self.action_show_current)
 
         menubar.addMenu(self.viewmenu)
 
@@ -1705,6 +1722,21 @@ class TandaMasterWindow(QMainWindow):
             #ptv.setAllColumnsShowFocus(not checked)
             ptv.setSelectionBehavior(QAbstractItemView.SelectItems if checked else QAbstractItemView.SelectRows)
             ptv.setEditTriggers(QAbstractItemView.EditKeyPressed | QAbstractItemView.SelectedClicked)
+
+    def show_current(self):
+        child = self.player.current.index
+        last_unused_child = child
+        parent = self.player.current.model.view
+        while parent:
+            try:
+                self.setFocus(Qt.OtherFocusReason)
+                parent._show(child, last_unused_child)
+                last_unused_child = parent
+            except AttributeError:
+                pass
+            child = parent
+            parent = parent.parent()
+
             
 class TMPositionProgressBar_Interaction(QObject):
     def eventFilter(self, obj, event):

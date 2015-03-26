@@ -1548,6 +1548,7 @@ class TandaMasterWindow(QMainWindow):
         self.stopafter_spinbox.setEnabled(not locked)
         self.play_orders_combo.setEnabled(not locked)
         self.lock_action_forward(locked)
+        self.player.current.model.view.parent().search.setEnabled(not locked)
 
     def lock_action_forward(self, locked = None):
         if locked is None:

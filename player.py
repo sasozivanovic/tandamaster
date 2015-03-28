@@ -534,6 +534,19 @@ class PlayOrderCheckSongEndsSilently(PlayOrderStandard):
         return PlaybackConfig(model, item, song_begin = song_end) \
             if song_end else PlaybackConfig()
 
+@PlayOrder.register
+class PlayOrderStart(PlayOrderStandard):
+    name = 'First 35s'
+    def config_playback(self, model, item):
+        if not isinstance(item, PlayTreeFile):
+            return PlaybackConfig()
+        song_begin = item.get_song_begin()
+        return PlaybackConfig(
+            model, item, 
+            song_begin = 0, song_end = 35*Gst.SECOND) \
+            if song_begin else PlaybackConfig()
+
+    
 def model_item_index(model, item = None, index = None, root_item = True):
     if model and item:
         index = item.index(model)

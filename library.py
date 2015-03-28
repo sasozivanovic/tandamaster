@@ -254,6 +254,7 @@ class Library(QObject):
                 if filedir.startswith(d):
                     filedir = filedir[len(d):].lstrip('/')
                     break
+        print("Updating from", filename)
         cursor.execute('DELETE FROM tags WHERE song_id=? AND SOURCE="file"', (song_id,))
         tags = {
             '_filename': (fileinfo.fileName(),),
@@ -266,7 +267,12 @@ class Library(QObject):
         except:
             pass
         if audiofile and audiofile.tags:
-            tags.update(audiofile.tags)
+            for tag in audiofile.tags:
+                try:
+                    tags[tag] = audiofile[tag]
+                except:
+                    print("Problem updating tag", tag, 'in file', filename)
+                #tags.update(audiofile.tags)
         cursor.executemany(
             'INSERT INTO tags (song_id, source, tag, value, ascii) VALUES (?,"file",?,?,?)',
             ( (song_id, tag, value, search_value(value))

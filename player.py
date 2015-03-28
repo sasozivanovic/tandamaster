@@ -542,9 +542,11 @@ class PlayOrderStart(PlayOrderStandard):
             return PlaybackConfig()
         song_begin = item.get_song_begin()
         return PlaybackConfig(
-            model, item, 
-            song_begin = 0, song_end = 35*Gst.SECOND) \
-            if song_begin else PlaybackConfig()
+            model, item,
+            song_begin = 0, song_end = 35*Gst.SECOND,
+            fadeout_duration = 0.5*Gst.SECOND,
+            gap_duration = 0.5*Gst.SECOND
+        )
 
     
 def model_item_index(model, item = None, index = None, root_item = True):

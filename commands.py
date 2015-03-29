@@ -115,12 +115,13 @@ class EditPlayTreeNameCommand(QUndoCommand):
         
 
 class EditTagsCommand(TMPlayTreeItemsCommand):
-    def __init__(self, model, items, tag, value,
+    def __init__(self, model, items, tag, value, only_first = False,
                  command_prefix = 'Change', command_suffix = '', command_text = None, 
                  command_parent = None, push = True):
         self.model = model
         self.tag = tag
         self.old_values = collections.OrderedDict()
+        self.only_first = only_first
         for item in items:
             for it in item.iter_depth(model, lambda i: i.isTerminal, lambda i: not i.isTerminal):
                 self.old_values[it] = it.get_tag(tag)
@@ -131,10 +132,18 @@ class EditTagsCommand(TMPlayTreeItemsCommand):
             undo_stack.push(self)
     def redo(self):
         for item in self.old_values.keys():
-            library().set_tag(item.song_id, self.tag, self.value)
+            if self.only_first:
+                values = item.get_tag(self.tag, only_first = False)
+                if values:
+                    values[0] = self.value
+                else:
+                    values = [self.value]
+            else:
+                values = self.value
+            library().set_tag(item.song_id, self.tag, values)
             item.refresh_models()
     def undo(self):
-        for item, old_value in self.old_values.items():
-            library().set_tag(item.song_id, self.tag, old_value)
+        for item, old_values in self.old_values.items():
+            library().set_tag(item.song_id, self.tag, old_values)
             item.refresh_models()
 

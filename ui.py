@@ -339,21 +339,23 @@ class PlayTreeView(QTreeView):
                 self.setExpanded(item.index(model), item.expanded[model])
 
     def cut(self):
-        selected = self.selectedIndexes()
-        QApplication.clipboard().setMimeData(self.model().mimeData(selected))
+        self.copy()
         self.delete()
 
     def delete(self):
-        model = self.model()
-        selection_model = self.selectionModel()
-        current_index = self.currentIndex()
-        current_path = model.index_to_path(current_index)
-        DeletePlayTreeItemsCommand(
-            [model.item(index) for index in selected_rows(selection_model)])
-        current_index = model.path_to_index(current_path)
-        if current_index.isValid():
-            self.setCurrentIndex(current_index)
-
+        if self.window().action_edit_tags_mode.isChecked():
+            self.model().setData(self.currentIndex(), None, role = Qt.EditRole)
+        else:
+            model = self.model()
+            selection_model = self.selectionModel()
+            current_index = self.currentIndex()
+            current_path = model.index_to_path(current_index)
+            DeletePlayTreeItemsCommand(
+                [model.item(index) for index in selected_rows(selection_model)])
+            current_index = model.path_to_index(current_path)
+            if current_index.isValid():
+                self.setCurrentIndex(current_index)
+            
     def copy(self):
         if self.window().action_edit_tags_mode.isChecked():
             current_index = self.currentIndex()
@@ -1733,6 +1735,7 @@ class TandaMasterWindow(QMainWindow):
             #ptv.setAllColumnsShowFocus(not checked)
             ptv.setSelectionBehavior(QAbstractItemView.SelectItems if checked else QAbstractItemView.SelectRows)
             ptv.setEditTriggers(QAbstractItemView.EditKeyPressed | QAbstractItemView.SelectedClicked)
+            ptv.setCurrentIndex(ptv.currentIndex())
 
     def show_current(self):
         child = self.player.current.index

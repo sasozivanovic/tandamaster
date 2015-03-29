@@ -156,7 +156,7 @@ class PlayTreeItem:
 
     def setData(self, model, tag, value):
         if tag:
-            EditTagsCommand(model, [self], tag, [value])
+            EditTagsCommand(model, [self], tag, value, only_first = True)
             return True
         return False
 

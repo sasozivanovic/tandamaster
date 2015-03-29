@@ -3,7 +3,7 @@ from PyQt5.Qt import *   # todo: import only what you need
 
 import mutagen, mutagen.easyid3, mutagen.easymp4
 import sqlite3
-import threading
+#import threading
 import os, os.path, sys
 from warnings import warn
 import functools, itertools, collections
@@ -207,43 +207,6 @@ class Library(QObject):
             '(song_id, tag)'
         )
         self.connection.commit()
-
-    refresh_next = pyqtSignal()
-    refresh_finished = pyqtSignal()
-    refreshing = pyqtSignal(str)
-    def refresh_all_libraries(self):
-        self.queue = []
-        for library_name, folders in config.library_folders.items():
-            for folder in folders:
-                self.queue.append((library_name, folder))
-        self.dir_iterator = None
-        self.n_in_transaction = 0
-        self._existing = set()
-        self.refresh_next.connect(self.refresh_one_song, type = Qt.QueuedConnection)
-        self.refresh_next.emit()
-        # todo: commit if app exists
-    def refresh_one_song(self):
-        if not self.dir_iterator or not self.dir_iterator.hasNext():
-            if not self.queue:
-                self._delete_nonexisting(self._existing)
-                self.connection.commit()
-                self.refresh_finished.emit()
-            else:
-                self.name, folder = self.queue.pop(0)
-                self.dir_iterator = QDirIterator(
-                    folder, 
-                    ['*'+ext for ext in self.musicfile_extensions],
-                    QDir.Files | QDir.Readable, 
-                    QDirIterator.Subdirectories)
-                self.refresh_next.emit()
-        else:
-            filename = self.dir_iterator.next()
-            self.update_song_from_file(self.name, filename.encode().decode(), commit = False)
-            self._existing.add(filename)
-            if self.n_in_transaction >= 1000000:
-                self.connection.commit()
-                self.n_in_transaction = 0
-            self.refresh_next.emit()
 
     def update_song_from_file(self, library_name, filename, commit = True, fix_file = True):
         fileinfo = QFileInfo(filename)
@@ -537,19 +500,17 @@ class Library(QObject):
         self.bg_queries_done.emit(queries)
 
 
-_libraries = threading.local()
-_libraries.library = Library()
+_libraries = {} #threading.local()
+#_libraries.library = Library()
 def library():
+    ct = QThread.currentThread()
     try:
-        if _libraries.library:
-            return _libraries.library
-        else:
-            _libraries.library = Library()
-            return _libraries.library
-    except AttributeError:
-        _libraries.library = Library()
-        #print('Created', _libraries.library, 'in thread', threading.get_ident())
-        return _libraries.library
+        return _libraries[ct]
+    except KeyError:
+        l = Library()
+        ct.finished.connect(l.connection.close)
+        _libraries[ct] = l
+        return _libraries[ct]
 
 #_library = Library()
 #def library():
@@ -563,7 +524,7 @@ class TMThread(QThread):
         #self.library = Library(connect = False)
         #self.library.moveToThread(self)
         #self.started.connect(self.connect_library)
-        self.finished.connect(self.disconnect_library)
+        #self.finished.connect(self.disconnect_library)
 
     #def connect_library(self):
     #    self.library.connect()
@@ -573,6 +534,48 @@ class TMThread(QThread):
         _libraries.library.connection.close()
         _libraries.library = None
 
+class UpdateLibraryThread(TMThread):
+    def __init__(self, parent = None):
+        super().__init__(parent)
+        self.started.connect(self.refresh_all_libraries)
+    progress = pyqtSignal()
+    finished = pyqtSignal()
+    def refresh_all_libraries(self):
+        self.queue = []
+        for library_name, folders in config.library_folders.items():
+            for folder in folders:
+                self.queue.append((library_name, folder))
+        self.dir_iterator = None
+        self.n_in_transaction = 0
+        self._existing = set()
+        self.progress.connect(self.refresh_one_song, type = Qt.QueuedConnection)
+        self.progress.emit()
+        # todo: commit if app exists
+    def refresh_one_song(self):
+        if not self.dir_iterator or not self.dir_iterator.hasNext():
+            if not self.queue:
+                library()._delete_nonexisting(self._existing)
+                library().connection.commit()
+                print('Finished updating library')
+                self.finished.emit()
+            else:
+                self.name, folder = self.queue.pop(0)
+                self.dir_iterator = QDirIterator(
+                    folder, 
+                    ['*'+ext for ext in library().musicfile_extensions],
+                    QDir.Files | QDir.Readable, 
+                    QDirIterator.Subdirectories)
+                self.progress.emit()
+        else:
+            filename = self.dir_iterator.next()
+            library().update_song_from_file(self.name, filename.encode().decode(), commit = False)
+            self._existing.add(filename)
+            if self.n_in_transaction >= 1000000:
+                library().connection.commit()
+                self.n_in_transaction = 0
+            self.progress.emit()
+        
+        
 class Librarian(QObject):
     def __init__(self):
         super().__init__()        

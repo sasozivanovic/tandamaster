@@ -1516,8 +1516,6 @@ class TandaMasterWindow(QMainWindow):
 
     def update_library(self):
         #thread = QThread(self)
-        thread = TMThread(self)
-        app.aboutToQuit.connect(thread.exit)
         #thread.library = Library(connect = False)
         #thread.library.moveToThread(thread)
         #thread.started.connect(thread.library.connect)
@@ -1527,18 +1525,30 @@ class TandaMasterWindow(QMainWindow):
         update_progress.setMaximum(library().connection.execute('SELECT COUNT(*) FROM files;').fetchone()[0])
         update_progress.setFormat('Updating library: %p%')
         self.statusBar().addPermanentWidget(update_progress)
-        def _update_library_progress():
-            update_progress.setValue(update_progress.value()+1)
+        def update_library_progress():
+            if update_progress.value() == update_progress.maximum():
+                update_progress.setMaximum(0)
+            else:
+                update_progress.setValue(update_progress.value()+1)
+        #print("main  ",library(),QThread.currentThread())#,threading.current_thread())
+        def finished():
+            self.statusBar().showMessage('Finished updating library')
+            self.statusBar().removeWidget(update_progress)
+            self.action_update_library.setEnabled(True)
+        thread = UpdateLibraryThread(parent = self)
+        thread.progress.connect(update_library_progress)
+        thread.finished.connect(finished)
+        app.aboutToQuit.connect(thread.exit)
         def _update_library_thread_started():
+            #print("thread",library(),QThread.currentThread(),threading.current_thread())
             library().refresh_all_libraries()
-            library().refresh_finished.connect(thread.exit)
+            #library().refresh_finished.connect(thread.exit)
             library().refresh_finished.connect(lambda: print('Finished updating library'))
             library().refresh_finished.connect(lambda: self.statusBar().showMessage('Finished updating library'))
             library().refresh_finished.connect(lambda: self.statusBar().removeWidget(update_progress))
             library().refresh_next.connect(_update_library_progress)
-        thread.started.connect(_update_library_thread_started)
+        #thread.started.connect(_update_library_thread_started)
         #library().refresh_finished.connect(self.reset_all)
-        thread.finished.connect(lambda: self.action_update_library.setEnabled(True))
         #thread.library.refreshing.connect(self.statusBar().showMessage)
         self.action_update_library.setEnabled(False)
         thread.start()

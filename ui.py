@@ -903,6 +903,17 @@ class PlayTreeView(QTreeView):
         if isinstance(item, PlayTreeFile):
             EditTags(item)
 
+    def change_case(self):
+        current_index = self.currentIndex()
+        value = self.model().data(current_index, role = Qt.EditRole)
+        if value == value.capitalize():
+            value = value.title()
+        elif value == value.title():
+            value = value.lower()
+        else:
+            value = value.capitalize()
+        self.model().setData(current_index, value, role = Qt.EditRole)
+            
     def on_close_editor(self, editor, hint):
         model = self.model()
         current_index = self.currentIndex()
@@ -1261,6 +1272,10 @@ class TandaMasterWindow(QMainWindow):
         self.action_edit_tags = QAction(
             #QIcon('icons/iconfinder/32pxmania/up.png'),
             self.tr('&Edit tags'), self, triggered = swcm(PlayTreeView, PlayTreeView.edit_tags), shortcut='ctrl+e')
+
+        self.action_change_case = QAction(
+            QIcon('icons/iconfinder/retina/font_case.png'),
+            self.tr('Change &case'), self, triggered = swcm(PlayTreeView, PlayTreeView.change_case), shortcut='shift+f3')
         
         action_undo = undo_stack.createUndoAction(self)
         action_redo = undo_stack.createRedoAction(self)
@@ -1287,6 +1302,7 @@ class TandaMasterWindow(QMainWindow):
         self.editmenu.addAction(self.action_move_down_right)
         self.editmenu.addSeparator()
         self.editmenu.addAction(self.action_edit_tag)
+        self.editmenu.addAction(self.action_change_case)
         self.editmenu.addAction(self.action_save_tag)
         self.editmenu.addAction(self.action_revert_tag)
         self.editmenu.addAction(self.action_edit_tags)
@@ -1441,7 +1457,7 @@ class TandaMasterWindow(QMainWindow):
         add_actions_to_toolbar(self.action_move_up, self.action_move_down)
         add_actions_to_toolbar(self.action_move_up_right, self.action_move_down_right)
         toolbar.addSeparator()
-        add_actions_to_toolbar(self.action_edit_tags_mode)
+        add_actions_to_toolbar(self.action_edit_tags_mode, self.action_change_case)
         self.addToolBar(toolbar)
         #self.toolbar = toolbar
 

@@ -352,7 +352,7 @@ class PlayTreeView(QTreeView):
             [model.item(index) for index in selected_rows(selection_model)])
         current_index = model.path_to_index(current_path)
         if current_index.isValid():
-            selection_model.setCurrentIndex(current_index, QItemSelectionModel.ClearAndSelect)
+            self.setCurrentIndex(current_index)
 
     def copy(self):
         if self.window().action_edit_tags_mode.isChecked():

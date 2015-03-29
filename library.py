@@ -100,14 +100,48 @@ def mp4_performer_list(tags, key):
     
 mutagen.easymp4.EasyMP4.RegisterKey('performer:*', getter = mp4_performer_get, setter = mp4_performer_set, deleter = mp4_performer_delete, lister = mp4_performer_list)
 
-mutagen.easyid3.EasyID3.RegisterTXXXKey('tm:song_start', "tm:song_start")
-mutagen.easyid3.EasyID3.RegisterTXXXKey('tm:song_end', "tm:song_end")
+def RegisterID3TXXXKey(key, Desc):
+    desc = Desc.lower()
+    DESC = Desc.upper()
+
+    def rightdesccase(id3):
+        descs = set(txxx.desc for txxx in id3.getall('TXXX'))
+        return Desc if Desc in descs else (
+            DESC if DESC in descs else (
+                decs if desc in descs else Desc))
+    
+    def getter(id3, key):
+        return list(id3['TXXX:'+rightdesccase(id3)])
+
+    def setter(id3, key, value):
+        try:
+            frame = id3['TXXX:'+rightdesccase(id3)]
+        except KeyError:
+            enc = 0
+            # Store 8859-1 if we can, per MusicBrainz spec.
+            for v in value:
+                if v and max(v) > u'\x7f':
+                    enc = 3
+                    break
+
+            id3.add(mutagen.id3.TXXX(encoding=enc, text=value, desc=Desc))
+        else:
+            frame.text = value
+
+    def deleter(id3, key):
+        del(id3['TXXX:'+rightdesccase(id3)])
+
+    mutagen.easyid3.EasyID3.RegisterKey(key, getter, setter, deleter)
+    
+
+RegisterID3TXXXKey('tm:song_start', "tm:song_start")
+RegisterID3TXXXKey('tm:song_end', "tm:song_end")
 mutagen.easymp4.EasyMP4Tags.RegisterFreeformKey('tm:song_start', "tm:song_start")
 mutagen.easymp4.EasyMP4Tags.RegisterFreeformKey('tm:song_end', "tm:song_end")
 
-mutagen.easyid3.EasyID3.RegisterTXXXKey(normalize_tag_name(Gst.TAG_TRACK_GAIN), normalize_tag_name(Gst.TAG_TRACK_GAIN))
-mutagen.easyid3.EasyID3.RegisterTXXXKey(normalize_tag_name(Gst.TAG_TRACK_PEAK), normalize_tag_name(Gst.TAG_TRACK_PEAK))
-mutagen.easyid3.EasyID3.RegisterTXXXKey(normalize_tag_name(Gst.TAG_REFERENCE_LEVEL), normalize_tag_name(Gst.TAG_REFERENCE_LEVEL))
+RegisterID3TXXXKey(normalize_tag_name(Gst.TAG_TRACK_GAIN), normalize_tag_name(Gst.TAG_TRACK_GAIN))
+RegisterID3TXXXKey(normalize_tag_name(Gst.TAG_TRACK_PEAK), normalize_tag_name(Gst.TAG_TRACK_PEAK))
+RegisterID3TXXXKey(normalize_tag_name(Gst.TAG_REFERENCE_LEVEL), normalize_tag_name(Gst.TAG_REFERENCE_LEVEL))
 
 mutagen.easymp4.EasyMP4Tags.RegisterFreeformKey(normalize_tag_name(Gst.TAG_TRACK_GAIN), normalize_tag_name(Gst.TAG_TRACK_GAIN))
 mutagen.easymp4.EasyMP4Tags.RegisterFreeformKey(normalize_tag_name(Gst.TAG_TRACK_PEAK), normalize_tag_name(Gst.TAG_TRACK_PEAK))
@@ -184,12 +218,14 @@ class Library(QObject):
                 self.queue.append((library_name, folder))
         self.dir_iterator = None
         self.n_in_transaction = 0
+        self._existing = set()
         self.refresh_next.connect(self.refresh_one_song, type = Qt.QueuedConnection)
         self.refresh_next.emit()
         # todo: commit if app exists
     def refresh_one_song(self):
         if not self.dir_iterator or not self.dir_iterator.hasNext():
             if not self.queue:
+                self._delete_nonexisting(self._existing)
                 self.connection.commit()
                 self.refresh_finished.emit()
             else:
@@ -203,12 +239,13 @@ class Library(QObject):
         else:
             filename = self.dir_iterator.next()
             self.update_song_from_file(self.name, filename.encode().decode(), commit = False)
+            self._existing.add(filename)
             if self.n_in_transaction >= 1000000:
                 self.connection.commit()
                 self.n_in_transaction = 0
             self.refresh_next.emit()
 
-    def update_song_from_file(self, library_name, filename, commit = True):
+    def update_song_from_file(self, library_name, filename, commit = True, fix_file = True):
         fileinfo = QFileInfo(filename)
         if not (fileinfo.exists() and fileinfo.isReadable()):
             warn("Cannot read {}".format(filename), RuntimeWarning)
@@ -267,7 +304,17 @@ class Library(QObject):
         except:
             pass
         if audiofile and audiofile.tags:
-            for tag in audiofile.tags:
+            # clean multiple empty tag values
+            save = False
+            for tag in audiofile.tags.keys():
+                if len(audiofile[tag]) > 1 and not all(audiofile[tag]):
+                    values = list(filter(None, audiofile[tag]))
+                    audiofile[tag] = values if values else ['']
+                    save = True
+            if fix_file and save:
+                print("Removed multiple empty tag values from", filename)
+                audiofile.save()
+            for tag in audiofile.tags.keys():
                 try:
                     tags[tag] = audiofile[tag]
                 except:
@@ -283,6 +330,12 @@ class Library(QObject):
             self.connection.commit()
         return song_id
 
+    def _delete_nonexisting(self, existing):
+        existing = set( (i,) for i in existing)
+        all_song_ids = self.connection.execute('SELECT DISTINCT filename FROM files NATURAL JOIN tags WHERE tags.tag="_library" AND value IS NOT NULL').fetchall()
+        self.connection.executemany('DELETE FROM files WHERE filename=?',
+                                    (set(all_song_ids) - existing))
+    
     def tags_by_song_id(self, song_id, sources = ('user', 'file'), internal = True):
         last_source = collections.defaultdict(lambda: None)
         tags = {}
@@ -488,7 +541,11 @@ _libraries = threading.local()
 _libraries.library = Library()
 def library():
     try:
-        return _libraries.library
+        if _libraries.library:
+            return _libraries.library
+        else:
+            _libraries.library = Library()
+            return _libraries.library
     except AttributeError:
         _libraries.library = Library()
         #print('Created', _libraries.library, 'in thread', threading.get_ident())

@@ -294,6 +294,7 @@ class Library(QObject):
         return song_id
 
     def _delete_nonexisting(self, existing):
+        # todo: removable media
         existing = set( (i,) for i in existing)
         all_song_ids = self.connection.execute('SELECT DISTINCT filename FROM files NATURAL JOIN tags WHERE tags.tag="_library" AND value IS NOT NULL').fetchall()
         self.connection.executemany('DELETE FROM files WHERE filename=?',

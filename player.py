@@ -43,7 +43,7 @@ class TMPlayer(QObject):
         self._gap_timer.setTimerType(Qt.CoarseTimer)
         self._gap_timer.setSingleShot(True)
         
-        self._gap_timer.timeout.connect(self._uri_change, type = Qt.QueuedConnection)
+        self._gap_timer.timeout.connect(self._gap_timeout, type = Qt.QueuedConnection)
         self._signal_uri_change.connect(self._uri_change, type = Qt.QueuedConnection)
         self._signal_on_gst_message.connect(self.on_gst_message, type = Qt.QueuedConnection)
         
@@ -299,6 +299,9 @@ class TMPlayer(QObject):
         self.state_changed.emit(state)
     def _uri_change(self):
         self.state = self._URI_CHANGE
+    def _gap_timeout(self):
+        if self.state == self.PLAYING_GAP:
+            self.state = self._URI_CHANGE
     def _set_state(self, state):
         self.state = state
 

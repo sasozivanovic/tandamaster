@@ -969,14 +969,6 @@ class PlayTreeModel(QAbstractItemModel):
         return len(self.columns)
 
     def data(self, index, role = Qt.DisplayRole):
-        if role in (Qt.ForegroundRole, Qt.FontRole):
-            if self.mark_as_playing(index):
-                if role == Qt.ForegroundRole:
-                    return QBrush(QColor(Qt.darkGreen))
-                elif role == Qt.FontRole:
-                    font = QFont()
-                    font.setWeight(QFont.Bold)
-                    return font
         item = self.item(index)
         return item.data(self, item.column_to_tag(self, index.column()), role)
     

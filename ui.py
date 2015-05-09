@@ -1,4 +1,5 @@
 from PyQt5.QtCore import pyqtRemoveInputHook; from IPython import embed; pyqtRemoveInputHook()
+import cProfile
 
 from PyQt5.Qt import *   # todo: import only what you need
 
@@ -230,7 +231,7 @@ class PlayTreeView(QTreeView):
 
     def __init__(self, root_id, player, parent = None, root_item = None):
         super().__init__(parent)
-
+        
         self.setUniformRowHeights(True) 
         # when using QTreeView::branch:selected, images disappear!
 
@@ -566,15 +567,9 @@ class PlayTreeView(QTreeView):
     def focusInEvent(self, event):
         r = super().focusInEvent(event)
         QWidget.setTabOrder(self, self.other())
-        self.setStyleSheet("")
         self.on_selection_changed()
         self.on_currentIndex_changed()
         self.update_current_song_from_file(self.currentIndex())
-        return r
-
-    def focusOutEvent(self, event):
-        r = super().focusInEvent(event)
-        self.setStyleSheet("""QTreeView::item:selected { background-color: lightgray; }""")
         return r
 
     def move_up(self):
@@ -947,6 +942,15 @@ class PlayTreeView(QTreeView):
         self.scrollTo(index)
         self.setCurrentIndex(index)
         
+    def drawBranches(self, painter, rect, index):
+        if self.selectionModel().isSelected(index):
+            if index.model().mark_as_playing(index):
+                painter.fillRect(rect, Qt.darkGreen)
+            elif not index.model().view.hasFocus():
+                painter.fillRect(rect, Qt.lightGray)
+        super().drawBranches(painter, rect, index)
+    
+        
 class TMItemDelegate(QStyledItemDelegate):
     EditNextRow = 11
     EditPreviousRow = 12
@@ -964,11 +968,21 @@ class TMItemDelegate(QStyledItemDelegate):
             editor.setCompleter(completer)
         return editor
 
-    def paint(self, painter, option, index):
-        if option.state & QStyle.State_Selected:
-            if index.model().mark_as_playing(index):
-                option.palette.setColor(QPalette.HighlightedText, QColor(Qt.green))
-        return super().paint(painter, option, index)
+    def initStyleOption(self, option, index):
+        super().initStyleOption(option, index)
+        if index.model().mark_as_playing(index):
+            option.font.setWeight(QFont.Bold)
+            if option.state & QStyle.State_Selected:
+                option.state &= ~QStyle.State_Selected
+                option.backgroundBrush = QBrush(QColor(Qt.darkGreen))
+                option.palette.setColor(QPalette.Text, QColor(Qt.white))
+            else:
+                option.palette.setColor(QPalette.Text, QColor(Qt.darkGreen))
+        elif option.state & QStyle.State_Selected and not index.model().view.hasFocus():
+            option.state &= ~QStyle.State_Selected
+            option.backgroundBrush = QBrush(QColor(Qt.lightGray))
+            option.palette.setColor(QPalette.Text, QColor(Qt.white))
+
 
 class TMPositionProgressBar(QProgressBar):
     def __init__(self, player, interactive = True, parent = None):
@@ -1026,6 +1040,7 @@ class TandaMasterWindow(QMainWindow):
 
     def __init__(self, parent = None):
         super().__init__(parent)
+        self.profiler = None
         self.setWindowTitle('TandaMaster')        
         self.setWindowIcon(QIcon('icons/iconarchive/icons8/tandamaster-Sports-Dancing-icon.png'))
 
@@ -1641,6 +1656,14 @@ class TandaMasterWindow(QMainWindow):
                 [float(position[1])/Gst.SECOND])
         
     def adhoc(self):
+        if self.profiler:
+            self.profiler.print_stats(sort = 'tottime')
+            self.profiler.enable()
+        else:
+            self.profiler = cProfile.Profile()
+            self.profiler.enable()
+            print("profiler enabled", self.profiler)
+        return
         ptv = app.focusWidget()
         if not isinstance(ptv, PlayTreeView): return
         current_index = ptv.currentIndex()

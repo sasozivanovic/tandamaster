@@ -40,10 +40,12 @@ class TMPlayer(QObject):
 
         self._pending_ops = collections.defaultdict(lambda:[])
         self._fadeout_start = None
-        
+
+        self._n = 0
         self._gap_timer = QTimer()
         self._gap_timer.setTimerType(Qt.CoarseTimer)
         self._gap_timer.setSingleShot(True)
+        self._n_gap = None
         
         self._gap_timer.timeout.connect(self._gap_timeout, type = Qt.QueuedConnection)
         self._signal_uri_change.connect(self._uri_change, type = Qt.QueuedConnection)
@@ -262,6 +264,7 @@ class TMPlayer(QObject):
                 self.state = self._URI_CHANGE
                 return
             else:
+                self._n_gap = self._n
                 self._gap_timer.start(int(self.current.gap_duration/Gst.MSECOND))
         elif state == self._URI_CHANGE:
             self._gap_timer.stop()
@@ -284,6 +287,7 @@ class TMPlayer(QObject):
                 self.state = self.STOPPED
                 return
             self.update_playbin_volume()
+            self._n += 1
             self.playbin.set_property('uri', QUrl.fromLocalFile(self.current.item.filename).toString())
             old_datetime = self.debug_last_uri_change
             self.debug_last_uri_change = datetime.datetime.now()
@@ -312,7 +316,7 @@ class TMPlayer(QObject):
         print("     uri_change", datetime.datetime.now())
         self.state = self._URI_CHANGE
     def _gap_timeout(self):
-        if self.state == self.PLAYING_GAP:
+        if self.state == self.PLAYING_GAP and self._n == self._n_gap:
             print("     gap_timeout", datetime.datetime.now())
             self.state = self._URI_CHANGE
     def _set_state(self, state):

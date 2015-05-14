@@ -287,7 +287,10 @@ class TMPlayer(QObject):
             self.playbin.set_property('uri', QUrl.fromLocalFile(self.current.item.filename).toString())
             old_datetime = self.debug_last_uri_change
             self.debug_last_uri_change = datetime.datetime.now()
-            print(self.debug_last_uri_change-old_datetime, ";", self.debug_last_uri_change, ";", "uri_change")
+            d=self.debug_last_uri_change-old_datetime
+            print(d, ";", self.debug_last_uri_change, ";", "uri_change", self.current.item.filename)
+            if d.seconds < 10:
+                print("!"*400)
             self.playbin.set_state(Gst.State.PAUSED)
             if self.current.song_begin:
                 self._pending_ops[Gst.State.PAUSED].append(

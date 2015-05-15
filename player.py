@@ -317,6 +317,7 @@ class TMPlayer(QObject):
         self.state = self._URI_CHANGE
     def _gap_timeout(self):
         if self.state == self.PLAYING_GAP and self._n == self._n_gap:
+            self._n_gap = None
             print("     gap_timeout", datetime.datetime.now())
             self.state = self._URI_CHANGE
     def _set_state(self, state):

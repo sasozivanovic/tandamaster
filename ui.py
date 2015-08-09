@@ -1408,6 +1408,11 @@ class TandaMasterWindow(QMainWindow):
             triggered = lambda: self.run_on_selected_rows(LaTeXSongInfo))
         self.toolsmenu.addAction(self.action_latexsonginfo)
         
+        self.action_report = QAction(
+            self.tr('Report'), self,
+            triggered = lambda: Report(self.current_playtree()))
+        self.toolsmenu.addAction(self.action_report)
+
         menubar.addMenu(self.toolsmenu)
 
         self.musicmenu.addAction(action_quit)
@@ -1790,6 +1795,11 @@ class TandaMasterWindow(QMainWindow):
             child = parent
             parent = parent.parent()
 
+
+    def current_playtree(self):
+        ptv = self.focusWidget()
+        return ptv if isinstance(ptv, PlayTreeView) else None
+
             
 class TMPositionProgressBar_Interaction(QObject):
     def eventFilter(self, obj, event):
@@ -2059,3 +2069,54 @@ def selected_rows(selection):
 
         
     
+class Report(QWidget):
+    def __init__(self, playtreeview):
+        super().__init__()
+        if not playtreeview:
+            return
+        layout = QVBoxLayout()
+        self.output_types = QButtonGroup(self)
+        for output_type in ('text', 'LaTeX'):
+            radio_button = QRadioButton(output_type)
+            layout.addWidget(radio_button)
+            self.output_types.addButton(radio_button)
+        self.output_types.buttons()[0].setChecked(True)
+        self.output_types.buttonToggled.connect(self.update_report)
+        self.result_box = QPlainTextEdit()
+        layout.addWidget(self.result_box)
+        self.setLayout(layout)
+        swcm(PlayTreeView, PlayTreeView.paste)
+        self.selection_model = playtreeview.selectionModel()
+        self.selection_model.selectionChanged.connect(self.update_report)
+        self.update_report()
+        self.show()
+        self._keepalive = self # does this work?
+
+    def update_report(self):
+        self.result_box.setPlainText(self.create_report(
+            self.selection_model.selectedRows(),
+            self.output_types.checkedButton().text()
+        ))
+
+    def create_report(self, selected_indexes, output_type):
+        if not selected_indexes:
+            return ''
+        report = ''
+        model = selected_indexes[0].model()
+        for index in selected_indexes:
+            item = model.item(index)
+            if isinstance(item, PlayTreeFile):
+                artist = item.get_tag("artist", only_first = True)
+                title = item.get_tag("title", only_first = True)
+                year = item.get_tag("date", only_first = True)
+                if year.find('-') != -1:
+                    year = year[0:year.find('-')]
+                singer = item.get_tag("performer:vocals", only_first = True)
+                if singer.lower() == 'instrumental':
+                    singer = ''
+                report += "{}{}: {} ({}{})\n".format(
+                    '\item ' if output_type == 'LaTeX' else '',
+                    artist, title, year,
+                    ', singer: {}'.format(singer) if singer else ''
+                )
+        return report

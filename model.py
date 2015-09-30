@@ -325,8 +325,12 @@ class PlayTreeList(PlayTreeItem):
         children = self.children[None]
         if row is None:
             row = len(children)
+        print("DEBUG INSERT")
         for model in self.children.keys():
+            print("  ", model)
             if model:
+                if isinstance(model, tuple):
+                    model = model[1] # see filtering
                 parent_index = self.index(model)
                 #model_new_items = [item for item in new_items
                 #                   if item.filter(model)]

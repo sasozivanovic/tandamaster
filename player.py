@@ -327,17 +327,22 @@ class TMPlayer(QObject):
     def _set_state(self, state):
         self.state = state
 
-    _signal_on_gst_message = pyqtSignal(QVariant, QVariant) # for thread safety
+    _signal_on_gst_message = pyqtSignal(QVariant, QVariant, str) # for thread safety
     def on_message(self, bus, message):
         if message.type in self.message_handlers:
-            self._signal_on_gst_message.emit(bus, message)
-    def on_gst_message(self, bus, message):
-        self.message_handlers[message.type](self, bus, message)
-    def on_message_eos(self, bus, message):
-        if self.state in (self.PLAYING, self.PLAYING_FADEOUT):
+            try:
+                requesting_file = message.src.get_property("source").get_property("location")
+            except:
+                requesting_file = None
+            self._signal_on_gst_message.emit(bus, message, requesting_file)
+    def on_gst_message(self, bus, message, requesting_file):
+        self.message_handlers[message.type](self, bus, message, requesting_file)
+    def on_message_eos(self, bus, message, requesting_file):
+        print("EOS2", "requesting file:", requesting_file, "current file:", self.current.item.filename)
+        if self.state in (self.PLAYING, self.PLAYING_FADEOUT) and self.current.item.filename == requesting_file:
             self.state = self.PLAYING_GAP
     duration_changed = pyqtSignal('quint64')
-    def on_message_duration_changed(self, bus = None, message = None):
+    def on_message_duration_changed(self, bus = None, message = None, requesting_file = None):
         duration = self.playbin.query_duration(Gst.Format.TIME)
         if duration[0]:
             self.duration = duration[1]
@@ -349,7 +354,7 @@ class TMPlayer(QObject):
                 self.duration = 0
         self.duration_changed.emit(self.duration)
             
-    def on_message_error(self, bus, message):
+    def on_message_error(self, bus, message, requesting_file):
         self._pending_ops.clear()
         error = message.parse_error()
         if GLib.quark_from_string(error[0].domain) == Gst.ResourceError.quark():
@@ -358,7 +363,7 @@ class TMPlayer(QObject):
             self._signal_uri_change.emit(int(self._n))
         else:
             print(error)
-    def on_message_state_changed(self, bus, message):
+    def on_message_state_changed(self, bus, message, requesting_file):
         previous, current, pending = message.parse_state_changed()
         while self._pending_ops[current]:
             self._pending_ops[current].pop(0)()

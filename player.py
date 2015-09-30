@@ -154,7 +154,7 @@ class TMPlayer(QObject):
             self._volume = volume / fadeout_factor
             self.volume_changed.emit(volume)
         
-    _signal_uri_change = pyqtSignal()
+    _signal_uri_change = pyqtSignal(int)
     def play_previous(self):
         position = self.position
         if not position or position - self.current.song_begin < config.previous_restarts_song__min_time:
@@ -246,7 +246,8 @@ class TMPlayer(QObject):
             self._gap_timer.stop()
             if not self.current or self.gst_state != Gst.State.PLAYING:
                 print("     end_fadeout", datetime.datetime.now())
-                self.state = self._URI_CHANGE
+                #self.state = self._URI_CHANGE
+                self._signal_uri_change.emit(int(self._n))
                 return
             elif not self.current.fadeout_duration:
                 self.state = self.PLAYING_GAP
@@ -255,13 +256,14 @@ class TMPlayer(QObject):
         elif state == self.PLAYING_GAP:
             if not self.current.gap_duration or self.next.state in (self.PAUSED, self.STOPPED):
                 print("     end_gap-1", datetime.datetime.now())
-                self._signal_uri_change.emit()
+                self._signal_uri_change.emit(int(self._n))
                 return
             if self.gst_state == Gst.State.PLAYING and (not self.current.song_end or self.position < self.current.song_end):
                 self.playbin.set_state(Gst.State.PAUSED)
             if self.next.state:
                 print("     end_gap-2", datetime.datetime.now())
-                self.state = self._URI_CHANGE
+                #self.state = self._URI_CHANGE
+                self._signal_uri_change.emit(int(self._n))
                 return
             else:
                 self._n_gap = self._n
@@ -312,14 +314,16 @@ class TMPlayer(QObject):
         if playing and not self._timer.isActive():
             self._timer.start()
         self.state_changed.emit(state)
-    def _uri_change(self):
-        print("     uri_change", datetime.datetime.now())
-        self.state = self._URI_CHANGE
+    def _uri_change(self, requesting_n):
+        if self._n == requesting_n:
+            print("     uri_change", datetime.datetime.now())
+            self.state = self._URI_CHANGE
     def _gap_timeout(self):
         if self.state == self.PLAYING_GAP and self._n == self._n_gap:
             self._n_gap = None
             print("     gap_timeout", datetime.datetime.now())
-            self.state = self._URI_CHANGE
+            #self.state = self._URI_CHANGE
+            self._signal_uri_change.emit(int(self._n))
     def _set_state(self, state):
         self.state = state
 
@@ -351,7 +355,7 @@ class TMPlayer(QObject):
         if GLib.quark_from_string(error[0].domain) == Gst.ResourceError.quark():
             self.current.item.unavailable = True
             print("     message_error", datetime.datetime.now())
-            self._signal_uri_change.emit()
+            self._signal_uri_change.emit(int(self._n))
         else:
             print(error)
     def on_message_state_changed(self, bus, message):

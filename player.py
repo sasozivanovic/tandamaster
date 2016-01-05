@@ -182,6 +182,7 @@ class TMPlayer(QObject):
         self.state = self.PLAYING_FADEOUT
 
     def seek(self, position):
+        position = int(position)
         self._gap_timer.stop()
         if self.current.song_end is not None and position >= self.current.song_end:
             self.current.song_end = None

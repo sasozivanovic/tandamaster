@@ -1,5 +1,9 @@
 from PyQt5.Qt import *
 
+import gi
+gi.require_version('Gst', '1.0')
+gi.require_version('GstAudio', '1.0')
+
 from gi.repository import GObject, Gst, GLib
 GObject.threads_init()
 Gst.init(None)

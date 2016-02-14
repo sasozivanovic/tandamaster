@@ -1,7 +1,8 @@
 from IPython import embed; from PyQt5.QtCore import pyqtRemoveInputHook
 from PyQt5.Qt import *   # todo: import only what you need
 
-import mutagen, mutagen.easyid3, mutagen.easymp4
+import mutagen.easyid3, mutagen.easymp4
+import my_mutagen as mutagen
 import sqlite3
 #import threading
 import os, os.path, sys
@@ -165,7 +166,7 @@ class BgQueries(list):
     
 class Library(QObject):
     _cache = {}
-    musicfile_extensions = ['.mp3', '.wav', '.ogg', '.m4a', '.mp3', '.flac']
+    musicfile_extensions = ['.mp3', '.wav', '.ogg', '.m4a', '.mp3', '.flac', '.aif', '.aiff']
 
     def __init__(self, filename = 'tandamaster.db', connect = True):
         super().__init__()

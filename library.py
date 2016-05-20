@@ -339,11 +339,14 @@ class Library(QObject):
         return row[0] if row else None
 
     def song_id_from_filename(self, filename):
-        row = self.connection.execute(
-            'SELECT song_id FROM files WHERE filename=?',
-            (filename,)
-        ).fetchone()
-        return row[0] if row else None
+        try:
+            row = self.connection.execute(
+                'SELECT song_id FROM files WHERE filename=?',
+                (filename,)
+            ).fetchone()
+            return row[0] if row else None
+        except UnicodeEncodeError:
+            return None
 
     def dirty(self, song_id, tag):
         return bool(self.tag_by_song_id(tag, song_id, sources = ('user',)))

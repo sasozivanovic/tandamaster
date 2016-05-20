@@ -81,7 +81,10 @@ class PlayTreeItem:
         return self.parent.childs_row(model, self) if self.parent is not None else 0
 
     def index(self, model, column = 0):
-        return QModelIndex() if self == model.root_item or self.parent is None else model.createIndex(self.row(model), column, self)
+        try:
+            return QModelIndex() if self == model.root_item or self.parent is None else model.createIndex(self.row(model), column, self)
+        except:
+            return QModelIndex()
 
     def path(self, model):
         if self.parent:
@@ -99,7 +102,7 @@ class PlayTreeItem:
     def _copy_children(self, model_from, model_to):
         """Recursively copy children from model_from to model_to.
         
-        Stop recursion when model_to is not a key in children.  This deals with PlayTreeBrowses, which fill model_fromdirectly."""
+        Stop recursion when model_to is not a key in children.  This deals with PlayTreeBrowses, which fill model_from directly."""
 
         if self.unpopulated(model_from):
             self.unpopulate(model_to)
@@ -945,19 +948,25 @@ class PlayTreeModel(QAbstractItemModel):
     })
 
     def index(self, row, column, parent):
-        if not self.hasIndex(row, column, parent):
+        try:
+            parentItem = self.item(parent)
+            childItem = parentItem.child(self, row)
+            assert childItem
+            return self.createIndex(row, column, childItem)
+        except:
             return QModelIndex()
-        parentItem = self.item(parent)
-        childItem = parentItem.child(self, row)
-        assert childItem
-        return self.createIndex(row, column, childItem)
 
     def parent(self, index):
         if not index.isValid():
             return index
-        parentItem = self.item(index).parent
-        return QModelIndex() if parentItem in (None, self.root_item) else \
-            self.createIndex(parentItem.row(self), 0, parentItem)
+        try:
+            item = self.item(index)
+            parentItem = item.parent
+            return QModelIndex() \
+                if parentItem in (None, self.root_item) else \
+                self.createIndex(parentItem.row(self), 0, parentItem)
+        except:
+            return QModelIndex()
 
     def rowCount(self, parent):
         # why oh why?

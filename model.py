@@ -331,9 +331,7 @@ class PlayTreeList(PlayTreeItem):
         print("DEBUG INSERT")
         for model in self.children.keys():
             print("  ", model)
-            if model:
-                if isinstance(model, tuple):
-                    model = model[1] # see filtering
+            if isinstance(model, PlayTreeModel): # ignore (..., 'f')
                 parent_index = self.index(model)
                 #model_new_items = [item for item in new_items
                 #                   if item.filter(model)]
@@ -353,7 +351,9 @@ class PlayTreeList(PlayTreeItem):
 
     def delete(self, items):
         for model, children in self.children.items():
-            rows = sorted([children.index(item) for item in items])
+            rows = sorted([children.index(item) for item in items
+                           if item in children  # because there were problems with (..., 'f')
+            ])
             row_ranges = integers_to_ranges(rows)
             for range in row_ranges:
                 if model:

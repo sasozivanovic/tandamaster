@@ -270,14 +270,17 @@ class Library(QObject):
         if audiofile and audiofile.tags:
             # clean multiple empty tag values
             save = False
-            for tag in audiofile.tags.keys():
-                if len(audiofile[tag]) > 1 and not all(audiofile[tag]):
-                    values = list(filter(None, audiofile[tag]))
-                    audiofile[tag] = values if values else ['']
-                    save = True
-            if fix_file and save:
-                print("Removed multiple empty tag values from", filename)
-                audiofile.save()
+            try: # workaround for a strange bug with replaygain tags for some files from Gregor's collection
+                for tag in audiofile.tags.keys():
+                    if len(audiofile[tag]) > 1 and not all(audiofile[tag]):
+                        values = list(filter(None, audiofile[tag]))
+                        audiofile[tag] = values if values else ['']
+                        save = True
+                if fix_file and save:
+                    print("Removed multiple empty tag values from", filename)
+                    audiofile.save()
+            except KeyError:
+                pass
             for tag in audiofile.tags.keys():
                 try:
                     tags[tag] = audiofile[tag]

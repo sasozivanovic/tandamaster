@@ -2111,7 +2111,7 @@ class Report(QWidget):
                 year = item.get_tag("date", only_first = True)
                 if year.find('-') != -1:
                     year = year[0:year.find('-')]
-                singer = item.get_tag("performer:vocals", only_first = True)
+                singer = item.get_tag("performer:vocals", only_first = True, default = '')
                 if singer.lower() == 'instrumental':
                     singer = ''
                 report += "{}{}: {} ({}{})\n".format(

@@ -316,8 +316,9 @@ class PlayTreeView(QTreeView):
         self.update_current_song_from_file(current)
         current_item = self.model().item(current)
         save_revert = isinstance(current_item, PlayTreeFile) and library().dirty(current_item.song_id, self.model().columns[current.column()])
-        self.window().action_save_tag.setEnabled(False) # todo: saving a SINGLE tag
-        self.window().action_revert_tag.setEnabled(save_revert)
+        if isinstance(self.window(), TandaMasterWindow): # workaround!
+            self.window().action_save_tag.setEnabled(False) # todo: saving a SINGLE tag
+            self.window().action_revert_tag.setEnabled(save_revert)
 
     def update_current_song_from_file(self, current):
         item = self.model().item(current)

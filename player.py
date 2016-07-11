@@ -326,7 +326,7 @@ class TMPlayer(QObject):
             try:
                 requesting_file = message.src.get_property("source").get_property("location")
             except:
-                requesting_file = None
+                requesting_file = ''
             self._signal_on_gst_message.emit(bus, message, requesting_file)
     def on_gst_message(self, bus, message, requesting_file):
         self.message_handlers[message.type](self, bus, message, requesting_file)

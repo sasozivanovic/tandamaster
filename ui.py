@@ -15,7 +15,7 @@ from gi.repository import GObject, Gst
 import os, os.path, subprocess
 
 import collections, weakref, binascii, datetime
-
+from mp3splt import mp3splt
 
 class TMWidget:
     xml_tag_registry = {}
@@ -1390,7 +1390,7 @@ class TandaMasterWindow(QMainWindow):
         
         self.action_calculate_start_end = QAction(
             self.tr('Calculate &start and end of songs in playtree'), self,
-            triggered = swcm(PlayTreeView, lambda ptv: TMTrim(ptv.model())))
+            triggered = swcm(PlayTreeView, self.trim))
         self.toolsmenu.addAction(self.action_calculate_start_end)
 
         self.action_milonga_info = QAction(
@@ -1800,6 +1800,17 @@ class TandaMasterWindow(QMainWindow):
     def current_playtree(self):
         ptv = self.focusWidget()
         return ptv if isinstance(ptv, PlayTreeView) else None
+
+    def trim(self, ptv):
+        model = ptv.model()
+        model.root_item.populate(model, recursive = True)
+        mp3splt.trim.emit([
+            item for item
+            in model.root_item.iter(
+                model,
+                lambda it: it.isPlayable,
+                lambda it: not it.isTerminal)
+        ])
 
             
 class TMPositionProgressBar_Interaction(QObject):

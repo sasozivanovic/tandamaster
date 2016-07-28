@@ -1,4 +1,5 @@
 import ctypes
+import sys, os.path
 from PyQt5.Qt import QObject, QThread, QVariant, pyqtSignal
 from library import library
 
@@ -60,19 +61,11 @@ class Mp3SpltWorker(QObject):
                 fn = os.path.expanduser("~/temp.mp3")
             else:
                 fn = item.filename
-            #try:
-            start, end = self.trim(fn)
-            #except:
-            #    print("Could not calculate start and end of", item.filename)
-            #    continue
-            #except mp3splt.Mp3spltRuntimeError as er:
-            #    print("Could not calculate start and end of", item.filename)
-            #    print(er)
-            #    continue
-            #except mp3splt.RuntimeError as er:
-            #    print("Could not calculate start and end of", item.filename)
-            #    print(er)
-            #    continue
+            try:
+                start, end = self.trim(fn)
+            except Mp3spltRuntimeError as er:
+                print(er, item.filename)
+                continue
             new = {'tm:song_start': "{:03}".format(start/100),
                    'tm:song_end': "{:03}".format(end/100) }
             print("Calculated start and end of {}, id {}: {}, {}".format(
@@ -99,24 +92,42 @@ class Mp3SpltWorker(QObject):
         if state is None:
             raise RuntimeError('Cannot initialize libmp3splt')
 
+        if getattr(sys, 'frozen', False): # only in bundled version
+            error = self.mp3splt.mp3splt_append_plugins_scan_dir(
+                state,
+                os.path.join(sys._MEIPASS, 'libmp3splt').encode())
+            if error:
+                self.mp3splt.mp3splt_free_state(state)
+                raise Mp3spltRuntimeError(error, 'Cannot add libmp3splt plugin directory')
+            
         error = self.mp3splt.mp3splt_find_plugins(state)
         if error:
             self.mp3splt.mp3splt_free_state(state)
-            raise Mp3spltRuntimeError(state, error, 'Cannot find plugins')
+            raise Mp3spltRuntimeError(error, 'Cannot find plugins')
 
         # we need to pass filename as bytes
         self.mp3splt.mp3splt_set_filename_to_split(state, filename.encode())
+
+        def c_char_p_to_string(p):
+            s = ''
+            i = 0
+            while ord(p[i]):
+                s += chr(ord(p[i]))
+                i += 1
+            return s
+        for i in range(state.contents.plug.contents.number_of_dirs_to_scan):
+            print(c_char_p_to_string(state.contents.plug.contents.plugins_scan_dirs[i]))
         
         error = self.mp3splt.mp3splt_set_trim_silence_points(state)
         if error:
             self.mp3splt.mp3splt_free_state(state)
-            raise Mp3spltRuntimeError(state, error, 'Cannot set trim silence points')
+            raise Mp3spltRuntimeError(error, 'Cannot set trim silence points')
 
         error = ctypes.c_int()
         points = self.mp3splt.mp3splt_get_splitpoints(state, ctypes.byref(error))
         if error:
             self.mp3splt.mp3splt_free_state(state)
-            raise Mp3spltRuntimeError(state, error, 'Cannot get splitpoints')
+            raise Mp3spltRuntimeError(error, 'Cannot get splitpoints')
 
         self.mp3splt.mp3splt_points_init_iterator(points)
 
@@ -142,8 +153,13 @@ class Mp3SpltWorker(QObject):
         return (start, end)
 
 class Mp3spltRuntimeError(RuntimeError):
-    def __init__(self, libmp3splt_state, libmp3splt_error_code, error_text):
+    def __init__(self, libmp3splt_error_code, error_text):
         super().__init__('{}: {}'.format(libmp3splt_error_code, error_text))
 
 from app import app        
 mp3splt = Mp3Splt()
+
+if __name__ == '__main__':
+    w = Mp3SpltWorker()
+    w.run()
+    print(w.trim('/home/saso/tango/Soledad.mp3'))

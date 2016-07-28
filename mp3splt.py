@@ -1,10 +1,6 @@
-from ctypes import *
-
-#from IPython import embed
-
-from PyQt5.Qt import *   # todo: import only what you need
-
-from library import *
+import ctypes
+from PyQt5.Qt import QObject, QThread, QVariant, pyqtSignal
+from library import library
 
 class Mp3Splt(QObject):
     def __init__(self):
@@ -40,10 +36,10 @@ class Mp3SpltWorker(QObject):
         import mp3splt_h
         self.mp3splt_h = mp3splt_h
         self.mp3splt = mp3splt_h._libs["mp3splt"]
-        self.mp3splt.mp3splt_new_state.restype = POINTER(self.mp3splt_h.splt_state)
-        self.mp3splt.mp3splt_get_splitpoints.restype = POINTER(self.mp3splt_h.splt_points)
-        self.mp3splt.mp3splt_points_next.restype = POINTER(self.mp3splt_h.splt_point)
-        self.mp3splt.mp3splt_point_get_value.restype = c_long
+        self.mp3splt.mp3splt_new_state.restype = ctypes.POINTER(self.mp3splt_h.splt_state)
+        self.mp3splt.mp3splt_get_splitpoints.restype = ctypes.POINTER(self.mp3splt_h.splt_points)
+        self.mp3splt.mp3splt_points_next.restype = ctypes.POINTER(self.mp3splt_h.splt_point)
+        self.mp3splt.mp3splt_point_get_value.restype = ctypes.c_long
     
     def queue(self, items):
         self.items.extend(items)
@@ -96,8 +92,8 @@ class Mp3SpltWorker(QObject):
         
     def trim(self, filename):
         assert isinstance(filename, str)
-        start = c_long()
-        end = c_long()
+        start = ctypes.c_long()
+        end = ctypes.c_long()
 
         state = self.mp3splt.mp3splt_new_state(None)
         if state is None:
@@ -116,8 +112,8 @@ class Mp3SpltWorker(QObject):
             self.mp3splt.mp3splt_free_state(state)
             raise Mp3spltRuntimeError(state, error, 'Cannot set trim silence points')
 
-        error = c_int()
-        points = self.mp3splt.mp3splt_get_splitpoints(state, byref(error))
+        error = ctypes.c_int()
+        points = self.mp3splt.mp3splt_get_splitpoints(state, ctypes.byref(error))
         if error:
             self.mp3splt.mp3splt_free_state(state)
             raise Mp3spltRuntimeError(state, error, 'Cannot get splitpoints')
@@ -151,18 +147,3 @@ class Mp3spltRuntimeError(RuntimeError):
 
 from app import app        
 mp3splt = Mp3Splt()
-
-#import gc
-#gc.set_debug(gc.DEBUG_LEAK)
-
-if __name__ == '__main__':
-    if True:
-        w = Mp3SpltWorker()
-        w.run()
-        print('Result:', w.trim('/home/saso/tango/Soledad.mp3'))
-    else:
-        app = QCoreApplication([])
-        mp3splt = Mp3Splt()
-        timer = QTimer.singleShot(0, mp3splt.trim_soledad)
-        app.exec()
-        

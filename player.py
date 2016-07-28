@@ -14,8 +14,8 @@ from model import PlayTreeModel, PlayTreeItem, PlayTreeFile
 import config
 from util import *
 
-from IPython import embed
-import traceback
+#from IPython import embed
+#import traceback
 
 import datetime
 

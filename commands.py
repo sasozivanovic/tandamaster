@@ -1,4 +1,4 @@
-from PyQt5.QtCore import pyqtRemoveInputHook; from IPython import embed; pyqtRemoveInputHook()
+#from PyQt5.QtCore import pyqtRemoveInputHook; from IPython import embed; pyqtRemoveInputHook()
 
 from PyQt5.Qt import *   # todo: import only what you need
 from app import *

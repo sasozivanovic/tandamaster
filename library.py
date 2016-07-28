@@ -1,4 +1,4 @@
-from IPython import embed; from PyQt5.QtCore import pyqtRemoveInputHook
+#from IPython import embed; from PyQt5.QtCore import pyqtRemoveInputHook
 from PyQt5.Qt import *   # todo: import only what you need
 
 import mutagen.easyid3, mutagen.easymp4

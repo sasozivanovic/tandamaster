@@ -15,13 +15,14 @@ import os, os.path
 from PyQt5.Qt import *   # todo: import only what you need
 
 from app import app
+from util import *
 #app.aboutToQuit.connect(ptm.save)
 
 from ui import TandaMasterWindow
 tm = TandaMasterWindow()
 tm.show()
 
-app.system_tray_icon = QSystemTrayIcon(QIcon('icons/iconarchive/icons8/tandamaster-Sports-Dancing-icon.png'))
+app.system_tray_icon = QSystemTrayIcon(MyIcon('icons/iconarchive/icons8/tandamaster-Sports-Dancing-icon.png'))
 app.system_tray_icon.show()
 
 def show_hide_tmwindow():

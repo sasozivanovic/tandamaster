@@ -280,7 +280,7 @@ class PlayTreeList(PlayTreeItem):
                         return
                 return data if not first else None
         elif tag == '@name' and role == Qt.DecorationRole:
-            return QIcon('icons/iconfinder/silk/list.png')
+            return MyIcon('icons/iconfinder/silk/list.png')
 
     def populate(self, model, force = False, recursive = False, filter_expr = None):
         filter_expr = filter_expr if filter_expr or not model else model.filter_expr
@@ -572,11 +572,11 @@ class PlayTreeFile(PlayTreeItem):
                 return None
         elif role == Qt.DecorationRole and model.tag_to_column(tag) == 0:
             #return tmSongIcon
-            #return QIcon('crazyeye_dance.png')
+            #return MyIcon('crazyeye_dance.png')
             if self.function() == 'cortina':
-                return QIcon('icons/iconfinder/farm-fresh/curtain.png')
+                return MyIcon('icons/iconfinder/farm-fresh/curtain.png')
             else:
-                return QIcon('icons/happy-dance.gif')
+                return MyIcon('icons/happy-dance.gif')
         elif role == Qt. BackgroundRole and library().dirty(self.song_id, tag):
             return QBrush(QColor(Qt.yellow))
         elif role == Qt.ToolTipRole and library().dirty(self.song_id, tag):
@@ -655,7 +655,7 @@ class PlayTreeFolder(PlayTreeItem):
             if role == Qt.DisplayRole:
                 return str(self)
             elif role == Qt.DecorationRole:
-                return MyIcon('Tango', 'places', 'folder')
+                return MyIcon('icons/iconfinder/ionicons/folder.png')
 
     def populate(self, model, force = False, recursive = False, filter_expr = None):
         filter_expr = filter_expr if filter_expr or not model else model.filter_expr
@@ -804,9 +804,9 @@ class PlayTreeBrowse(PlayTreeItem):
             elif role == Qt.DecorationRole:
                 #return app.style().standardIcon(QStyle.SP_DriveCDIcon)
                 try:
-                    return QIcon(self.icons[self.tag])
+                    return MyIcon(self.icons[self.tag])
                 except:
-                    return QIcon(self.icons['__browse']) if len(self.browse_by_tags) != 1 else QIcon(self.icons['__search'])
+                    return MyIcon(self.icons['__browse']) if len(self.browse_by_tags) != 1 else MyIcon(self.icons['__search'])
 
     def setData(self, model, tag, value):
         if tag == self.tag:
@@ -1233,5 +1233,5 @@ def integers_to_ranges(ns):
             
 
 
-#tmSongIcon = QIcon(':images/song.png')
+#tmSongIcon = MyIcon(':images/song.png')
 #import tandamaster_rc

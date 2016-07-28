@@ -23,10 +23,10 @@ class PartialFormatter(string.Formatter):
             else: raise
 
 from PyQt5.Qt import QIcon
-import functools
-@functools.lru_cache()
-def MyIcon(repository, category, name):
-    return QIcon('/usr/share/icons/{}/scalable/{}/{}'.format(repository, category, name))
+import sys
+icon_prefix = (sys._MEIPASS + '/') if getattr(sys, 'frozen', False) else ''
+def MyIcon(filename):
+    return QIcon(icon_prefix + filename)
 
 def common_prefix_length(list1, list2):
     i = 0

@@ -3,6 +3,9 @@ from ctypes import *
 #from IPython import embed
 
 from PyQt5.Qt import *   # todo: import only what you need
+
+from library import *
+
 class Mp3Splt(QObject):
     def __init__(self):
         super().__init__()
@@ -37,6 +40,10 @@ class Mp3SpltWorker(QObject):
         import mp3splt_h
         self.mp3splt_h = mp3splt_h
         self.mp3splt = mp3splt_h._libs["mp3splt"]
+        self.mp3splt.mp3splt_new_state.restype = POINTER(self.mp3splt_h.splt_state)
+        self.mp3splt.mp3splt_get_splitpoints.restype = POINTER(self.mp3splt_h.splt_points)
+        self.mp3splt.mp3splt_points_next.restype = POINTER(self.mp3splt_h.splt_point)
+        self.mp3splt.mp3splt_point_get_value.restype = c_long
     
     def queue(self, items):
         self.items.extend(items)
@@ -47,7 +54,6 @@ class Mp3SpltWorker(QObject):
         self._processing = True
         while self.items:
             item = self.items.pop(0)
-            print(repr(item))
             old =  dict((tag, item.get_tag(tag, only_first = True))
                         for tag in ('tm:song_start', 'tm:song_end'))
             if all (old.values()):
@@ -93,23 +99,17 @@ class Mp3SpltWorker(QObject):
         start = c_long()
         end = c_long()
 
-        #mp3splt = load_library('mp3splt')
-
         state = self.mp3splt.mp3splt_new_state(None)
-        print(0)
-        
         if state is None:
             raise RuntimeError('Cannot initialize libmp3splt')
 
         error = self.mp3splt.mp3splt_find_plugins(state)
-        print(1)
         if error:
             self.mp3splt.mp3splt_free_state(state)
             raise Mp3spltRuntimeError(state, error, 'Cannot find plugins')
 
         # we need to pass filename as bytes
         self.mp3splt.mp3splt_set_filename_to_split(state, filename.encode())
-        print(2)
         
         error = self.mp3splt.mp3splt_set_trim_silence_points(state)
         if error:
@@ -117,41 +117,31 @@ class Mp3SpltWorker(QObject):
             raise Mp3spltRuntimeError(state, error, 'Cannot set trim silence points')
 
         error = c_int()
-        print(3)
         points = self.mp3splt.mp3splt_get_splitpoints(state, byref(error))
         if error:
             self.mp3splt.mp3splt_free_state(state)
             raise Mp3spltRuntimeError(state, error, 'Cannot get splitpoints')
 
-        print(4)
         self.mp3splt.mp3splt_points_init_iterator(points)
-        print(5)
-        
+
         point = self.mp3splt.mp3splt_points_next(points)
-        print(6)
         if point:
             start = self.mp3splt.mp3splt_point_get_value(point)
         else:
             self.mp3splt.mp3splt_free_state(state)
             raise RuntimeError('Cannot find start of song')
 
-        print(7)
         end = None
         point = self.mp3splt.mp3splt_points_next(points)
-        print(8)
         while point:
-            print(9)
             end = self.mp3splt.mp3splt_point_get_value(point)
             point = self.mp3splt.mp3splt_points_next(points)
 
         if end is None:
-            print(10)
             self.mp3splt.mp3splt_free_state(state)
             raise RuntimeError('Cannot find end of song')
 
-        print(11)
         self.mp3splt.mp3splt_free_state(state)
-        print(12)
         
         return (start, end)
 
@@ -162,11 +152,11 @@ class Mp3spltRuntimeError(RuntimeError):
 from app import app        
 mp3splt = Mp3Splt()
 
-import gc
-gc.set_debug(gc.DEBUG_LEAK)
+#import gc
+#gc.set_debug(gc.DEBUG_LEAK)
 
 if __name__ == '__main__':
-    if False:
+    if True:
         w = Mp3SpltWorker()
         w.run()
         print('Result:', w.trim('/home/saso/tango/Soledad.mp3'))

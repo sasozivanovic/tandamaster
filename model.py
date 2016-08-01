@@ -329,7 +329,6 @@ class PlayTreeList(PlayTreeItem):
         if row is None:
             row = len(children)
         for model in self.children.keys():
-            print("  ", model)
             if isinstance(model, PlayTreeModel): # ignore (..., 'f')
                 parent_index = self.index(model)
                 #model_new_items = [item for item in new_items

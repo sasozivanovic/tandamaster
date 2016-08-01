@@ -16,7 +16,7 @@ if integrate_Glib_event_loop:
 import collections
 
 from model import PlayTreeModel, PlayTreeItem, PlayTreeFile
-import config
+from load_config import config
 from util import *
 
 #from IPython import embed

@@ -10,7 +10,7 @@ from warnings import warn
 import functools, itertools, collections
 from fnmatch import fnmatch
 from app import app
-import config
+from load_config import config
 from util import *
 from gi.repository import Gst
 

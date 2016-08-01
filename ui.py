@@ -9,7 +9,8 @@ from library import Library
 from util import *
 from app import *
 from commands import *
-import config
+from load_config import config
+
 from replay_gain import TMReplayGain
 from gi.repository import GObject, Gst
 import os, os.path, subprocess, platform

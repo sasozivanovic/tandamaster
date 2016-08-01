@@ -32,7 +32,11 @@ class SongInfoFormatter(PartialFormatter):
             except KeyError:
                 pass
     def format(self, format_string, *args, **kwargs):
-        return super().format(format_string, *args, **self.tags, **kwargs)
+        # we use python 3.5 under windows, so this doesn't work
+        # return super().format(format_string, *args, **self.tags, **kwargs)
+        tags = self.tags.copy()
+        tags.update(kwargs)
+        return super().format(format_string, *args, **tags)
             
 from PyQt5.Qt import QIcon
 import sys

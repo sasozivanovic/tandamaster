@@ -53,7 +53,7 @@ class PlayTreeItem:
 
     def save(self, filename):
         document = etree.ElementTree(self.to_xml())
-        with open_autobackup(filename, 'w') as outfile:
+        with open_autobackup(filename, 'w', encoding = 'utf-8') as outfile:
             document.write(outfile, encoding='unicode')
 
     def __init__(self, Id = None, parent = None):

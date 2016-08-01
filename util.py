@@ -72,6 +72,7 @@ def first(lst, default = None):
 
 from contextlib import contextmanager
 import filecmp, os.path
+import shutil
 
 @contextmanager
 def open_autobackup(filename, *args, prepare = lambda: os.mkdir('bak'), tmp = lambda fn: fn + '.tmp', bak = lambda fn: os.path.join('bak', fn + '.' + tm_timestamp('_') + '.bak'), **kwargs):
@@ -79,20 +80,19 @@ def open_autobackup(filename, *args, prepare = lambda: os.mkdir('bak'), tmp = la
         prepare()
     except:
         pass
-    file = open(tmp(filename), *args, **kwargs)
+    bakname = bak(filename)
+    try:
+        shutil.copy(filename, bakname)
+    except FileNotFoundError:
+        pass
+    file = open(filename, *args, **kwargs)
     yield file
     try:
-        same = filecmp.cmp(filename, tmp(filename))
+        same = filecmp.cmp(filename, bakname)
     except:
         same = False
     if same:
-        os.remove(tmp(filename))
-    else:
-        try:
-            os.rename(filename, bak(filename))
-        except OSError:
-            pass
-        os.rename(tmp(filename), filename)
+        os.remove(bakname)
 
 import unidecode
 def search_value(value):

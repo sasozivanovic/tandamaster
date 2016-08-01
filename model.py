@@ -328,7 +328,6 @@ class PlayTreeList(PlayTreeItem):
         children = self.children[None]
         if row is None:
             row = len(children)
-        print("DEBUG INSERT")
         for model in self.children.keys():
             print("  ", model)
             if isinstance(model, PlayTreeModel): # ignore (..., 'f')

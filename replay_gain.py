@@ -64,7 +64,7 @@ class TMReplayGainWorker(QObject):
         while self.items:
             self.item = self.items.pop(0)
             self.taglist = None
-            #app.info.emit
+            song_info_formatter = SongInfoFormatter(self.item)
             try:
                 if not force:
                     audiofile = mutagen.File(self.item.filename, easy = True)
@@ -75,14 +75,13 @@ class TMReplayGainWorker(QObject):
                         if ok:
                             print("ReplayGain tags already present in", self.item.filename)
                             continue
-                print('Calculating ReplayGain for ' + self.item.filename)
+                app.info.emit(song_info_formatter.format("Calculating replay gain of {artist}: {title}."))
                 self.playbin.set_state(Gst.State.READY)
                 self.playbin.set_property('uri', QUrl.fromLocalFile(self.item.filename).toString())
                 self.playbin.set_state(Gst.State.PLAYING)
                 break
             except:
-                #app.info.emit
-                print('Failed to calculate ReplayGain for ' + self.item.filename)
+                app.info.emit(song_info_formatter.format('Failed to calculate ReplayGain for {artist}: {title}.'))
                 continue
         else:
             app.info.emit('Finished calculating ReplayGain')

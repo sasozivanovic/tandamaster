@@ -22,6 +22,18 @@ class PartialFormatter(string.Formatter):
             if self.bad_fmt is not None: return self.bad_fmt   
             else: raise
 
+class SongInfoFormatter(PartialFormatter):
+    def __init__(self, item, missing='?', bad_fmt='!!'):
+        super().__init__(missing = missing, bad_fmt = bad_fmt)
+        self.tags = item.get_tags(only_first = True)
+        if not 'title' in self.tags:
+            try:
+                self.tags['title'] = self.tags['_filename']
+            except KeyError:
+                pass
+    def format(self, format_string, *args, **kwargs):
+        return super().format(format_string, *args, **self.tags, **kwargs)
+            
 from PyQt5.Qt import QIcon
 import sys
 icon_prefix = (sys._MEIPASS + '/') if getattr(sys, 'frozen', False) else ''

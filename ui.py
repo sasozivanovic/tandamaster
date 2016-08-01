@@ -1508,16 +1508,13 @@ class TandaMasterWindow(QMainWindow):
     def sizeHint(self):
         return QSize(1800, 800)
 
-    song_info_formatter = PartialFormatter()
     def update_song_info(self):
         if self.player.current:
-            tags = self.player.current.item.get_tags(only_first = True)
-            if not 'title' in tags:
-                tags['title'] = tags['_filename']
-            self.setWindowTitle(self.song_info_formatter.format(
-                "{artist} - {title} | TandaMaster", **tags))
-            self.song_info.setText(self.song_info_formatter.format(
-                "{artist} <b>{title}</b>{duration}", duration = ' ' + time_to_text(self.player.duration,unit='ns',include_ms=False) if self.player.duration else '', **tags))
+            song_info_formatter = SongInfoFormatter(self.player.current.item)
+            self.setWindowTitle(song_info_formatter.format(
+                "{artist} - {title} | TandaMaster"))
+            self.song_info.setText(song_info_formatter.format(
+                "{artist} <b>{title}</b>{duration}", duration = ' ' + time_to_text(self.player.duration,unit='ns',include_ms=False) if self.player.duration else ''))
         else:
             self.setWindowTitle("TandaMaster")
             self.song_info.setText("")
@@ -1525,9 +1522,9 @@ class TandaMasterWindow(QMainWindow):
     def update_next_song_info(self):
         next = self.player.concrete(self.player.next)
         if next:
-            tags = next.item.get_tags(only_first = True)
-            self.next_song_info.setText(self.song_info_formatter.format(
-                "{artist} <b>{title}</b>", **tags))
+            song_info_formatter = SongInfoFormatter(next.item)
+            self.next_song_info.setText(song_info_formatter.format(
+                "{artist} <b>{title}</b>"))
         else:
             self.next_song_info.setText('')
         self.next_song_info.update()

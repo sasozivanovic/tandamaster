@@ -2,6 +2,8 @@ import ctypes
 import sys, os.path
 from PyQt5.Qt import QObject, QThread, QVariant, pyqtSignal
 from library import library
+from app import app
+from util import *
 
 class Mp3Splt(QObject):
     def __init__(self):
@@ -51,6 +53,8 @@ class Mp3SpltWorker(QObject):
         self._processing = True
         while self.items:
             item = self.items.pop(0)
+            song_info_formatter = SongInfoFormatter(item)
+            app.info.emit(song_info_formatter.format("Calculating start and end of {artist}: {title}."))
             old =  dict((tag, item.get_tag(tag, only_first = True))
                         for tag in ('tm:song_start', 'tm:song_end'))
             if all (old.values()):
@@ -82,6 +86,7 @@ class Mp3SpltWorker(QObject):
                          tag, new[tag], new[tag]))
             library().connection.commit()
         self._processing = False
+        app.info.emit("Finished calculating start and end of songs.")
         
     def trim(self, filename):
         assert isinstance(filename, str)
@@ -115,8 +120,6 @@ class Mp3SpltWorker(QObject):
                 s += chr(ord(p[i]))
                 i += 1
             return s
-        for i in range(state.contents.plug.contents.number_of_dirs_to_scan):
-            print(c_char_p_to_string(state.contents.plug.contents.plugins_scan_dirs[i]))
         
         error = self.mp3splt.mp3splt_set_trim_silence_points(state)
         if error:

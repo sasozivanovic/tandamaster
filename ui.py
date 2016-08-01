@@ -994,6 +994,9 @@ class TMPositionProgressBar(QProgressBar):
         player.duration_changed.connect(self.on_duration_changed)
         player.position_changed.connect(self.on_position_changed)
         player.state_changed.connect(self.on_state_changed)
+        self.draw_text_manually = (platform.system != 'Linux')
+        if self.draw_text_manually:
+            self.setTextVisible(False)
         self.on_state_changed(TMPlayer.STOPPED)
         self.update()
 
@@ -1017,7 +1020,8 @@ class TMPositionProgressBar(QProgressBar):
         
     def on_state_changed(self, state):
         self.player_state = state
-        self.setTextVisible(state != TMPlayer.STOPPED)
+        if not self.draw_text_manually:
+            self.setTextVisible(state != TMPlayer.STOPPED)
         self.update()
 
     def paintEvent(self, paintevent):
@@ -1035,6 +1039,9 @@ class TMPositionProgressBar(QProgressBar):
             painter.drawLine(song_begin, 0, song_begin, self.height())
         if song_end:
             painter.drawLine(song_end, 0, song_end, self.height())
+        if self.draw_text_manually:
+            painter.setPen(QColor(Qt.black))
+            painter.drawText(QRectF(0, 0, self.width(), self.height()), Qt.AlignCenter, self.text())
             
 
 class TandaMasterWindow(QMainWindow):

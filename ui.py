@@ -12,7 +12,7 @@ from commands import *
 import config
 from replay_gain import TMReplayGain
 from gi.repository import GObject, Gst
-import os, os.path, subprocess
+import os, os.path, subprocess, platform
 
 import collections, weakref, binascii, datetime
 from mp3splt import mp3splt
@@ -1091,10 +1091,11 @@ class TandaMasterWindow(QMainWindow):
             triggered=self.save_playtree_to_folder)
         self.musicmenu.addAction(action_save_playtree_to_folder)
         
-        action_adhoc = QAction(
-            self.tr("&AdHoc"), self,
-            statusTip="Adhoc action", triggered=self.adhoc)
-        self.musicmenu.addAction(action_adhoc)
+        if platform.system() == 'Linux':
+            action_adhoc = QAction(
+                self.tr("&AdHoc"), self,
+                statusTip="Adhoc action", triggered=self.adhoc)
+            self.musicmenu.addAction(action_adhoc)
         
         action_quit = QAction(
             self.tr("&Quit"), self, shortcut=QKeySequence.Quit,
@@ -1398,16 +1399,17 @@ class TandaMasterWindow(QMainWindow):
             triggered = swcm(PlayTreeView, PlayTreeView.milonga_info),
             shortcut = QKeySequence('ctrl+shift+i'))
         self.toolsmenu.addAction(self.action_milonga_info)
-        
-        self.action_getfilesfromalja = QAction(
-            self.tr('Get files from &Alja'), self,
-            triggered = lambda: self.run_on_selected_rows(GetFilesFromAlja))
-        self.toolsmenu.addAction(self.action_getfilesfromalja)
-        
-        self.action_latexsonginfo = QAction(
-            self.tr('Make PDF for songs'), self,
-            triggered = lambda: self.run_on_selected_rows(LaTeXSongInfo))
-        self.toolsmenu.addAction(self.action_latexsonginfo)
+
+        if platform.system() == 'Linux':
+            self.action_getfilesfromalja = QAction(
+                self.tr('Get files from &Alja'), self,
+                triggered = lambda: self.run_on_selected_rows(GetFilesFromAlja))
+            self.toolsmenu.addAction(self.action_getfilesfromalja)
+
+            self.action_latexsonginfo = QAction(
+                self.tr('Make PDF for songs'), self,
+                triggered = lambda: self.run_on_selected_rows(LaTeXSongInfo))
+            self.toolsmenu.addAction(self.action_latexsonginfo)
         
         self.action_report = QAction(
             self.tr('Report'), self,
@@ -1708,7 +1710,8 @@ class TandaMasterWindow(QMainWindow):
         if not directory:
             return
         os.makedirs(directory)
-        subprocess.call(['xdg-open', directory])
+        if platform.system() == 'Linux':
+            subprocess.call(['xdg-open', directory])
         error = []
         model.root_item.populate(model, recursive = True)
         for item in model.root_item.iter_depth(
@@ -2115,9 +2118,9 @@ class Report(QWidget):
         for index in selected_indexes:
             item = model.item(index)
             if isinstance(item, PlayTreeFile):
-                artist = item.get_tag("artist", only_first = True)
-                title = item.get_tag("title", only_first = True)
-                year = item.get_tag("date", only_first = True)
+                artist = item.get_tag("artist", only_first = True, default = '')
+                title = item.get_tag("title", only_first = True, default = '')
+                year = item.get_tag("date", only_first = True, default = '')
                 if year.find('-') != -1:
                     year = year[0:year.find('-')]
                 singer = item.get_tag("performer:vocals", only_first = True, default = '')

@@ -8,6 +8,11 @@ from gi.repository import GObject, Gst, GLib
 GObject.threads_init()
 Gst.init(None)
 
+import platform
+integrate_Glib_event_loop = (platform.system() == 'Windows')
+if integrate_Glib_event_loop:
+    main_context = GLib.main_context_default()
+
 import collections
 
 from model import PlayTreeModel, PlayTreeItem, PlayTreeFile
@@ -78,6 +83,13 @@ class TMPlayer(QObject):
         self.bus = self.playbin.get_bus()
         self.bus.add_signal_watch()
         self.bus.connect("message", self.on_message)
+
+        if integrate_Glib_event_loop:
+            self.glib_timer = QTimer()
+            self.glib_timer.setInterval(0)
+            self.glib_timer.setSingleShot(True)
+            self.glib_timer.timeout.connect(self.run_glib_event_loop)
+            #self.glib_timer.start()
         
     def set_play_order(self, play_order):
         self.play_order = play_order
@@ -195,6 +207,8 @@ class TMPlayer(QObject):
             Gst.SeekFlags.FLUSH | Gst.SeekFlags.ACCURATE,
             Gst.SeekType.SET, position,
             Gst.SeekType.NONE, 0)
+        if integrate_Glib_event_loop:
+            self.glib_timer.start()
         if self.state != self.PAUSED:
             self.state = self.PLAYING
         else:
@@ -293,6 +307,8 @@ class TMPlayer(QObject):
             self._n += 1
             self.playbin.set_property('uri', QUrl.fromLocalFile(self.current.item.filename).toString())
             self.playbin.set_state(Gst.State.PAUSED)
+            if integrate_Glib_event_loop:
+                self.glib_timer.start()
             if self.current.song_begin:
                 self._pending_ops[Gst.State.PAUSED].append(
                     lambda:
@@ -358,6 +374,8 @@ class TMPlayer(QObject):
         previous, current, pending = message.parse_state_changed()
         while self._pending_ops[current]:
             self._pending_ops[current].pop(0)()
+            if integrate_Glib_event_loop:
+                self.glib_timer.start()
     message_handlers = {
         Gst.MessageType.EOS: on_message_eos,
         Gst.MessageType.DURATION_CHANGED: on_message_duration_changed,
@@ -365,6 +383,10 @@ class TMPlayer(QObject):
         Gst.MessageType.STATE_CHANGED: on_message_state_changed,
     }
 
+    def run_glib_event_loop(self):
+        while main_context.iteration(False):
+            pass
+    
     position_changed = pyqtSignal('quint64')
     fadeout_position_changed = pyqtSignal('quint64')
     gap_position_changed = pyqtSignal('quint64')
@@ -391,7 +413,8 @@ class TMPlayer(QObject):
             self.gap_position_changed.emit(max(0, self.current.gap_duration - gap_remaining * Gst.MSECOND))
         if position:
             self.position_changed.emit(position)
-
+        if integrate_Glib_event_loop:
+            self.run_glib_event_loop()
         
 class PlaybackConfig:
     """state is None:

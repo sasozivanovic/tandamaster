@@ -126,3 +126,17 @@ def swcm(cls, f, *args, **kwargs):
 # for gstreamer rgain
 def normalize_tag_name(tag):
     return tag.lower().replace('-','_')
+
+import gi
+gi.require_version('Gst', '1.0')
+gi.require_version('GstAudio', '1.0')
+from gi.repository import Gst
+# pretty print GStreamer message
+def gst_message_pprint(message):
+    if message.type == Gst.MessageType.STATE_CHANGED:
+        info = message.parse_state_changed()
+    elif message.type == Gst.MessageType.ERROR:
+        info = message.parse_error()
+    else:
+        info = None
+    return (message.type, info)

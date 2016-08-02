@@ -1,9 +1,11 @@
 import ctypes
 import sys, os.path
-from PyQt5.Qt import QObject, QThread, QVariant, pyqtSignal
+from PyQt5.Qt import QObject, QThread, QVariant, pyqtSignal, QUrl
 from library import library
 from app import app
 from util import *
+import tempfile
+from gi.repository import GObject, Gst, GLib
 
 class Mp3Splt(QObject):
     def __init__(self):
@@ -43,51 +45,107 @@ class Mp3SpltWorker(QObject):
         self.mp3splt.mp3splt_get_splitpoints.restype = ctypes.POINTER(self.mp3splt_h.splt_points)
         self.mp3splt.mp3splt_points_next.restype = ctypes.POINTER(self.mp3splt_h.splt_point)
         self.mp3splt.mp3splt_point_get_value.restype = ctypes.c_long
+
+        self.converter = Gst.Pipeline("converter")
+        self.decoder = Gst.ElementFactory.make("uridecodebin", None)
+        self.audioconvert = Gst.ElementFactory.make("audioconvert", None)
+        ar = Gst.ElementFactory.make("audioresample", None)
+        lame = Gst.ElementFactory.make("lamemp3enc", None)
+        self.filesink = Gst.ElementFactory.make("filesink", None)
+        self.converter.add(self.decoder)
+        self.converter.add(self.audioconvert)
+        self.converter.add(ar)
+        self.converter.add(lame)
+        self.converter.add(self.filesink)
+        self.decoder.connect("pad-added", self.decoder_callback)
+        self.audioconvert.link(ar)
+        ar.link(lame)
+        lame.link(self.filesink)
+        self.bus = self.converter.get_bus()
+        self.bus.add_signal_watch()
+        self.bus.connect("message", self.on_message)
+        
+        self.process_next.connect(self.process)
     
     def queue(self, items):
         self.items.extend(items)
         if not self._processing:
-            self.process()
-    
+            self.process_next.emit()
+
+    process_next = pyqtSignal()
     def process(self):
         self._processing = True
-        while self.items:
-            item = self.items.pop(0)
-            song_info_formatter = SongInfoFormatter(item)
+        if self.items:
+            self.item = self.items.pop(0)
+            song_info_formatter = SongInfoFormatter(self.item)
             app.info.emit(song_info_formatter.format("Calculating start and end of {artist}: {title}."))
-            old =  dict((tag, item.get_tag(tag, only_first = True))
-                        for tag in ('tm:song_start', 'tm:song_end'))
-            if all (old.values()):
-                print("Skipping calculation of start and end of {}; the values are already known: {}, {}".format(item.filename, old['tm:song_start'], old['tm:song_end']))
-                continue
-            if not item.filename.endswith('.mp3'):
-                subprocess.call(['gst-launch-1.0', 'uridecodebin', "uri=file://" + item.filename, '!', 'audioconvert', '!', 'lamemp3enc', '!', 'filesink', 'location=' + os.path.expanduser("~/temp.mp3")])
-                fn = os.path.expanduser("~/temp.mp3")
+            self.old = dict((tag, self.item.get_tag(tag, only_first = True))
+                       for tag in ('tm:song_start', 'tm:song_end'))
+            if all (self.old.values()):
+                print("Skipping calculation of start and end of {}; the values are already known: {}, {}".format(self.item.filename, self.old['tm:song_start'], self.old['tm:song_end']))
+                self.process_next.emit()
             else:
-                fn = item.filename
-            try:
-                start, end = self.trim(fn)
-            except Mp3spltRuntimeError as er:
-                print(er, item.filename)
-                continue
-            new = {'tm:song_start': "{:03}".format(start/100),
-                   'tm:song_end': "{:03}".format(end/100) }
-            print("Calculated start and end of {}, id {}: {}, {}".format(
-                item.filename, item.song_id, new['tm:song_start'], new['tm:song_end']))
-            for tag in ('tm:song_start', 'tm:song_end'):
-                if not old[tag]:
-                    library().connection.execute(
-                        "DELETE FROM tags WHERE song_id=? AND source = ? AND tag = ?",
-                        (item.song_id, 'user', # to be changed,
-                        tag))
-                    library().connection.execute(
-                        "INSERT INTO tags (song_id, source, tag, value, ascii) VALUES (?,?,?,?,?)",
-                        (item.song_id, 'user', # to be changed,
-                         tag, new[tag], new[tag]))
-            library().connection.commit()
+                self.start, self.end = None, None
+                try:
+                    self.start, self.end = self.trim(self.item.filename)
+                except RuntimeError as er:
+                    print("Error during calculation of start and end of song. I will try again via conversion to mp3.", er, self.item.filename)
+                    try:
+                        temp_filename = self.convert_to_mp3(self.item.filename) # .trim is called from here
+                    except RuntimeError as er:
+                        print(er, self.item.filename)
+                        self.process_next.emit()
+                else:
+                    self.save_start_end()
+        else:
+            app.info.emit("Finished calculating start and end of songs.")
         self._processing = False
-        app.info.emit("Finished calculating start and end of songs.")
+
+    def save_start_end(self):
+        new = {'tm:song_start': "{:03}".format(self.start/100),
+               'tm:song_end': "{:03}".format(self.end/100) }
+        print("Calculated start and end of {}, id {}: {}, {}".format(
+            self.item.filename, self.item.song_id, new['tm:song_start'], new['tm:song_end']))
+        for tag in ('tm:song_start', 'tm:song_end'):
+            if not self.old[tag]:
+                library().connection.execute(
+                    "DELETE FROM tags WHERE song_id=? AND source = ? AND tag = ?",
+                    (self.item.song_id, 'user', # to be changed,
+                    tag))
+                library().connection.execute(
+                    "INSERT INTO tags (song_id, source, tag, value, ascii) VALUES (?,?,?,?,?)",
+                    (self.item.song_id, 'user', # to be changed,
+                     tag, new[tag], new[tag]))
+        library().connection.commit()
+        self.process_next.emit()
         
+    def convert_to_mp3(self, filename):
+        #subprocess.call(['gst-launch-1.0', 'uridecodebin', "uri=file://" + item.filename, '!', 'audioconvert', '!', 'lamemp3enc', '!', 'filesink', 'location=' + os.path.expanduser("~/temp.mp3")])
+        self.decoder.set_property('uri', QUrl.fromLocalFile(filename).toString())
+        self.temp_filename = tempfile.mktemp(suffix = '.mp3', prefix = 'tmp_' + os.path.basename(filename))
+        self.filesink.set_property('location', self.temp_filename)
+        self.converter.set_state(Gst.State.PLAYING)
+
+    def decoder_callback(self, decoder, pad):
+        pad.link(self.audioconvert.get_static_pad("sink"))
+        
+    def on_message(self, bus, message):
+        if message.type == Gst.MessageType.ERROR:
+            self.converter.set_state(Gst.State.NULL)
+            self.process_next.emit()
+        elif message.type == Gst.MessageType.EOS:
+            self.converter.set_state(Gst.State.NULL)
+            self.process_again()
+            
+    def process_again(self):
+        try:
+            self.start, self.end = self.trim(self.temp_filename)
+        except RuntimeError as er:
+            print(er, self.item.filename)
+            self.process_next.emit()
+        else:
+            self.save_start_end()
+
     def trim(self, filename):
         assert isinstance(filename, str)
         start = ctypes.c_long()
@@ -149,7 +207,7 @@ class Mp3SpltWorker(QObject):
 
         if end is None:
             self.mp3splt.mp3splt_free_state(state)
-            raise RuntimeError('Cannot find end of song')
+            raise RuntimeError('Cannot find end of song (start={})'.format(start))
 
         self.mp3splt.mp3splt_free_state(state)
         
@@ -157,6 +215,7 @@ class Mp3SpltWorker(QObject):
 
 class Mp3spltRuntimeError(RuntimeError):
     def __init__(self, libmp3splt_error_code, error_text):
+        self.error_code = libmp3splt_error_code
         super().__init__('{}: {}'.format(libmp3splt_error_code, error_text))
 
 from app import app        

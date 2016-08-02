@@ -1,11 +1,14 @@
 import ctypes
 import sys, os.path
-from PyQt5.Qt import QObject, QThread, QVariant, pyqtSignal, QUrl
+from PyQt5.Qt import QObject, QThread, QVariant, pyqtSignal, QUrl, QTimer
 from library import library
 from app import app
 from util import *
 import tempfile
 from gi.repository import GObject, Gst, GLib
+
+import platform
+integrate_Glib_event_loop = (platform.system() == 'Windows')
 
 class Mp3Splt(QObject):
     def __init__(self):
@@ -66,7 +69,18 @@ class Mp3SpltWorker(QObject):
         self.bus.connect("message", self.on_message)
         
         self.process_next.connect(self.process)
-    
+
+        if integrate_Glib_event_loop:
+            self.main_context = GLib.main_context_default()
+            self.glib_timer = QTimer()
+            self.glib_timer.setInterval(100)
+            #self.glib_timer.setSingleShot(True)
+            self.glib_timer.timeout.connect(self.run_glib_event_loop)
+
+    def run_glib_event_loop(self):
+        while self.main_context.iteration(False):
+            pass
+        
     def queue(self, items):
         self.items.extend(items)
         if not self._processing:
@@ -125,16 +139,23 @@ class Mp3SpltWorker(QObject):
         self.temp_filename = tempfile.mktemp(suffix = '.mp3', prefix = 'tmp_' + os.path.basename(filename))
         self.filesink.set_property('location', self.temp_filename)
         self.converter.set_state(Gst.State.PLAYING)
+        if integrate_Glib_event_loop:
+            self.glib_timer.start()
 
     def decoder_callback(self, decoder, pad):
         pad.link(self.audioconvert.get_static_pad("sink"))
         
     def on_message(self, bus, message):
+        print(gst_message_pprint(message))
         if message.type == Gst.MessageType.ERROR:
             self.converter.set_state(Gst.State.NULL)
+            if integrate_Glib_event_loop:
+                self.glib_timer.stop()
             self.process_next.emit()
         elif message.type == Gst.MessageType.EOS:
             self.converter.set_state(Gst.State.NULL)
+            if integrate_Glib_event_loop:
+                self.glib_timer.stop()
             self.process_again()
             
     def process_again(self):

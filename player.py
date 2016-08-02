@@ -9,7 +9,7 @@ GObject.threads_init()
 Gst.init(None)
 
 import platform
-integrate_Glib_event_loop = (platform.system() == 'Windows')
+integrate_Glib_event_loop = (platform.system() != 'Linux')
 if integrate_Glib_event_loop:
     main_context = GLib.main_context_default()
 

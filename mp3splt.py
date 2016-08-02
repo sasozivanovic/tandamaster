@@ -8,7 +8,7 @@ import tempfile
 from gi.repository import GObject, Gst, GLib
 
 import platform
-integrate_Glib_event_loop = (platform.system() == 'Windows')
+integrate_Glib_event_loop = (platform.system() != 'Linux')
 
 class Mp3Splt(QObject):
     def __init__(self):

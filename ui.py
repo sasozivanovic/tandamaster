@@ -1114,7 +1114,7 @@ class TandaMasterWindow(QMainWindow):
         self.action_back = QAction(
             #self.style().standardIcon(QStyle.SP_MediaSkipBackward), 
             #MyIcon('Tango', 'actions', 'media-skip-backward'),
-            MyIcon('button_rewind_green.png'),
+            MyIcon('icons/button_rewind_green.png'),
             #MyIcon('icons/iconfinder/32pxmania/previous.png'),
             self.tr('P&revious'), self, triggered = self.player.play_previous)
         self.playbackmenu.addAction(self.action_back)
@@ -1122,7 +1122,7 @@ class TandaMasterWindow(QMainWindow):
         self.action_play = QAction(
             #self.style().standardIcon(QStyle.SP_MediaPlay), 
             #MyIcon('Tango', 'actions', 'media-playback-start'),
-            MyIcon('button_play_green.png'),
+            MyIcon('icons/button_play_green.png'),
             #MyIcon('icons/iconfinder/32pxmania/play.png'),
             self.tr('&Play'), 
             self,
@@ -1133,7 +1133,7 @@ class TandaMasterWindow(QMainWindow):
         action_play_this = QAction(
             #self.style().standardIcon(QStyle.SP_MediaPlay), 
             #MyIcon('Tango', 'actions', 'media-playback-start'),
-            MyIcon('button_play_green.png'),
+            MyIcon('icons/button_play_green.png'),
             #MyIcon('icons/iconfinder/32pxmania/play.png'),
             self.tr('Play this'), 
             self,
@@ -1144,7 +1144,7 @@ class TandaMasterWindow(QMainWindow):
         self.action_pause =  QAction(
             #self.style().standardIcon(QStyle.SP_MediaPause), 
             #MyIcon('Tango', 'actions', 'media-playback-pause'),
-            MyIcon('button_pause_green.png'),
+            MyIcon('icons/button_pause_green.png'),
             #MyIcon('icons/iconfinder/32pxmania/pause.png'),
             self.tr('&Pause'), self, 
             shortcut = QKeySequence('space'),
@@ -1154,7 +1154,7 @@ class TandaMasterWindow(QMainWindow):
         self.action_stop = QAction(
             #self.style().standardIcon(QStyle.SP_MediaStop), 
             #MyIcon('Tango', 'actions', 'media-playback-stop'),
-            MyIcon('button_stop_green.png'),
+            MyIcon('icons/button_stop_green.png'),
             #MyIcon('icons/iconfinder/32pxmania/stop.png'),
             self.tr('&Stop'), self, triggered = self.player.stop)
         self.playbackmenu.addAction(self.action_stop)
@@ -1162,7 +1162,7 @@ class TandaMasterWindow(QMainWindow):
         self.action_forward = QAction(
             #self.style().standardIcon(QStyle.SP_MediaSkipForward), 
             #MyIcon('Tango', 'actions', 'media-skip-forward'),
-            MyIcon('button_fastforward_green.png'),
+            MyIcon('icons/button_fastforward_green.png'),
             #MyIcon('icons/iconfinder/32pxmania/next.png'),
             self.tr('&Next'), self, triggered = self.player.play_next,
             shortcut = QKeySequence('ctrl+n'),

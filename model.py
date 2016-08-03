@@ -787,8 +787,12 @@ class PlayTreeBrowse(PlayTreeItem):
         else:
             return super().column_to_tag(model, column)
             
-    icons = { '__browse': 'library.png', '__search': 'icons/iconfinder/octicons/search.png',
-              'artist': 'personal.png', 'album': 'image_album.png' }
+    icons = {
+        '__browse': 'icons/library.png',
+        '__search': 'icons/iconfinder/octicons/search.png',
+        'artist': 'icons/personal.png', 
+        'album': 'icons/image_album.png'
+    }
     def data(self, model, tag, role):
         if tag in (self.tag, '@name'):
             if role in (Qt.DisplayRole, Qt.EditRole):
@@ -1225,8 +1229,3 @@ def integers_to_ranges(ns):
     if n1 is not None:
         ranges.append((n1, n2))
     return ranges
-            
-
-
-#tmSongIcon = MyIcon(':images/song.png')
-#import tandamaster_rc

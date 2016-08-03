@@ -166,7 +166,6 @@ class BgQueries(list):
     
 class Library(QObject):
     _cache = {}
-    musicfile_extensions = ['.mp3', '.wav', '.ogg', '.m4a', '.mp3', '.flac', '.aif', '.aiff']
 
     def __init__(self, filename = 'tandamaster.db', connect = True):
         super().__init__()
@@ -572,7 +571,7 @@ class UpdateLibraryThread(TMThread):
                 self.name, folder = self.queue.pop(0)
                 self.dir_iterator = QDirIterator(
                     folder, 
-                    ['*'+ext for ext in library().musicfile_extensions],
+                    ['*'+ext for ext in config.musicfile_extensions],
                     QDir.Files | QDir.Readable, 
                     QDirIterator.Subdirectories)
                 self.progress.emit()

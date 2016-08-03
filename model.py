@@ -1158,7 +1158,7 @@ class PlayTreeModel(QAbstractItemModel):
 from app import app
 def save_playtree():
     playtree.save(playtree_xml_filename)
-app.aboutToQuit.connect(save_playtree)
+#app.aboutToQuit.connect(save_playtree)
 
 class PlayTreeMimeData(QMimeData):
     def __init__(self, model, items, action):

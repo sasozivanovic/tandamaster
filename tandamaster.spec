@@ -28,7 +28,11 @@ libmp3splt_binaries = {
 a = Analysis(['tandamaster.py'],
              pathex=['/home/saso/tango.org/tm'],
              binaries=libmp3splt_binaries[plaform.system()],
-             datas=icons,
+             datas=icons + [
+                 ('initial_config/config.py', 'initial_config'),
+                 ('initial_config/playtree.xml', 'initial_config'),
+                 ('initial_config/ui.xml', 'initial_config'),
+             ],
              hiddenimports=[
                  'six','packaging', 'packaging.version', 'packaging.specifiers', 'packaging.requirements',
                  'mp3splt_h',
@@ -40,7 +44,7 @@ a = Analysis(['tandamaster.py'],
              win_private_assemblies=False,
              cipher=block_cipher)
 
-a.pure.remove( ('config', '/home/saso/tango.org/tm/config.py', 'PYMODULE') )
+#a.pure.remove( ('config', '/home/saso/tango.org/tm/config.py', 'PYMODULE') )
 
 
 

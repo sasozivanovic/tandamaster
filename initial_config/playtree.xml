@@ -1,0 +1,13 @@
+<list id="1" name="root">
+  <browse id="10" library="tango"><by tag="title" /></browse>
+  <browse id="11" library="tango"><by tag="artist" /><by tag="album" /><by tag="title" /></browse>
+  <browse id="12" library="tango"><by tag="artist" /><by tag="date" /><by tag="title" /></browse>
+  <browse id="13" library="tango"><by tag="artist" /><by tag="performer:vocals" /><by tag="title" /></browse>
+  <browse id="20" library="music"><by tag="title" /></browse>
+  <browse id="21" library="music"><by tag="artist" /><by tag="album" /><by tag="title" /></browse>
+  <folder id="30" filename="~" />
+  <list id="2" name="Tandas" />
+  <list id="3" name="Cortinas" />
+  <list id="4" name="Milongas" />
+  <list id="5" name="Scratch" />
+</list>

@@ -1,10 +1,15 @@
+import app
+
 class Config:
     pass
 config = Config()
 
-import fileinput
-_configstr = ''
-with fileinput.input(files = 'config.py') as f:
-    for line in f:
-        _configstr += line
-exec(_configstr)
+from PyQt5.Qt import QStandardPaths
+from util import *
+
+exec(open(locate_file(QStandardPaths.AppConfigLocation, 'config.py')).read())
+
+import os.path
+for folders in config.library_folders.values():
+    for i, folder in enumerate(folders):
+        folders[i] = os.path.expanduser(folder)

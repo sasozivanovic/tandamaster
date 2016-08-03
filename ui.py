@@ -1056,16 +1056,13 @@ class TandaMasterWindow(QMainWindow):
         self.player = TMPlayer()
         #self.player2 = TMPlayer() # pre-listening
 
-        try:
-            self.ui_xml = etree.parse('ui.xml')
-        except:
-            self.ui_xml = etree.ElementTree(etree.fromstring(b'<MainWindow><CentralWidget><Splitter><TabbedPlayTreesWidget tabPosition="2"><PlayTreeWidget/></TabbedPlayTreesWidget><TabbedPlayTreesWidget tabPosition="0"><PlayTreeWidget/></TabbedPlayTreesWidget></Splitter></CentralWidget></MainWindow>'))
-
+        self.ui_xml_filename = locate_file(QStandardPaths.AppDataLocation, 'ui.xml')
+        self.ui_xml = etree.parse(self.ui_xml_filename)
+        
         geometry = self.ui_xml.getroot().get('geometry')
         if geometry:
             self.restoreGeometry(binascii.unhexlify(geometry))
         self.setCentralWidget(TMWidget.create_from_xml(self.ui_xml.find('CentralWidget')[0],self))
-
 
         if self.player.current and self.player.current.model:
             widget = self.player.current.model.view
@@ -1763,7 +1760,7 @@ class TandaMasterWindow(QMainWindow):
         cw = self.ui_xml.find('CentralWidget')
         cw.clear()
         cw.append(self.centralWidget().to_xml())
-        with open_autobackup('ui.xml', 'w') as outfile:
+        with open_autobackup(self.ui_xml_filename, 'w') as outfile:
             self.ui_xml.write(outfile, encoding='unicode')
         save_playtree()
 

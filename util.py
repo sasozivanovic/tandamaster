@@ -154,3 +154,22 @@ def gst_message_pprint(message):
     else:
         info = None
     return (message.type, info)
+
+from PyQt5.Qt import QStandardPaths
+def locate_file(location_type, basename):
+    filename = QStandardPaths.locate(location_type, basename)
+    if not filename:
+        print(os.path.join('initial_config', basename),
+            QStandardPaths.writableLocation(location_type))
+        dirname = QStandardPaths.writableLocation(location_type)
+        try:
+            os.mkdir(dirname)
+        except FileExistsError:
+            pass
+        shutil.copy(
+            os.path.join('initial_config', basename),
+            QStandardPaths.writableLocation(location_type))
+        filename = QStandardPaths.locate(location_type, basename)
+    assert filename
+    return filename
+

@@ -612,7 +612,7 @@ class PlayTreeFolder(PlayTreeItem):
 
     def __init__(self, filename, Id = None, parent = None):
         super().__init__(Id, parent)
-        self.filename = filename
+        self.filename = os.path.expanduser(filename)
         self.children = {None: None}
 
     def copy(self, parent = None):
@@ -884,12 +884,9 @@ class PlayTreeBrowse(PlayTreeItem):
 class PlayTreeLink(PlayTreeItem):
     pass
 
-playtree_xml_filename = 'playtree.xml'
-try:
-    playtree_xml_document = etree.parse(playtree_xml_filename)
-    playtree_xml = playtree_xml_document.getroot()
-except:
-    playtree_xml = etree.Element('list')
+playtree_xml_filename = locate_file(QStandardPaths.AppDataLocation, 'playtree.xml')
+playtree_xml_document = etree.parse(playtree_xml_filename)
+playtree_xml = playtree_xml_document.getroot()
 playtree = PlayTreeItem.create_from_xml(playtree_xml)
 
 class PlayTreeModel(QAbstractItemModel):

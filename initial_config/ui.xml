@@ -1,0 +1,21 @@
+<MainWindow>
+  <CentralWidget>
+    <Splitter>
+      <TabbedPlayTreesWidget tabPosition="2">
+        <PlayTreeWidget root_id="10"><column tag="title" /><column tag="artist" /><column tag="performer:vocals" /><column tag="date" /><column tag="genre" /><column tag="_length" /><column tag="tm:song_start" /><column tag="tm:song_end" /></PlayTreeWidget>
+        <PlayTreeWidget root_id="20"><column tag="title" /><column tag="artist" /><column tag="performer:vocals" /><column tag="date" /><column tag="genre" /><column tag="_length" /><column tag="tm:song_start" /><column tag="tm:song_end" />
+        </PlayTreeWidget>
+        <PlayTreeWidget root_id="2"><column tag="title" /><column tag="artist" /><column tag="performer:vocals" /><column tag="date" /><column tag="genre" /><column tag="_length" /><column tag="tm:song_start" /><column tag="tm:song_end" />
+        </PlayTreeWidget>
+        <PlayTreeWidget root_id="3"><column tag="title" /><column tag="artist" /><column tag="performer:vocals" /><column tag="date" /><column tag="genre" /><column tag="_length" /><column tag="tm:song_start" /><column tag="tm:song_end" />
+        </PlayTreeWidget>
+        <PlayTreeWidget root_id="4"><column tag="title" /><column tag="artist" /><column tag="performer:vocals" /><column tag="date" /><column tag="genre" /><column tag="_length" /><column tag="tm:song_start" /><column tag="tm:song_end" />
+        </PlayTreeWidget>
+      </TabbedPlayTreesWidget>
+      <TabbedPlayTreesWidget tabPosition="0">
+        <PlayTreeWidget root_id="5"><column tag="title" /><column tag="artist" /><column tag="performer:vocals" /><column tag="date" /><column tag="genre" /><column tag="_length" /><column tag="tm:song_start" /><column tag="tm:song_end" />
+        </PlayTreeWidget>
+      </TabbedPlayTreesWidget>
+    </Splitter>
+  </CentralWidget>
+</MainWindow>

@@ -144,7 +144,6 @@ def normalize_tag_name(tag):
 
 import gi
 gi.require_version('Gst', '1.0')
-gi.require_version('GstAudio', '1.0')
 from gi.repository import Gst
 # pretty print GStreamer message
 def gst_message_pprint(message):

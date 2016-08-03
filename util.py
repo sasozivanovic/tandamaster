@@ -89,26 +89,40 @@ def first(lst, default = None):
 from contextlib import contextmanager
 import filecmp, os.path
 import shutil
+import tempfile, zipfile
 
 @contextmanager
-def open_autobackup(filename, *args, prepare = lambda: os.mkdir('bak'), tmp = lambda fn: fn + '.tmp', bak = lambda fn: os.path.join('bak', fn + '.' + tm_timestamp('_') + '.bak'), **kwargs):
+def open_autobackup(
+        filename, *args,
+        bak_dir_f = lambda fn: os.path.join(os.path.dirname(fn), 'bak'),
+        bak_basename_f = lambda fn: os.path.basename(fn) + '.' + tm_timestamp('_') + '.zip',
+        **kwargs):
+    tmp = tempfile.NamedTemporaryFile(prefix = os.path.basename(filename), delete = False)
+    tmp.close()
     try:
-        prepare()
-    except:
-        pass
-    bakname = bak(filename)
-    try:
-        shutil.copy(filename, bakname)
+        shutil.copy(filename, tmp.name)
     except FileNotFoundError:
         pass
+
     file = open(filename, *args, **kwargs)
     yield file
+    file.close()
+    
     try:
-        same = filecmp.cmp(filename, bakname)
-    except:
-        same = False
-    if same:
-        os.remove(bakname)
+        if not filecmp.cmp(filename, tmp.name, shallow = False):
+            bak_dir = bak_dir_f(filename)
+            try:
+                os.mkdir(bak_dir)
+            except FileExistsError:
+                pass
+            bak_basename = bak_basename_f(filename)
+            with zipfile.ZipFile(os.path.join(bak_dir, bak_basename),
+                                 'w', compression = zipfile.ZIP_DEFLATED) as bak_zip:
+                bak_zip.write(tmp.name, arcname = os.path.basename(filename))
+        os.remove(tmp.name)
+    except FileNotFoundError:
+        pass
+        
 
 import unidecode
 def search_value(value):

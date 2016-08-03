@@ -32,7 +32,9 @@ a = Analysis(['tandamaster.py'],
                  ('initial_config/config.py', 'initial_config'),
                  ('initial_config/playtree.xml', 'initial_config'),
                  ('initial_config/ui.xml', 'initial_config'),
-             ],
+             ] +
+             ( [('windows/dist-tandamaster.bat', '')] if platform.system() == 'Windows' else [] )
+             ,
              hiddenimports=[
                  'six','packaging', 'packaging.version', 'packaging.specifiers', 'packaging.requirements',
                  'mp3splt_h',

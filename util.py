@@ -78,9 +78,9 @@ def time_to_text(t, include_ms = False, unit = 's', fail_text = '?'):
 
 import datetime
 def tm_timestamp(sep = ' '):
-    ts = datetime.datetime.now().isoformat(sep)
-    return ts[0:ts.index('.')]
-        
+    # ts = datetime.datetime.now().isoformat(sep) # : is invalid filename char on WindowsError
+    # return ts[0:ts.index('.')]
+    return datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
 def first(lst, default = None):
     return lst[0] if lst else default
@@ -97,6 +97,7 @@ def open_autobackup(
         bak_dir_f = lambda fn: os.path.join(os.path.dirname(fn), 'bak'),
         bak_basename_f = lambda fn: os.path.basename(fn) + '.' + tm_timestamp('_') + '.zip',
         **kwargs):
+    filename = os.path.normpath(filename)
     tmp = tempfile.NamedTemporaryFile(prefix = os.path.basename(filename), delete = False)
     tmp.close()
     try:

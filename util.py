@@ -164,7 +164,7 @@ def locate_file(location_type, basename):
             QStandardPaths.writableLocation(location_type))
         dirname = QStandardPaths.writableLocation(location_type)
         try:
-            os.mkdir(dirname)
+            os.makedirs(dirname)
         except FileExistsError:
             pass
         shutil.copy(

@@ -169,9 +169,10 @@ class Library(QObject):
 
     def __init__(self, filename = 'tandamaster.db', connect = True):
         super().__init__()
-        self.filename = QStandardPaths.locate(QStandardPaths.AppDataLocation, filename)
-        if not self.filename:
-            pass
+        self.filename = os.path.join(
+            os.path.normpath(QStandardPaths.writableLocation(QStandardPaths.AppDataLocation)),
+            filename)
+        print(self.filename)
         if connect:
             self.connect()
 

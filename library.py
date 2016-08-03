@@ -172,7 +172,6 @@ class Library(QObject):
         self.filename = os.path.join(
             os.path.normpath(QStandardPaths.writableLocation(QStandardPaths.AppDataLocation)),
             filename)
-        print(self.filename)
         if connect:
             self.connect()
 

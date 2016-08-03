@@ -1,6 +1,6 @@
 # -*- mode: python -*-
 
-onefile = True
+onefile = False
 
 
 block_cipher = None

@@ -27,7 +27,7 @@ libmp3splt_binaries = {
     
 a = Analysis(['tandamaster.py'],
              pathex=['/home/saso/tango.org/tm'],
-             binaries=libmp3splt_binaries[plaform.system()],
+             binaries=libmp3splt_binaries[platform.system()],
              datas=icons + [
                  ('initial_config/config.py', 'initial_config'),
                  ('initial_config/playtree.xml', 'initial_config'),

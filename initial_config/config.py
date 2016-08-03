@@ -14,6 +14,9 @@ config.library_folders = {
     ],
 }
 
+# Library folders will be searched for files with the following suffixes:
+config.musicfile_extensions = ['.mp3', '.wav', '.ogg', '.m4a', '.mp3', '.flac', '.aif', '.aiff']
+
 # Don't lose your tandas! Save the entire playlist automatically every couple
 # of minutes.
 config.autosave_interval = 10 # minutes

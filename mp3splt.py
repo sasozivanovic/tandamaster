@@ -28,11 +28,6 @@ class Mp3Splt(QObject):
 
     trim = pyqtSignal(QVariant) # arg = list of playtree items
 
-    def trim_soledad(self):
-        import model
-        sol = model.PlayTreeFile('/home/saso/tango/Soledad.mp3')
-        self.trim.emit([sol])
-    
 import subprocess
 class Mp3SpltWorker(QObject):
     def __init__(self):

@@ -10,24 +10,39 @@ icons = [(os.path.join(base,file),base) for base,dirs,files in os.walk('icons') 
         [(str(f), '.') for f in pathlib.Path('.').glob('*.png')]
 
 import platform
-libmp3splt_binaries = {
+binaries = {
     'Linux': [
+        # libmp3splt
         ('/usr/lib/libmp3splt.so', '.'),
         ('/usr/lib/libmp3splt0/libsplt_flac.so.0', 'libmp3splt'),
         ('/usr/lib/libmp3splt0/libsplt_mp3.so.0', 'libmp3splt'),
         ('/usr/lib/libmp3splt0/libsplt_ogg.so.0', 'libmp3splt'),
     ],
-    'Windows': [ # 32bit!
-        ('libmp3splt-0.9.2-win32/libmp3splt.dll', ''),
-        ('libmp3splt-0.9.2-win32/libsplt_flac-0.dll', 'libmp3splt'),
-        ('libmp3splt-0.9.2-win32/libsplt_mp3-0.dll', 'libmp3splt'),
-        ('libmp3splt-0.9.2-win32/libsplt_ogg-0.dll', 'libmp3splt'),
+    'Windows': [
+        # libmp3splt: only 32bit!
+        ('C:/Program Files/mp3splt/libmp3splt.dll', ''), # copy libmp3splt-0.dll to this file
+        ('C:/Program Files/mp3splt/libsplt_flac-0.dll', 'libmp3splt'),
+        ('C:/Program Files/mp3splt/libsplt_mp3-0.dll', 'libmp3splt'),
+        ('C:/Program Files/mp3splt/libsplt_ogg-0.dll', 'libmp3splt'),
+        # other
+        ('C:/Program Files/mp3splt/iconv.dll', ''),
+        ('C:/Program Files/mp3splt/libFLAC.dll', ''),
+        ('C:/Program Files/mp3splt/libid3tag.dll', ''),
+        ('C:/Program Files/mp3splt/libintl-8.dll', ''),
+        ('C:/Program Files/mp3splt/libltdl-7.dll', ''),
+        ('C:/Program Files/mp3splt/libmad-0.dll', ''),
+        ('C:/Program Files/mp3splt/libogg-0.dll', ''),
+        ('C:/Program Files/mp3splt/libvorbis-0.dll', ''),
+        ('C:/Program Files/mp3splt/libvorbisenc-2.dll', ''),
+        ('C:/Program Files/mp3splt/libvorbisfile-3.dll', ''),
+        ('C:/Program Files/mp3splt/pcre3.dll', ''),
+        ('C:/Program Files/mp3splt/zlib1.dll', ''),
     ]
 }
     
 a = Analysis(['tandamaster.py'],
              pathex=['/home/saso/tango.org/tm'],
-             binaries=libmp3splt_binaries[platform.system()],
+             binaries=binaries[platform.system()],
              datas=icons + [
                  ('initial_config/config.py', 'initial_config'),
                  ('initial_config/playtree.xml', 'initial_config'),

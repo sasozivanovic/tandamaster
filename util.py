@@ -129,31 +129,9 @@ import unidecode
 def search_value(value):
     return unidecode.unidecode(value).lower() if isinstance(value, str) else value
 
-from app import app
-def swcm(cls, f, *args, **kwargs):
-    """"Return Selected Widget's Class Method."""
-    def bound_method():
-        w = app.focusWidget()
-        if not isinstance(w, cls): return
-        f(w, *args, **kwargs)
-    return bound_method
-
 # for gstreamer rgain
 def normalize_tag_name(tag):
     return tag.lower().replace('-','_')
-
-import gi
-gi.require_version('Gst', '1.0')
-from gi.repository import Gst
-# pretty print GStreamer message
-def gst_message_pprint(message):
-    if message.type == Gst.MessageType.STATE_CHANGED:
-        info = message.parse_state_changed()
-    elif message.type == Gst.MessageType.ERROR:
-        info = message.parse_error()
-    else:
-        info = None
-    return (message.type, info)
 
 from PyQt5.Qt import QStandardPaths
 def locate_file(location_type, basename):

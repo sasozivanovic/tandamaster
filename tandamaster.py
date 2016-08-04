@@ -18,7 +18,7 @@ if sys.stdout.encoding != 'UTF-8' and sys.stdout.errors != 'replace':
 
 from PyQt5.Qt import *   # todo: import only what you need
 
-from app import app
+from app import *
 from util import *
 #app.aboutToQuit.connect(ptm.save)
 

@@ -2,16 +2,14 @@ import ctypes
 import sys, os.path
 from PyQt5.Qt import QObject, QThread, QVariant, pyqtSignal, QUrl, QTimer
 from library import library
-from app import app
+from app import *
 from util import *
 import tempfile
-from gi.repository import GObject, Gst, GLib
 
+import gi
+from gi.repository import GObject, Gst
+Gst.init(None)
 import platform
-integrate_Glib_event_loop = (platform.system() != 'Linux')
-if integrate_Glib_event_loop:
-    main_context = GLib.main_context_default()
-    
 
 class Mp3Splt(QObject):
     def __init__(self):
@@ -31,6 +29,10 @@ class Mp3Splt(QObject):
 
     trim = pyqtSignal(QVariant) # arg = list of playtree items
 
+mp3splt_plugin_dir = os.path.join(
+    sys._MEIPASS if getattr(sys, 'frozen', False) else os.getcwd(),
+    'libmp3splt')
+    
 import subprocess
 class Mp3SpltWorker(QObject):
     def __init__(self):
@@ -72,20 +74,6 @@ class Mp3SpltWorker(QObject):
         
         self.process_next.connect(self.process)
 
-        if integrate_Glib_event_loop:
-            #self.main_context = GLib.main_context_default()
-            self.glib_timer = QTimer()
-            self.glib_timer.setInterval(100)
-            self.glib_timer.setSingleShot(True)
-            self.glib_timer.timeout.connect(self.run_glib_event_loop)
-
-    def run_glib_event_loop(self):
-        if main_context.iteration(False):
-            self.glib_timer.setInterval(100)
-        else:
-            self.glib_timer.setInterval(0)
-        self.glib_timer.start()    
-        
     def queue(self, items):
         self.items.extend(items)
         if not self._processing:
@@ -108,8 +96,7 @@ class Mp3SpltWorker(QObject):
                 try:
                     self.start, self.end = self.trim(self.item.filename)
                 except RuntimeError as er:
-                    
-                    print("Error during calculation of start and end of song. I will try again via conversion to mp3.", er, self.item.filename)
+                    print("Error during calculation of start and end of song. I will try again via conversion to mp3.", er, self.item.filename) # todo: unless already mp3!
                     try:
                         self.convert_to_mp3(self.item.filename) # .trim is called from here
                     except RuntimeError as er:
@@ -145,11 +132,8 @@ class Mp3SpltWorker(QObject):
         self.temp_filename = tempfile.mktemp(suffix = '.mp3', prefix = 'tmp_' + os.path.basename(filename))
         self.filesink.set_property('location', self.temp_filename)
         self.converter.set_state(Gst.State.PLAYING)
-        if integrate_Glib_event_loop:
-            self.glib_timer.setInterval(0)
-            self.glib_timer.start()
-        return
-
+        app.iterate_glib_event_loop()
+        
     def decoder_callback(self, decoder, pad):
         pad.link(self.audioconvert.get_static_pad("sink"))
         
@@ -181,21 +165,13 @@ class Mp3SpltWorker(QObject):
         if state is None:
             raise RuntimeError('Cannot initialize libmp3splt')
 
-        if getattr(sys, 'frozen', False): # only in bundled version
-            error = self.mp3splt.mp3splt_append_plugins_scan_dir(
-                state,
-                os.path.join(sys._MEIPASS, 'libmp3splt').encode())
-            if error:
-                self.mp3splt.mp3splt_free_state(state)
-                raise Mp3spltRuntimeError(error, 'Cannot add libmp3splt plugin directory')
-        elif platform.system() == 'Windows': # debug
-            error = self.mp3splt.mp3splt_append_plugins_scan_dir(
-                state,
-                os.path.abspath(r'dist\tandamaster\libmp3splt').encode())
-            if error:
-                self.mp3splt.mp3splt_free_state(state)
-                raise Mp3spltRuntimeError(error, 'Cannot add libmp3splt plugin directory')
-            
+        
+        #error = self.mp3splt.mp3splt_append_plugins_scan_dir(
+        #    state, mp3splt_plugin_dir.encode())
+        #if error:
+        #    self.mp3splt.mp3splt_free_state(state)
+        #    raise Mp3spltRuntimeError(error, 'Cannot add libmp3splt plugin directory')
+        
         error = self.mp3splt.mp3splt_find_plugins(state)
         if error:
             self.mp3splt.mp3splt_free_state(state)
@@ -251,6 +227,16 @@ class Mp3spltRuntimeError(RuntimeError):
         self.error_code = libmp3splt_error_code
         super().__init__('{}: {}'.format(libmp3splt_error_code, error_text))
 
+# pretty print GStreamer message
+def gst_message_pprint(message):
+    if message.type == Gst.MessageType.STATE_CHANGED:
+        info = message.parse_state_changed()
+    elif message.type == Gst.MessageType.ERROR:
+        info = message.parse_error()
+    else:
+        info = None
+    return (message.type, info)
+        
 from app import app        
 mp3splt = Mp3Splt()
 

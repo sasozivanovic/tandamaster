@@ -9,10 +9,9 @@ from library import Library
 from util import *
 from app import *
 from commands import *
-from load_config import config
 
 from replay_gain import TMReplayGain
-from gi.repository import GObject, Gst
+from gi.repository import GObject, Gst, GLib
 import os, os.path, subprocess, platform
 
 import collections, weakref, binascii, datetime
@@ -1511,7 +1510,7 @@ class TandaMasterWindow(QMainWindow):
         self.autosave_timer = QTimer(self)
         self.autosave_timer.timeout.connect(self.save)
         self.autosave_timer.start(config.autosave_interval*60*1000)
-
+        
     def sizeHint(self):
         return QSize(1800, 800)
 
@@ -2138,3 +2137,11 @@ class Report(QWidget):
                     ', singer: {}'.format(singer) if singer else ''
                 )
         return report
+
+def swcm(cls, f, *args, **kwargs):
+    """"Return Selected Widget's Class Method."""
+    def bound_method():
+        w = app.focusWidget()
+        if not isinstance(w, cls): return
+        f(w, *args, **kwargs)
+    return bound_method

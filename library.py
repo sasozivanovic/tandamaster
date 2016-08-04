@@ -9,8 +9,7 @@ import os, os.path, sys
 from warnings import warn
 import functools, itertools, collections
 from fnmatch import fnmatch
-from app import app
-from load_config import config
+from app import *
 from util import *
 from gi.repository import Gst
 

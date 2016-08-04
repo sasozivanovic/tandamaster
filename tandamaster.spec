@@ -33,7 +33,9 @@ a = Analysis(['tandamaster.py'],
                  ('initial_config/playtree.xml', 'initial_config'),
                  ('initial_config/ui.xml', 'initial_config'),
              ] +
-             ( [('windows-dist/tandamaster.bat', '')] if platform.system() == 'Windows' else [] )
+             ( [('windows-dist/tandamaster.bat', ''),
+                ('windows-dist/gi.pth', ''),
+             ] if platform.system() == 'Windows' else [] )
              ,
              hiddenimports=[
                  'six','packaging', 'packaging.version', 'packaging.specifiers', 'packaging.requirements',
@@ -67,6 +69,7 @@ if onefile:
 else:    
     exe = EXE(pyz,
               a.scripts,
+              # [('v',None,'OPTION')],  # debug info
               exclude_binaries=True,
               name='tandamaster',
               debug=False,

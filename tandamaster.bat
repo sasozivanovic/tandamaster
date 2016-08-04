@@ -1,2 +1,6 @@
 SET PYTHONIOENCODING=:replace
-tandamaster.py
+SET GSTREAMER_1_0_ROOT_X86=%CD%
+SET GST_PLUGIN_PATH_1_0=%GSTREAMER_1_0_ROOT_X86%\gst_plugins
+echo %GSTREAMER_1_0_ROOT_X86% > gi.pth
+echo %GSTREAMER_1_0_ROOT_X86%\gst_plugins >> gi.pth
+REM tandamaster.py

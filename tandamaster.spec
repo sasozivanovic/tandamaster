@@ -33,8 +33,8 @@ a = Analysis(['tandamaster.py'],
                  ('initial_config/playtree.xml', 'initial_config'),
                  ('initial_config/ui.xml', 'initial_config'),
              ] +
-             ( [('windows-dist/tandamaster.bat', ''),
-                ('windows-dist/gi.pth', ''),
+             ( [('tandamaster.bat', ''),
+                ('gi.pth', ''),
              ] if platform.system() == 'Windows' else [] )
              ,
              hiddenimports=[

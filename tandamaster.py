@@ -8,6 +8,10 @@ print('Tandamaster', datetime.datetime.now())
 import sys
 import os, os.path
 
+if sys.stdout.encoding != 'UTF-8' and sys.stdout.errors != 'replace':
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding = None, errors = 'replace', newline = sys.stdout.newlines, line_buffering = sys.stdout.line_buffering)
+
 #from IPython import embed
 #from IPython.core import ultratb
 #sys.excepthook = ultratb.FormattedTB(mode='Verbose',color_scheme='Linux', call_pdb=1)

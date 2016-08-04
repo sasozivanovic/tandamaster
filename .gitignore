@@ -7,13 +7,9 @@ test*
 __pycache__
 *.so
 naslov.*
-playtree*.xml*
-ui*.xml*
-tandamaster*.db*
 tandamaster-*.pkg.tar.xz
 tandamaster.log
-trim.o
-trim.py
-trim_wrap.c
-trim_wrap.o
 pkg
+build
+dist
+mp3splt_h.py

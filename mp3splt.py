@@ -9,6 +9,9 @@ from gi.repository import GObject, Gst, GLib
 
 import platform
 integrate_Glib_event_loop = (platform.system() != 'Linux')
+if integrate_Glib_event_loop:
+    main_context = GLib.main_context_default()
+    
 
 class Mp3Splt(QObject):
     def __init__(self):
@@ -36,6 +39,10 @@ class Mp3SpltWorker(QObject):
         self._processing = False
 
     def run(self):
+        gi.require_version('Gst', '1.0')
+        GObject.threads_init()
+        Gst.init(None)
+        
         import mp3splt_h
         self.mp3splt_h = mp3splt_h
         self.mp3splt = mp3splt_h._libs["mp3splt"]
@@ -66,15 +73,18 @@ class Mp3SpltWorker(QObject):
         self.process_next.connect(self.process)
 
         if integrate_Glib_event_loop:
-            self.main_context = GLib.main_context_default()
+            #self.main_context = GLib.main_context_default()
             self.glib_timer = QTimer()
             self.glib_timer.setInterval(100)
-            #self.glib_timer.setSingleShot(True)
+            self.glib_timer.setSingleShot(True)
             self.glib_timer.timeout.connect(self.run_glib_event_loop)
 
     def run_glib_event_loop(self):
-        while self.main_context.iteration(False):
-            pass
+        if main_context.iteration(False):
+            self.glib_timer.setInterval(100)
+        else:
+            self.glib_timer.setInterval(0)
+        self.glib_timer.start()    
         
     def queue(self, items):
         self.items.extend(items)
@@ -98,9 +108,10 @@ class Mp3SpltWorker(QObject):
                 try:
                     self.start, self.end = self.trim(self.item.filename)
                 except RuntimeError as er:
+                    
                     print("Error during calculation of start and end of song. I will try again via conversion to mp3.", er, self.item.filename)
                     try:
-                        temp_filename = self.convert_to_mp3(self.item.filename) # .trim is called from here
+                        self.convert_to_mp3(self.item.filename) # .trim is called from here
                     except RuntimeError as er:
                         print(er, self.item.filename)
                         self.process_next.emit()
@@ -135,7 +146,9 @@ class Mp3SpltWorker(QObject):
         self.filesink.set_property('location', self.temp_filename)
         self.converter.set_state(Gst.State.PLAYING)
         if integrate_Glib_event_loop:
+            self.glib_timer.setInterval(0)
             self.glib_timer.start()
+        return
 
     def decoder_callback(self, decoder, pad):
         pad.link(self.audioconvert.get_static_pad("sink"))
@@ -144,14 +157,11 @@ class Mp3SpltWorker(QObject):
         print(gst_message_pprint(message))
         if message.type == Gst.MessageType.ERROR:
             self.converter.set_state(Gst.State.NULL)
-            if integrate_Glib_event_loop:
-                self.glib_timer.stop()
             self.process_next.emit()
         elif message.type == Gst.MessageType.EOS:
             self.converter.set_state(Gst.State.NULL)
-            if integrate_Glib_event_loop:
-                self.glib_timer.stop()
             self.process_again()
+        return
             
     def process_again(self):
         try:
@@ -175,6 +185,13 @@ class Mp3SpltWorker(QObject):
             error = self.mp3splt.mp3splt_append_plugins_scan_dir(
                 state,
                 os.path.join(sys._MEIPASS, 'libmp3splt').encode())
+            if error:
+                self.mp3splt.mp3splt_free_state(state)
+                raise Mp3spltRuntimeError(error, 'Cannot add libmp3splt plugin directory')
+        elif platform.system() == 'Windows': # debug
+            error = self.mp3splt.mp3splt_append_plugins_scan_dir(
+                state,
+                os.path.abspath(r'dist\tandamaster\libmp3splt').encode())
             if error:
                 self.mp3splt.mp3splt_free_state(state)
                 raise Mp3spltRuntimeError(error, 'Cannot add libmp3splt plugin directory')

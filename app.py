@@ -72,5 +72,6 @@ for folders in config.library_folders.values():
     for i, folder in enumerate(folders):
         folders[i] = os.path.expanduser(folder)
 
-app._glib_timer.setInterval(config.glib_timer_timeout)
-app._glib_timer.start()
+if _integrate_glib_event_loop:
+    app._glib_timer.setInterval(config.glib_timer_timeout)
+    app._glib_timer.start()

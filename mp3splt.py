@@ -29,10 +29,6 @@ class Mp3Splt(QObject):
 
     trim = pyqtSignal(QVariant) # arg = list of playtree items
 
-#mp3splt_plugin_dir = os.path.join(
-#    sys._MEIPASS if getattr(sys, 'frozen', False) else os.getcwd(),
-#    'libmp3splt')
-    
 if getattr(sys, 'frozen', False):
     mp3splt_plugin_dir = os.path.join(sys._MEIPASS, 'libmp3splt')
 elif platform.system() == 'Windows':
@@ -103,14 +99,17 @@ class Mp3SpltWorker(QObject):
                 try:
                     self.start, self.end = self.trim(self.item.filename)
                 except RuntimeError as er:
-                    print("Error during calculation of start and end of song. I will try again via conversion to mp3.", er, self.item.filename) # todo: unless already mp3!
-                    try:
-                        self.convert_to_mp3(self.item.filename) # .trim is called from here
-                    except RuntimeError as er:
-                        print(er, self.item.filename)
-                        self.process_next.emit()
-                else:
-                    self.save_start_end()
+                    if isinstance(er, Mp3spltRuntimeError) and er.error_code == -32:
+                        print("Error during calculation of start and end of song.", er, self.item.filename)
+                    else:
+                        print("Error during calculation of start and end of song. I will try again via conversion to mp3.", er, self.item.filename)
+                        try:
+                            self.convert_to_mp3(self.item.filename) # .trim is called from here
+                        except RuntimeError as er:
+                            print(er, self.item.filename)
+                            self.process_next.emit()
+                        else:
+                            self.save_start_end()
         else:
             app.info.emit("Finished calculating start and end of songs.")
         self._processing = False

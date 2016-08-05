@@ -25,13 +25,12 @@ class TandaMasterApplication(QApplication):
             else:
                 self._glib_timer.setInterval(0)
             self._glib_timer.start()
-        def not_iterate_glib_event_loop(self):
-            while self._main_context.iteration(False):
-                pass
-            #self._glib_timer.start()
         _signal_iterate_glib_event_loop = pyqtSignal()
         def iterate_glib_event_loop(self):
-            self._signal_iterate_glib_event_loop.emit()
+            context = GLib.main_context_get_thread_default()
+            if not context:
+                context = GLib.main_context_default()
+            context.iteration(False)
     else:
         def iterate_glib_event_loop(self):
             pass
@@ -44,7 +43,7 @@ class TandaMasterApplication(QApplication):
             self._glib_timer.timeout.connect(
                 self._iterate_glib_event_loop, type = Qt.QueuedConnection)
             self._signal_iterate_glib_event_loop.connect(
-                self._iterate_glib_event_loop, type = Qt.QueuedConnection)
+                self._iterate_glib_event_loop, type = Qt.DirectConnection)
 
     
 app = TandaMasterApplication(sys.argv)

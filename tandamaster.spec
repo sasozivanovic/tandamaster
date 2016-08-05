@@ -14,17 +14,23 @@ binaries = {
     'Linux': [
         # libmp3splt
         ('/usr/lib/libmp3splt.so', '.'),
-        ('/usr/lib/libmp3splt0/libsplt_flac.so.0', 'libmp3splt'),
-        ('/usr/lib/libmp3splt0/libsplt_mp3.so.0', 'libmp3splt'),
-        ('/usr/lib/libmp3splt0/libsplt_ogg.so.0', 'libmp3splt'),
+        #('/usr/lib/libmp3splt0/libsplt_flac.so.0', 'libmp3splt'),
+        #('/usr/lib/libmp3splt0/libsplt_mp3.so.0', 'libmp3splt'),
+        #('/usr/lib/libmp3splt0/libsplt_ogg.so.0', 'libmp3splt'),
+        ('/usr/lib/libmp3splt0/libsplt_flac.so.0', ''),
+        ('/usr/lib/libmp3splt0/libsplt_mp3.so.0', ''),
+        ('/usr/lib/libmp3splt0/libsplt_ogg.so.0', ''),
     ],
     'Windows': [
         # libmp3splt: only 32bit!
         ('C:/Program Files/mp3splt/libmp3splt.dll', ''), # copy libmp3splt-0.dll to this file
         ('C:/Program Files/mp3splt/libmp3splt-0.dll', ''),
-        ('C:/Program Files/mp3splt/libsplt_flac-0.dll', 'libmp3splt'),
-        ('C:/Program Files/mp3splt/libsplt_mp3-0.dll', 'libmp3splt'),
-        ('C:/Program Files/mp3splt/libsplt_ogg-0.dll', 'libmp3splt'),
+        #('C:/Program Files/mp3splt/libsplt_flac-0.dll', 'libmp3splt'),
+        #('C:/Program Files/mp3splt/libsplt_mp3-0.dll', 'libmp3splt'),
+        #('C:/Program Files/mp3splt/libsplt_ogg-0.dll', 'libmp3splt'),
+        ('C:/Program Files/mp3splt/libsplt_flac-0.dll', ''),
+        ('C:/Program Files/mp3splt/libsplt_mp3-0.dll', ''),
+        ('C:/Program Files/mp3splt/libsplt_ogg-0.dll', ''),
         # other
         ('C:/Program Files/mp3splt/iconv.dll', ''),
         ('C:/Program Files/mp3splt/libFLAC.dll', ''),

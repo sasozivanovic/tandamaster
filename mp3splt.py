@@ -33,13 +33,13 @@ class Mp3Splt(QObject):
     def do_refresh_models(self, item):
         item.refresh_models()
 
-if platform.system() == 'Windows':
-    if getattr(sys, 'frozen', False):
-        mp3splt_plugin_dir = os.path.join(sys._MEIPASS, 'libmp3splt') + '\\'
-    else:
-        mp3splt_plugin_dir = os.path.join(os.getcwd(), 'dist', 'tandamaster', 'libmp3splt') + '\\'
-else:
-    mp3splt_plugin_dir = ''
+#if platform.system() == 'Windows':
+#    if getattr(sys, 'frozen', False):
+#        mp3splt_plugin_dir = os.path.join(sys._MEIPASS, 'libmp3splt') + '\\'
+#    else:
+#        mp3splt_plugin_dir = os.path.join(os.getcwd(), 'dist', 'tandamaster', 'libmp3splt') + '\\'
+#else:
+#    mp3splt_plugin_dir = ''
 
 import subprocess
 class Mp3SpltWorker(QObject):
@@ -155,14 +155,13 @@ class Mp3SpltWorker(QObject):
         app.iterate_glib_event_loop()
 
     def on_message(self, bus, message):
-        #print(gst_message_pprint(message))
+        print(gst_message_pprint(message))
         if message.type == Gst.MessageType.ERROR:
             self.converter.set_state(Gst.State.NULL)
             self.process_next.emit()
         elif message.type == Gst.MessageType.EOS:
             self.converter.set_state(Gst.State.NULL)
             self.process_again()
-        return
             
     def process_again(self):
         try:
@@ -182,12 +181,12 @@ class Mp3SpltWorker(QObject):
         if state is None:
             raise RuntimeError('Cannot initialize libmp3splt')
 
-        if mp3splt_plugin_dir:
-            error = self.mp3splt.mp3splt_append_plugins_scan_dir(
-                state, mp3splt_plugin_dir.encode())
-            if error:
-                self.mp3splt.mp3splt_free_state(state)
-                raise Mp3spltRuntimeError(error, 'Cannot add libmp3splt plugin directory')
+        #if mp3splt_plugin_dir:
+        #    error = self.mp3splt.mp3splt_append_plugins_scan_dir(
+        #        state, mp3splt_plugin_dir.encode())
+        #    if error:
+        #        self.mp3splt.mp3splt_free_state(state)
+        #        raise Mp3spltRuntimeError(error, 'Cannot add libmp3splt plugin directory')
 
         error = self.mp3splt.mp3splt_find_plugins(state)
         if error:
@@ -197,13 +196,13 @@ class Mp3SpltWorker(QObject):
         # we need to pass filename as bytes
         self.mp3splt.mp3splt_set_filename_to_split(state, filename.encode())
 
-        def c_char_p_to_string(p):
-            s = ''
-            i = 0
-            while ord(p[i]):
-                s += chr(ord(p[i]))
-                i += 1
-            return s
+        #def c_char_p_to_string(p):
+        #    s = ''
+        #    i = 0
+        #    while ord(p[i]):
+        #        s += chr(ord(p[i]))
+        #        i += 1
+        #    return s
 
         error = self.mp3splt.mp3splt_set_trim_silence_points(state)
         if error:
@@ -239,18 +238,18 @@ class Mp3SpltWorker(QObject):
         
         return (start, end)
 
-    def print_plugins_scan_dirs(self, state):
-        n = state.contents.plug.contents.number_of_dirs_to_scan
-        print("plugins_scan_dirs ({})".format(n))
-        for i in range(n):
-            d = ''
-            j = 0
-            c = state.contents.plug.contents.plugins_scan_dirs[i][j]
-            while ord(c):
-                d += c.decode()
-                j += 1
-                c = state.contents.plug.contents.plugins_scan_dirs[i][j]
-            print(d)
+    #def print_plugins_scan_dirs(self, state):
+    #    n = state.contents.plug.contents.number_of_dirs_to_scan
+    #    print("plugins_scan_dirs ({})".format(n))
+    #    for i in range(n):
+    #        d = ''
+    #        j = 0
+    #        c = state.contents.plug.contents.plugins_scan_dirs[i][j]
+    #        while ord(c):
+    #            d += c.decode()
+    #            j += 1
+    #            c = state.contents.plug.contents.plugins_scan_dirs[i][j]
+    #        print(d)
     
 class Mp3spltRuntimeError(RuntimeError):
     def __init__(self, libmp3splt_error_code, error_text):

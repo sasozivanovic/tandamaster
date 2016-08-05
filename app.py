@@ -1,4 +1,4 @@
-__all__ = ['app', 'config'] 
+__all__ = ['app', 'config', 'integrate_glib_event_loop'] 
 
 import sys, os, platform
 
@@ -10,13 +10,16 @@ from gi.repository import GLib
 
 from util import *
 
-_integrate_glib_event_loop = (platform.system() != 'Linux')
+integrate_glib_event_loop = (platform.system() != 'Linux')
+
+integrate_glib_event_loop = False
 
 class TandaMasterApplication(QApplication):
     info = pyqtSignal(str)
 
-    if _integrate_glib_event_loop:
+    if integrate_glib_event_loop:
         def _iterate_glib_event_loop(self):
+            print("\n\n\nTIMED iterate_glib_event_loop")
             context = GLib.main_context_get_thread_default()
             if not context:
                 context = GLib.main_context_default()
@@ -27,7 +30,9 @@ class TandaMasterApplication(QApplication):
             self._glib_timer.start()
         _signal_iterate_glib_event_loop = pyqtSignal()
         def iterate_glib_event_loop(self):
+            print("\n\n\n\n\nmanual iterate_glib_event_loop")
             context = GLib.main_context_get_thread_default()
+            print(context)
             if not context:
                 context = GLib.main_context_default()
             context.iteration(False)
@@ -37,7 +42,7 @@ class TandaMasterApplication(QApplication):
 
     def __init__(self, *args):
         super().__init__(*args)
-        if _integrate_glib_event_loop:
+        if integrate_glib_event_loop:
             self._glib_timer = QTimer()
             self._glib_timer.setSingleShot(True)
             self._glib_timer.timeout.connect(
@@ -71,6 +76,8 @@ for folders in config.library_folders.values():
     for i, folder in enumerate(folders):
         folders[i] = os.path.expanduser(folder)
 
-if _integrate_glib_event_loop:
+if integrate_glib_event_loop:
     app._glib_timer.setInterval(config.glib_timer_timeout)
     app._glib_timer.start()
+
+integrate_glib_event_loop = (platform.system() != 'Linux')

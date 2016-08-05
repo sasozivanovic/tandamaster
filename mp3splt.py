@@ -56,21 +56,25 @@ class Mp3SpltWorker(QObject):
         self.mp3splt.mp3splt_points_next.restype = ctypes.POINTER(self.mp3splt_h.splt_point)
         self.mp3splt.mp3splt_point_get_value.restype = ctypes.c_long
 
-        self.converter = Gst.Pipeline("converter")
-        self.decoder = Gst.ElementFactory.make("uridecodebin", None)
-        self.audioconvert = Gst.ElementFactory.make("audioconvert", None)
-        ar = Gst.ElementFactory.make("audioresample", None)
-        lame = Gst.ElementFactory.make("lamemp3enc", None)
+        self.converter = Gst.ElementFactory.make("playbin", None)
+        fakesink = Gst.ElementFactory.make("fakesink", None)
+        self.converter.set_property("video-sink", fakesink)
+        self.audioconvert = Gst.ElementFactory.make("audioconvert", None)       
+        self.audioresample = Gst.ElementFactory.make("audioresample", None)
+        self.lamemp3enc = Gst.ElementFactory.make("lamemp3enc", None)
         self.filesink = Gst.ElementFactory.make("filesink", None)
-        self.converter.add(self.decoder)
-        self.converter.add(self.audioconvert)
-        self.converter.add(ar)
-        self.converter.add(lame)
-        self.converter.add(self.filesink)
-        self.decoder.connect("pad-added", self.decoder_callback)
-        self.audioconvert.link(ar)
-        ar.link(lame)
-        lame.link(self.filesink)
+        bin = Gst.Bin("audio_sink_bin")
+        bin.add(self.audioconvert)
+        bin.add(self.audioresample)
+        bin.add(self.lamemp3enc)
+        bin.add(self.filesink)
+        ghost_pad = Gst.GhostPad.new('sink', self.filesink.get_static_pad('sink'))
+        ghost_pad.set_active(True)
+        bin.add_pad(ghost_pad)
+        self.audioconvert.link(self.audioresample)
+        self.audioresample.link(self.lamemp3enc)
+        self.lamemp3enc.link(self.filesink)
+        self.converter.set_property("audio-sink", bin)        
         self.bus = self.converter.get_bus()
         self.bus.add_signal_watch()
         self.bus.connect("message", self.on_message)
@@ -134,15 +138,12 @@ class Mp3SpltWorker(QObject):
         
     def convert_to_mp3(self, filename):
         #subprocess.call(['gst-launch-1.0', 'uridecodebin', "uri=file://" + item.filename, '!', 'audioconvert', '!', 'lamemp3enc', '!', 'filesink', 'location=' + os.path.expanduser("~/temp.mp3")])
-        self.decoder.set_property('uri', QUrl.fromLocalFile(filename).toString())
+        self.converter.set_property('uri', QUrl.fromLocalFile(filename).toString())
         self.temp_filename = tempfile.mktemp(suffix = '.mp3', prefix = 'tmp_' + os.path.basename(filename))
         self.filesink.set_property('location', self.temp_filename)
         self.converter.set_state(Gst.State.PLAYING)
         app.iterate_glib_event_loop()
-        
-    def decoder_callback(self, decoder, pad):
-        pad.link(self.audioconvert.get_static_pad("sink"))
-        
+
     def on_message(self, bus, message):
         print(gst_message_pprint(message))
         if message.type == Gst.MessageType.ERROR:

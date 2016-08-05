@@ -21,6 +21,7 @@ binaries = {
     'Windows': [
         # libmp3splt: only 32bit!
         ('C:/Program Files/mp3splt/libmp3splt.dll', ''), # copy libmp3splt-0.dll to this file
+        ('C:/Program Files/mp3splt/libmp3splt-0.dll', ''),
         ('C:/Program Files/mp3splt/libsplt_flac-0.dll', 'libmp3splt'),
         ('C:/Program Files/mp3splt/libsplt_mp3-0.dll', 'libmp3splt'),
         ('C:/Program Files/mp3splt/libsplt_ogg-0.dll', 'libmp3splt'),

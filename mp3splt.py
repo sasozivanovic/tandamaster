@@ -29,10 +29,17 @@ class Mp3Splt(QObject):
 
     trim = pyqtSignal(QVariant) # arg = list of playtree items
 
-mp3splt_plugin_dir = os.path.join(
-    sys._MEIPASS if getattr(sys, 'frozen', False) else os.getcwd(),
-    'libmp3splt')
+#mp3splt_plugin_dir = os.path.join(
+#    sys._MEIPASS if getattr(sys, 'frozen', False) else os.getcwd(),
+#    'libmp3splt')
     
+if getattr(sys, 'frozen', False):
+    mp3splt_plugin_dir = os.path.join(sys._MEIPASS, 'libmp3splt')
+elif platform.system() == 'Windows':
+    mp3splt_plugin_dir = os.path.join(os.getcwd(), 'dist', 'tandamaster', 'libmp3splt')
+else:
+    mp3splt_plugin_dir = ''
+
 import subprocess
 class Mp3SpltWorker(QObject):
     def __init__(self):
@@ -165,12 +172,12 @@ class Mp3SpltWorker(QObject):
         if state is None:
             raise RuntimeError('Cannot initialize libmp3splt')
 
-        
-        #error = self.mp3splt.mp3splt_append_plugins_scan_dir(
-        #    state, mp3splt_plugin_dir.encode())
-        #if error:
-        #    self.mp3splt.mp3splt_free_state(state)
-        #    raise Mp3spltRuntimeError(error, 'Cannot add libmp3splt plugin directory')
+        if mp3splt_plugin_dir:
+            error = self.mp3splt.mp3splt_append_plugins_scan_dir(
+                state, mp3splt_plugin_dir.encode())
+            if error:
+                self.mp3splt.mp3splt_free_state(state)
+                raise Mp3spltRuntimeError(error, 'Cannot add libmp3splt plugin directory')
         
         error = self.mp3splt.mp3splt_find_plugins(state)
         if error:

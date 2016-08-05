@@ -29,10 +29,11 @@ class Mp3Splt(QObject):
 
     trim = pyqtSignal(QVariant) # arg = list of playtree items
 
-if getattr(sys, 'frozen', False):
-    mp3splt_plugin_dir = os.path.join(sys._MEIPASS, 'libmp3splt')
-elif platform.system() == 'Windows':
-    mp3splt_plugin_dir = os.path.join(os.getcwd(), 'dist', 'tandamaster', 'libmp3splt')
+if platform.system() == 'Windows':
+    if getattr(sys, 'frozen', False):
+        mp3splt_plugin_dir = os.path.join(sys._MEIPASS, 'libmp3splt') + '\\'
+    else:
+        mp3splt_plugin_dir = os.path.join(os.getcwd(), 'dist', 'tandamaster', 'libmp3splt') + '\\'
 else:
     mp3splt_plugin_dir = ''
 
@@ -60,19 +61,21 @@ class Mp3SpltWorker(QObject):
         fakesink = Gst.ElementFactory.make("fakesink", None)
         self.converter.set_property("video-sink", fakesink)
         self.audioconvert = Gst.ElementFactory.make("audioconvert", None)       
-        self.audioresample = Gst.ElementFactory.make("audioresample", None)
+        #self.audioresample = Gst.ElementFactory.make("audioresample", None)
         self.lamemp3enc = Gst.ElementFactory.make("lamemp3enc", None)
+        self.lamemp3enc.set_property("target", 1)
+        self.lamemp3enc.set_property("bitrate", 64)
         self.filesink = Gst.ElementFactory.make("filesink", None)
-        bin = Gst.Bin("audio_sink_bin")
+        bin = Gst.Bin(None)
         bin.add(self.audioconvert)
-        bin.add(self.audioresample)
+        #bin.add(self.audioresample)
         bin.add(self.lamemp3enc)
         bin.add(self.filesink)
-        ghost_pad = Gst.GhostPad.new('sink', self.filesink.get_static_pad('sink'))
+        ghost_pad = Gst.GhostPad.new('sink', self.audioconvert.get_static_pad('sink'))
         ghost_pad.set_active(True)
         bin.add_pad(ghost_pad)
-        self.audioconvert.link(self.audioresample)
-        self.audioresample.link(self.lamemp3enc)
+        self.audioconvert.link(self.lamemp3enc)
+        #self.audioresample.link(self.lamemp3enc)
         self.lamemp3enc.link(self.filesink)
         self.converter.set_property("audio-sink", bin)        
         self.bus = self.converter.get_bus()
@@ -103,37 +106,38 @@ class Mp3SpltWorker(QObject):
                 try:
                     self.start, self.end = self.trim(self.item.filename)
                 except RuntimeError as er:
-                    if isinstance(er, Mp3spltRuntimeError) and er.error_code == -32:
-                        print("Error during calculation of start and end of song.", er, self.item.filename)
-                    else:
-                        print("Error during calculation of start and end of song. I will try again via conversion to mp3.", er, self.item.filename)
-                        try:
-                            self.convert_to_mp3(self.item.filename) # .trim is called from here
-                        except RuntimeError as er:
-                            print(er, self.item.filename)
-                            self.process_next.emit()
-                        else:
-                            self.save_start_end()
+                    print("Error during calculation of start and end of song. I will try again via conversion to mp3.", er, self.item.filename)
+                    try:
+                        self.convert_to_mp3(self.item.filename) # .trim is called from here
+                    except RuntimeError as er:
+                        print(er, self.item.filename)
+                        self.process_next.emit()
+                else:
+                    self.save_start_end()
         else:
             app.info.emit("Finished calculating start and end of songs.")
         self._processing = False
 
     def save_start_end(self):
-        new = {'tm:song_start': "{:03}".format(self.start/100),
-               'tm:song_end': "{:03}".format(self.end/100) }
-        print("Calculated start and end of {}, id {}: {}, {}".format(
-            self.item.filename, self.item.song_id, new['tm:song_start'], new['tm:song_end']))
-        for tag in ('tm:song_start', 'tm:song_end'):
-            if not self.old[tag]:
-                library().connection.execute(
-                    "DELETE FROM tags WHERE song_id=? AND source = ? AND tag = ?",
-                    (self.item.song_id, 'user', # to be changed,
-                    tag))
-                library().connection.execute(
-                    "INSERT INTO tags (song_id, source, tag, value, ascii) VALUES (?,?,?,?,?)",
-                    (self.item.song_id, 'user', # to be changed,
-                     tag, new[tag], new[tag]))
-        library().connection.commit()
+        if self.start < self.end:
+            new = {'tm:song_start': "{:03}".format(self.start/100),
+                   'tm:song_end': "{:03}".format(self.end/100) }
+            print("Calculated start and end of {}, id {}: {}, {}".format(
+                self.item.filename, self.item.song_id, new['tm:song_start'], new['tm:song_end']))
+            for tag in ('tm:song_start', 'tm:song_end'):
+                if not self.old[tag]:
+                    library().connection.execute(
+                        "DELETE FROM tags WHERE song_id=? AND source = ? AND tag = ?",
+                        (self.item.song_id, 'user', # to be changed,
+                        tag))
+                    library().connection.execute(
+                        "INSERT INTO tags (song_id, source, tag, value, ascii) VALUES (?,?,?,?,?)",
+                        (self.item.song_id, 'user', # to be changed,
+                         tag, new[tag], new[tag]))
+            library().connection.commit()
+            self.item.refresh_models()
+        else:
+            print("Start not less than end: {} - {}".format(self.start/100, self.end/100))
         self.process_next.emit()
         
     def convert_to_mp3(self, filename):
@@ -145,7 +149,7 @@ class Mp3SpltWorker(QObject):
         app.iterate_glib_event_loop()
 
     def on_message(self, bus, message):
-        print(gst_message_pprint(message))
+        #print(gst_message_pprint(message))
         if message.type == Gst.MessageType.ERROR:
             self.converter.set_state(Gst.State.NULL)
             self.process_next.emit()
@@ -178,7 +182,7 @@ class Mp3SpltWorker(QObject):
             if error:
                 self.mp3splt.mp3splt_free_state(state)
                 raise Mp3spltRuntimeError(error, 'Cannot add libmp3splt plugin directory')
-        
+
         error = self.mp3splt.mp3splt_find_plugins(state)
         if error:
             self.mp3splt.mp3splt_free_state(state)
@@ -194,7 +198,7 @@ class Mp3SpltWorker(QObject):
                 s += chr(ord(p[i]))
                 i += 1
             return s
-        
+
         error = self.mp3splt.mp3splt_set_trim_silence_points(state)
         if error:
             self.mp3splt.mp3splt_free_state(state)
@@ -229,6 +233,19 @@ class Mp3SpltWorker(QObject):
         
         return (start, end)
 
+    def print_plugins_scan_dirs(self, state):
+        n = state.contents.plug.contents.number_of_dirs_to_scan
+        print("plugins_scan_dirs ({})".format(n))
+        for i in range(n):
+            d = ''
+            j = 0
+            c = state.contents.plug.contents.plugins_scan_dirs[i][j]
+            while ord(c):
+                d += c.decode()
+                j += 1
+                c = state.contents.plug.contents.plugins_scan_dirs[i][j]
+            print(d)
+    
 class Mp3spltRuntimeError(RuntimeError):
     def __init__(self, libmp3splt_error_code, error_text):
         self.error_code = libmp3splt_error_code
@@ -248,6 +265,7 @@ from app import app
 mp3splt = Mp3Splt()
 
 if __name__ == '__main__':
+    from IPython import embed
     w = Mp3SpltWorker()
     w.run()
     print(w.trim('/home/saso/tango/Soledad.mp3'))

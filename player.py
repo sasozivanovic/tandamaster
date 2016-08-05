@@ -362,7 +362,7 @@ class TMPlayer(QObject):
         previous, current, pending = message.parse_state_changed()
         while self._pending_ops[current]:
             self._pending_ops[current].pop(0)()
-        app.iterate_glib_event_loop()
+            app.iterate_glib_event_loop()
     message_handlers = {
         Gst.MessageType.EOS: on_message_eos,
         Gst.MessageType.DURATION_CHANGED: on_message_duration_changed,

@@ -1,6 +1,6 @@
 import ctypes
 import sys, os.path
-from PyQt5.Qt import QObject, QThread, QVariant, pyqtSignal, QUrl, QTimer
+from PyQt5.Qt import QObject, QThread, QVariant, pyqtSignal, QUrl, QTimer, Qt
 from library import library
 from app import *
 from util import *
@@ -22,12 +22,16 @@ class Mp3Splt(QObject):
         self.keepalive = self
         #self.bg_thread.finished.connect(self.finish)
         self.trim.connect(self.worker.queue)
+        self.worker.refresh_models.connect(self.do_refresh_models, Qt.QueuedConnection)
         self.bg_thread.start()
 
     def finish(self):
         self.keepalive = False
 
     trim = pyqtSignal(QVariant) # arg = list of playtree items
+    
+    def do_refresh_models(self, item):
+        item.refresh_models()
 
 if platform.system() == 'Windows':
     if getattr(sys, 'frozen', False):
@@ -135,10 +139,12 @@ class Mp3SpltWorker(QObject):
                         (self.item.song_id, 'user', # to be changed,
                          tag, new[tag], new[tag]))
             library().connection.commit()
-            self.item.refresh_models()
+            self.refresh_models.emit(self.item)
         else:
             print("Start not less than end: {} - {}".format(self.start/100, self.end/100))
         self.process_next.emit()
+
+    refresh_models = pyqtSignal(QVariant) # arg = item        
         
     def convert_to_mp3(self, filename):
         #subprocess.call(['gst-launch-1.0', 'uridecodebin', "uri=file://" + item.filename, '!', 'audioconvert', '!', 'lamemp3enc', '!', 'filesink', 'location=' + os.path.expanduser("~/temp.mp3")])

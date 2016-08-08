@@ -71,7 +71,7 @@ class Mp3SpltWorker(QObject):
         self.lamemp3enc.set_property("target", 1)
         self.lamemp3enc.set_property("bitrate", 64)
         self.filesink = Gst.ElementFactory.make("filesink", None)
-        bin = Gst.Bin(None)
+        bin = Gst.Bin()
         bin.add(self.audioconvert)
         #bin.add(self.audioresample)
         bin.add(self.lamemp3enc)

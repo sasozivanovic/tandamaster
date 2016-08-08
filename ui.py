@@ -402,10 +402,14 @@ class PlayTreeView(QTreeView):
     def insert(self, name = 'New playtree'):
         model = self.model()
         current_index = self.currentIndex()
-        current_item = model.item(current_index)
-        next_index = model.sibling(current_index.row() + 1, None, current_index)
-        next_item = model.item(next_index, invalid = None)
-        parent_item = current_item.parent if current_item and current_item.parent else None
+        current_item = model.item(current_index, invalid = None)
+        if current_item:
+            next_index = model.sibling(current_index.row() + 1, None, current_index)
+            next_item = model.item(next_index, invalid = None)
+            parent_item = current_item.parent if current_item and current_item.parent else None
+        else:
+            next_item = None
+            parent_item = model.root_item
         new_item = PlayTreeList(name)
         InsertPlayTreeItemsCommand([new_item], parent_item, next_item, Id = 1)
         new_index = new_item.index(model)

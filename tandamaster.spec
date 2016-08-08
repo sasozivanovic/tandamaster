@@ -46,7 +46,10 @@ binaries = {
         ('C:/Program Files/mp3splt/zlib1.dll', ''),
     ]
 }
-    
+
+import unidecode
+unidecode_modules = [t[1] for t in pkgutil.iter_modules(unidecode.__path__) if t[1].startswith('x')]
+
 a = Analysis(['tandamaster.py'],
              pathex=['/home/saso/tango.org/tm'],
              binaries=binaries[platform.system()],
@@ -62,7 +65,7 @@ a = Analysis(['tandamaster.py'],
              hiddenimports=[
                  'six','packaging', 'packaging.version', 'packaging.specifiers', 'packaging.requirements',
                  'mp3splt_h',
-             ],
+             ] + unidecode_modules,
              hookspath=[],
              runtime_hooks=['copyconfig.py'] if onefile else [],
              excludes=[],

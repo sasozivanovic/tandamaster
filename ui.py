@@ -989,7 +989,28 @@ class TMItemDelegate(QStyledItemDelegate):
             option.palette.setColor(QPalette.Text, QColor(Qt.white))
 
 
-class TMPositionProgressBar(QProgressBar):
+class TMProgressBar(QProgressBar):
+    """Draws text manually *into* the progress bar, on all platforms.
+
+    Text is drawn in the center. textDirection is ignored.
+    """
+    _draw_text_manually = (platform.system != 'Linux')
+    if _draw_text_manually:
+        def __init__(self, *args, ** kwargs):
+            super().__init__(*args, ** kwargs)
+            self._tm_text_visible = False
+        def setTextVisible(self, value):
+            self._tm_text_visible = value
+        def isTextVisible(self):
+            return self._tm_text_visible
+        def paintEvent(self, paintevent):
+            super().paintEvent(paintevent)
+            if self._tm_text_visible:
+                painter = QPainter(self)
+                painter.setPen(QColor(Qt.black))
+                painter.drawText(QRectF(0, 0, self.width(), self.height()), Qt.AlignCenter, self.text())
+            
+class TMPositionProgressBar(TMProgressBar):
     def __init__(self, player, interactive = True, parent = None):
         super().__init__(parent)
         self.setMinimum(0)
@@ -998,9 +1019,6 @@ class TMPositionProgressBar(QProgressBar):
         player.duration_changed.connect(self.on_duration_changed)
         player.position_changed.connect(self.on_position_changed)
         player.state_changed.connect(self.on_state_changed)
-        self.draw_text_manually = (platform.system != 'Linux')
-        if self.draw_text_manually:
-            self.setTextVisible(False)
         self.on_state_changed(TMPlayer.STOPPED)
         self.update()
 
@@ -1024,8 +1042,7 @@ class TMPositionProgressBar(QProgressBar):
         
     def on_state_changed(self, state):
         self.player_state = state
-        if not self.draw_text_manually:
-            self.setTextVisible(state != TMPlayer.STOPPED)
+        self.setTextVisible(state != TMPlayer.STOPPED)
         self.update()
 
     def paintEvent(self, paintevent):
@@ -1043,9 +1060,6 @@ class TMPositionProgressBar(QProgressBar):
             painter.drawLine(song_begin, 0, song_begin, self.height())
         if song_end:
             painter.drawLine(song_end, 0, song_end, self.height())
-        if self.draw_text_manually:
-            painter.setPen(QColor(Qt.black))
-            painter.drawText(QRectF(0, 0, self.width(), self.height()), Qt.AlignCenter, self.text())
             
 
 class TandaMasterWindow(QMainWindow):
@@ -1565,7 +1579,7 @@ class TandaMasterWindow(QMainWindow):
         #thread.library = Library(connect = False)
         #thread.library.moveToThread(thread)
         #thread.started.connect(thread.library.connect)
-        update_progress = QProgressBar()
+        update_progress = TMProgressBar()
         update_progress.setMaximumWidth(150)
         update_progress.setMinimum(0)
         update_progress.setMaximum(library().connection.execute('SELECT COUNT(*) FROM files;').fetchone()[0])
@@ -1843,7 +1857,7 @@ class TMPositionProgressBar_Interaction(QObject):
             obj.in_seek = False
         return False
 
-class TMGapAndFadeoutProgressBar(QProgressBar):
+class TMGapAndFadeoutProgressBar(TMProgressBar):
     def __init__(self, player, parent = None):
         super().__init__(parent)
         self.setMaximumWidth(100)

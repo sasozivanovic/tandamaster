@@ -12,14 +12,11 @@ from util import *
 
 integrate_glib_event_loop = (platform.system() != 'Linux')
 
-integrate_glib_event_loop = False
-
 class TandaMasterApplication(QApplication):
     info = pyqtSignal(str)
 
     if integrate_glib_event_loop:
         def _iterate_glib_event_loop(self):
-            print("\n\n\nTIMED iterate_glib_event_loop")
             context = GLib.main_context_get_thread_default()
             if not context:
                 context = GLib.main_context_default()
@@ -30,9 +27,7 @@ class TandaMasterApplication(QApplication):
             self._glib_timer.start()
         _signal_iterate_glib_event_loop = pyqtSignal()
         def iterate_glib_event_loop(self):
-            print("\n\n\n\n\nmanual iterate_glib_event_loop")
             context = GLib.main_context_get_thread_default()
-            print(context)
             if not context:
                 context = GLib.main_context_default()
             context.iteration(False)

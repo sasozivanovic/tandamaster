@@ -998,7 +998,8 @@ class TMProgressBar(QProgressBar):
     if _draw_text_manually:
         def __init__(self, *args, ** kwargs):
             super().__init__(*args, ** kwargs)
-            self._tm_text_visible = False
+            self._tm_text_visible = True
+            super().setTextVisible(False)
         def setTextVisible(self, value):
             self._tm_text_visible = value
         def isTextVisible(self):

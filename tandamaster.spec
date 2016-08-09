@@ -47,8 +47,8 @@ binaries = {
     ]
 }
 
-import unidecode
-unidecode_modules = [t[1] for t in pkgutil.iter_modules(unidecode.__path__) if t[1].startswith('x')]
+import unidecode, pkgutil
+unidecode_modules = ['unidecode.' + t[1] for t in pkgutil.iter_modules(unidecode.__path__) if t[1].startswith('x')]
 
 a = Analysis(['tandamaster.py'],
              pathex=['/home/saso/tango.org/tm'],

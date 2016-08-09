@@ -58,8 +58,9 @@ a = Analysis(['tandamaster.py'],
                  ('initial_config/playtree.xml', 'initial_config'),
                  ('initial_config/ui.xml', 'initial_config'),
              ] +
-             ( [('tandamaster.bat', ''),
-                ('gi.pth', ''),
+             ( [
+                 # ('tandamaster.bat', ''),
+                 ('gi.pth', ''),
              ] if platform.system() == 'Windows' else [] )
              ,
              hiddenimports=[
@@ -67,7 +68,7 @@ a = Analysis(['tandamaster.py'],
                  'mp3splt_h',
              ] + unidecode_modules,
              hookspath=[],
-             runtime_hooks=['copyconfig.py'] if onefile else [],
+             runtime_hooks=['setup_gstreamer_env.py'],
              excludes=[],
              win_no_prefer_redirects=False,
              win_private_assemblies=False,

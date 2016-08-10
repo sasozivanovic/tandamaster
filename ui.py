@@ -15,7 +15,6 @@ from gi.repository import GObject, Gst, GLib
 import os, os.path, subprocess, platform
 
 import collections, weakref, binascii, datetime
-from mp3splt import mp3splt
 
 class TMWidget:
     xml_tag_registry = {}
@@ -1825,9 +1824,10 @@ class TandaMasterWindow(QMainWindow):
         return ptv if isinstance(ptv, PlayTreeView) else None
 
     def trim(self, ptv):
+        import mp3splt
         model = ptv.model()
         model.root_item.populate(model, recursive = True)
-        mp3splt.trim.emit([
+        mp3splt.Mp3Splt().trim.emit([
             item for item
             in model.root_item.iter(
                 model,

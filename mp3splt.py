@@ -14,13 +14,12 @@ class Mp3Splt(QObject):
     def __init__(self):
         super().__init__()
         self.bg_thread = QThread()
-        print("main:", QThread.currentThread(), 'worker:', self.bg_thread)
         app.aboutToQuit.connect(self.bg_thread.exit)
         self.worker = Mp3SpltWorker()
         self.worker.moveToThread(self.bg_thread)
         self.bg_thread.started.connect(self.worker.run)
         self.keepalive = self
-        #self.bg_thread.finished.connect(self.finish)
+        self.bg_thread.finished.connect(self.finish)
         self.trim.connect(self.worker.queue)
         self.worker.refresh_models.connect(self.do_refresh_models, Qt.QueuedConnection)
         self.bg_thread.start()
@@ -32,14 +31,6 @@ class Mp3Splt(QObject):
     
     def do_refresh_models(self, item):
         item.refresh_models()
-
-#if platform.system() == 'Windows':
-#    if getattr(sys, 'frozen', False):
-#        mp3splt_plugin_dir = os.path.join(sys._MEIPASS, 'libmp3splt') + '\\'
-#    else:
-#        mp3splt_plugin_dir = os.path.join(os.getcwd(), 'dist', 'tandamaster', 'libmp3splt') + '\\'
-#else:
-#    mp3splt_plugin_dir = ''
 
 import subprocess
 class Mp3SpltWorker(QObject):
@@ -61,27 +52,21 @@ class Mp3SpltWorker(QObject):
         self.mp3splt.mp3splt_points_next.restype = ctypes.POINTER(self.mp3splt_h.splt_point)
         self.mp3splt.mp3splt_point_get_value.restype = ctypes.c_long
 
-        self.converter = Gst.ElementFactory.make("playbin", None)
-        fakesink = Gst.ElementFactory.make("fakesink", None)
-        self.converter.set_property("video-sink", fakesink)
-        self.audioconvert = Gst.ElementFactory.make("audioconvert", None)       
-        #self.audioresample = Gst.ElementFactory.make("audioresample", None)
-        self.lamemp3enc = Gst.ElementFactory.make("lamemp3enc", None)
-        self.lamemp3enc.set_property("target", 1)
-        self.lamemp3enc.set_property("bitrate", 64)
+        self.converter = Gst.Pipeline()
+        self.uridecodebin = Gst.ElementFactory.make("uridecodebin", None)
+        self.audioconvert = Gst.ElementFactory.make("audioconvert", None)
+        self.vorbisenc = Gst.ElementFactory.make("vorbisenc", None)
+        self.oggmux = Gst.ElementFactory.make("oggmux", None)
         self.filesink = Gst.ElementFactory.make("filesink", None)
-        bin = Gst.Bin()
-        bin.add(self.audioconvert)
-        #bin.add(self.audioresample)
-        bin.add(self.lamemp3enc)
-        bin.add(self.filesink)
-        self.audioconvert.link(self.lamemp3enc)
-        #self.audioresample.link(self.lamemp3enc)
-        self.lamemp3enc.link(self.filesink)
-        ghost_pad = Gst.GhostPad.new('sink', self.audioconvert.get_static_pad('sink'))
-        ghost_pad.set_active(True)
-        bin.add_pad(ghost_pad)
-        self.converter.set_property("audio-sink", bin)        
+        self.converter.add(self.uridecodebin)
+        self.converter.add(self.audioconvert)
+        self.converter.add(self.vorbisenc)
+        self.converter.add(self.oggmux)
+        self.converter.add(self.filesink)
+        self.uridecodebin.connect("pad-added", self.uridecodebin_pad_added)
+        self.audioconvert.link(self.vorbisenc) 
+        self.vorbisenc.link(self.oggmux)
+        self.oggmux.link(self.filesink)
         self.bus = self.converter.get_bus()
         self.bus.add_signal_watch()
         self.bus.connect("message", self.on_message)
@@ -110,9 +95,9 @@ class Mp3SpltWorker(QObject):
                 try:
                     self.start, self.end = self.trim(self.item.filename)
                 except RuntimeError as er:
-                    print("Error during calculation of start and end of song. I will try again via conversion to mp3.", er, self.item.filename)
+                    print("Error during calculation of start and end of song. I will try again via conversion to ogg", er, self.item.filename)
                     try:
-                        self.convert_to_mp3(self.item.filename) # .trim is called from here
+                        self.convert_to_ogg(self.item.filename) # .trim is called from here
                     except RuntimeError as er:
                         print(er, self.item.filename)
                         self.process_next.emit()
@@ -145,18 +130,19 @@ class Mp3SpltWorker(QObject):
         self.process_next.emit()
 
     refresh_models = pyqtSignal(QVariant) # arg = item        
-        
-    def convert_to_mp3(self, filename):
-        #subprocess.call(['gst-launch-1.0', 'uridecodebin', "uri=file://" + item.filename, '!', 'audioconvert', '!', 'lamemp3enc', '!', 'filesink', 'location=' + os.path.expanduser("~/temp.mp3")])
-        self.converter.set_property('uri', QUrl.fromLocalFile(filename).toString())
-        self.temp_filename = tempfile.mktemp(suffix = '.mp3', prefix = 'tmp_' + os.path.basename(filename))
+
+    def uridecodebin_pad_added(self, uridecodebin, pad):
+        pad.link(self.audioconvert.get_static_pad("sink"))
+    
+    def convert_to_ogg(self, filename):
+        #subprocess.call(['gst-launch-1.0', 'uridecodebin', "uri=file://" + item.filename, '!', 'audioconvert', '!', 'vorbisenc', '!', 'oggmux', '!', 'filesink', 'location=' + os.path.expanduser("~/temp.ogg")])
+        self.uridecodebin.set_property('uri', QUrl.fromLocalFile(filename).toString())
+        self.temp_filename = tempfile.mktemp(suffix = '.ogg', prefix = 'tmp_' + os.path.basename(filename))
         self.filesink.set_property('location', self.temp_filename)
         self.converter.set_state(Gst.State.PLAYING)
 
     def on_message(self, bus, message):
-        print(
-            gst_message_pprint(message),
-        )
+        #print(gst_message_pprint(message))
         if message.type == Gst.MessageType.ERROR:
             self.converter.set_state(Gst.State.NULL)
             self.process_next.emit()
@@ -182,13 +168,6 @@ class Mp3SpltWorker(QObject):
         if state is None:
             raise RuntimeError('Cannot initialize libmp3splt')
 
-        #if mp3splt_plugin_dir:
-        #    error = self.mp3splt.mp3splt_append_plugins_scan_dir(
-        #        state, mp3splt_plugin_dir.encode())
-        #    if error:
-        #        self.mp3splt.mp3splt_free_state(state)
-        #        raise Mp3spltRuntimeError(error, 'Cannot add libmp3splt plugin directory')
-
         error = self.mp3splt.mp3splt_find_plugins(state)
         if error:
             self.mp3splt.mp3splt_free_state(state)
@@ -196,14 +175,6 @@ class Mp3SpltWorker(QObject):
 
         # we need to pass filename as bytes
         self.mp3splt.mp3splt_set_filename_to_split(state, filename.encode())
-
-        #def c_char_p_to_string(p):
-        #    s = ''
-        #    i = 0
-        #    while ord(p[i]):
-        #        s += chr(ord(p[i]))
-        #        i += 1
-        #    return s
 
         error = self.mp3splt.mp3splt_set_trim_silence_points(state)
         if error:
@@ -267,9 +238,6 @@ def gst_message_pprint(message):
         info = None
     return (message.type, info)
         
-from app import app        
-mp3splt = Mp3Splt()
-
 if __name__ == '__main__':
     from IPython import embed
     w = Mp3SpltWorker()

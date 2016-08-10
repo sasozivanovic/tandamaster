@@ -197,7 +197,6 @@ class TMPlayer(QObject):
             Gst.SeekFlags.FLUSH | Gst.SeekFlags.ACCURATE,
             Gst.SeekType.SET, position,
             Gst.SeekType.NONE, 0)
-        app.iterate_glib_event_loop()
         if self.state != self.PAUSED:
             self.state = self.PLAYING
         else:
@@ -296,7 +295,6 @@ class TMPlayer(QObject):
             self._n += 1
             self.playbin.set_property('uri', QUrl.fromLocalFile(self.current.item.filename).toString())
             self.playbin.set_state(Gst.State.PAUSED)
-            app.iterate_glib_event_loop()
             if self.current.song_begin:
                 self._pending_ops[Gst.State.PAUSED].append(
                     lambda:
@@ -362,7 +360,6 @@ class TMPlayer(QObject):
         previous, current, pending = message.parse_state_changed()
         while self._pending_ops[current]:
             self._pending_ops[current].pop(0)()
-            app.iterate_glib_event_loop()
     message_handlers = {
         Gst.MessageType.EOS: on_message_eos,
         Gst.MessageType.DURATION_CHANGED: on_message_duration_changed,

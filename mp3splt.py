@@ -8,7 +8,6 @@ import tempfile
 
 import gi
 from gi.repository import GObject, Gst, GLib
-Gst.init(None)
 import platform
 
 class Mp3Splt(QObject):
@@ -152,43 +151,18 @@ class Mp3SpltWorker(QObject):
         self.converter.set_property('uri', QUrl.fromLocalFile(filename).toString())
         self.temp_filename = tempfile.mktemp(suffix = '.mp3', prefix = 'tmp_' + os.path.basename(filename))
         self.filesink.set_property('location', self.temp_filename)
-        def my_loop():
-            if integrate_glib_event_loop:
-                self._step += 1
-                print("step", self._step)
-                context = GLib.main_context_default()
-                self._exit_loop = False
-                n = 0
-                while not self._exit_loop:
-                    n += 1
-                    print("loop", n)
-                    context.iteration(True)
-                    app.processEvents()
-                    QThread.currentThread().msleep(50)
-        self._step = 0
         self.converter.set_state(Gst.State.PLAYING)
-        my_loop()
-        #my_loop()
 
     def on_message(self, bus, message):
         print(
             gst_message_pprint(message),
-            QThread.currentThread(),
         )
         if message.type == Gst.MessageType.ERROR:
             self.converter.set_state(Gst.State.NULL)
-            self._exit_loop = True
             self.process_next.emit()
-        #elif message.type == Gst.MessageType.STATE_CHANGED:            
         elif message.type == Gst.MessageType.EOS:
             self.converter.set_state(Gst.State.NULL)
-            self._exit_loop = True
             self.process_again()
-        elif message.type == Gst.MessageType.LATENCY:
-            print("\n"*40 + "LATENCY")
-            QThread.currentThread().msleep(50)
-            self.converter.recalculate_latency()
-            #self._exit_loop = True
             
     def process_again(self):
         try:

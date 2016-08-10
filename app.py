@@ -3,10 +3,12 @@ __all__ = ['app', 'config']
 import sys, os, platform
 
 
-from PyQt5.Qt import QApplication, pyqtSignal, QStandardPaths, QTimer, Qt
+from PyQt5.Qt import QApplication, pyqtSignal, QStandardPaths, QTimer, Qt, QThread
 
 class TandaMasterApplication(QApplication):
     info = pyqtSignal(str)
+    def quit_glib_event_loop(self):
+        glib_event_loop.quit()
     
 app = TandaMasterApplication(sys.argv)
 app.setApplicationName('TandaMaster')
@@ -18,14 +20,16 @@ integrate_glib_event_loop = (platform.system() != 'Linux')
 if integrate_glib_event_loop:
     import threading
     glib_ready = threading.Event()
+    glib_event_loop = None
     def run_glib_thread():
         import gi
         gi.require_version('Gst', '1.0')
         from gi.repository import GLib
         glib_ready.set()
-        event_loop = GLib.MainLoop()
-        app.aboutToQuit.connect(event_loop.quit)
-        event_loop.run()
+        global glib_event_loop
+        glib_event_loop = GLib.MainLoop()
+        app.aboutToQuit.connect(app.quit_glib_event_loop)
+        glib_event_loop.run()
     glib_thread = threading.Thread(target = run_glib_thread)
     glib_thread.start()
     glib_ready.wait()

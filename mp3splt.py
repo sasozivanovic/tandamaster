@@ -145,6 +145,10 @@ class Mp3SpltWorker(QObject):
         #print(gst_message_pprint(message))
         if message.type == Gst.MessageType.ERROR:
             self.converter.set_state(Gst.State.NULL)
+            try:
+                os.remove(self.temp_filename)
+            except FileNotFoundError:
+                pass
             self.process_next.emit()
         elif message.type == Gst.MessageType.EOS:
             self.converter.set_state(Gst.State.NULL)
@@ -158,6 +162,8 @@ class Mp3SpltWorker(QObject):
             self.process_next.emit()
         else:
             self.save_start_end()
+        finally:
+            os.remove(self.temp_filename)
 
     def trim(self, filename):
         assert isinstance(filename, str)
@@ -228,7 +234,7 @@ class Mp3spltRuntimeError(RuntimeError):
         self.error_code = libmp3splt_error_code
         super().__init__('{}: {}'.format(libmp3splt_error_code, error_text))
 
-# pretty print GStreamer message
+# pretty print GStreamer message (duplicate def in player.py)
 def gst_message_pprint(message):
     if message.type == Gst.MessageType.STATE_CHANGED:
         info = message.parse_state_changed()

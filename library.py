@@ -209,7 +209,7 @@ class Library(QObject):
         )
         self.connection.commit()
 
-    def update_song_from_file(self, library_name, filename, commit = True, fix_file = True):
+    def update_song_from_file(self, library_name, filename, force = False, commit = True, fix_file = True):
         fileinfo = QFileInfo(filename)
         if not (fileinfo.exists() and fileinfo.isReadable()):
             warn("Cannot read {}".format(filename), RuntimeWarning)
@@ -231,13 +231,15 @@ class Library(QObject):
                                    (song_id, 'file', '_library', library_name, search_value(library_name)))
                     if commit:
                         self.connection.commit()
-                return
-            cursor.execute(
-                'UPDATE files '
-                'SET mtime=?, filesize=? '
-                'WHERE song_id=?',
-                (fileinfo.lastModified().toTime_t(), fileinfo.size(), song_id)
-            )
+                if not force:
+                    return
+            else:
+                cursor.execute(
+                    'UPDATE files '
+                    'SET mtime=?, filesize=? '
+                    'WHERE song_id=?',
+                    (fileinfo.lastModified().toTime_t(), fileinfo.size(), song_id)
+                )
         else:
             cursor.execute(
                 'INSERT INTO files (filename, mtime, filesize) VALUES(?,?,?)',
@@ -543,8 +545,9 @@ class TMThread(QThread):
         _libraries.library = None
 
 class UpdateLibraryThread(TMThread):
-    def __init__(self, parent = None):
+    def __init__(self, parent = None, force = False):
         super().__init__(parent)
+        self.force = force
         self.started.connect(self.refresh_all_libraries)
     progress = pyqtSignal()
     finished = pyqtSignal()
@@ -576,7 +579,7 @@ class UpdateLibraryThread(TMThread):
                 self.progress.emit()
         else:
             filename = self.dir_iterator.next()
-            library().update_song_from_file(self.name, filename.encode().decode(), commit = False)
+            library().update_song_from_file(self.name, filename.encode().decode(), force = self.force, commit = False)
             self._existing.add(filename)
             if self.n_in_transaction >= 1000000:
                 library().connection.commit()

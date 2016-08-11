@@ -324,7 +324,30 @@ class PlayTreeView(QTreeView):
         if isinstance(item, PlayTreeFile):
             librarian.bg_queries(BgQueries([BgQuery(Library.update_song_from_file, (None, item.filename))], item.maybe_refresh_models, relevant = lambda: self.currentIndex() == current))
 
-
+    def update_selected_from_file(self):
+        model = self.model()
+        selected_items = set(
+            sum(
+                list(
+                    list(
+                        model.item(index).iter(
+                            model,
+                            lambda it: isinstance(it, PlayTreeFile),
+                            lambda it: not isinstance(it, PlayTreeFile))
+                    )
+                    for index in self.selectionModel().selectedRows()
+                ),
+                []
+            )
+        )
+        def refresh(dummy):
+            for item in selected_items:
+                item.refresh_models()
+        if selected_items:
+            librarian.bg_queries(BgQueries(
+                (BgQuery(Library.update_song_from_file, (None, item.filename, True)) for item in selected_items),
+                refresh, relevant = lambda: True))
+        
     def autosize_columns(self):
         return
         columns = self.model().columnCount(QModelIndex())
@@ -1107,13 +1130,23 @@ class TandaMasterWindow(QMainWindow):
             self.tr("&Update library"), self,
             triggered = self.update_library)
         self.musicmenu.addAction(self.action_update_library)
+
+        self.action_update_library = QAction(
+            self.tr("&Update library (forced)"), self,
+            triggered = lambda: self.update_library(force = True))
+        self.musicmenu.addAction(self.action_update_library)
+
+        self.action_update_selected = QAction(
+            self.tr("&Update selected (forced)"), self,
+            triggered = swcm(PlayTreeView, PlayTreeView.update_selected_from_file))
+        self.musicmenu.addAction(self.action_update_selected)
         
         action_save_playtree_to_folder = QAction(
             self.tr("&Save playtree files to folder in order ..."), self,
             triggered=self.save_playtree_to_folder)
         self.musicmenu.addAction(action_save_playtree_to_folder)
         
-        if platform.system() == 'Linux':
+        if not getattr(sys, 'frozen', False):
             action_adhoc = QAction(
                 self.tr("&AdHoc"), self,
                 statusTip="Adhoc action", triggered=self.adhoc)
@@ -1574,7 +1607,7 @@ class TandaMasterWindow(QMainWindow):
             self.statusBar().removeWidget(self.next_song_info)
         #self.toolbar.update()
 
-    def update_library(self):
+    def update_library(self, force = False):
         #thread = QThread(self)
         #thread.library = Library(connect = False)
         #thread.library.moveToThread(thread)
@@ -1595,7 +1628,7 @@ class TandaMasterWindow(QMainWindow):
             self.statusBar().showMessage('Finished updating library')
             self.statusBar().removeWidget(update_progress)
             self.action_update_library.setEnabled(True)
-        thread = UpdateLibraryThread(parent = self)
+        thread = UpdateLibraryThread(parent = self, force = force)
         thread.progress.connect(update_library_progress)
         thread.finished.connect(finished)
         app.aboutToQuit.connect(thread.exit)

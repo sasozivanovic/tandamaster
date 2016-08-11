@@ -324,6 +324,7 @@ class TMPlayer(QObject):
 
     _signal_on_gst_message = pyqtSignal(QVariant, QVariant, str) # for thread safety
     def on_message(self, bus, message):
+        #print(gst_message_pprint(message))
         if message.type in self.message_handlers:
             try:
                 requesting_file = message.src.get_property("source").get_property("location")
@@ -588,3 +589,13 @@ def model_item_index(model, item = None, index = None, root_item = True):
 def model_item(index):
     model = index.model()
     return (model, model.item(index)) if model else (None, None)
+
+# pretty print GStreamer message
+def gst_message_pprint(message):
+    if message.type == Gst.MessageType.STATE_CHANGED:
+        info = message.parse_state_changed()
+    elif message.type == Gst.MessageType.ERROR:
+        info = message.parse_error()
+    else:
+        info = None
+    return (message.type, info)

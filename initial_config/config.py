@@ -6,6 +6,7 @@
 config.library_folders = {
     'tango': [
         '~/tango',
+        #r'C:\Users\Dawn\Music\iTunes\iTunes Media\Music',
         #'~/maybe/more/folders',
     ],
     'music': [

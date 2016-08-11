@@ -147,6 +147,9 @@ mutagen.easymp4.EasyMP4Tags.RegisterFreeformKey(normalize_tag_name(Gst.TAG_TRACK
 mutagen.easymp4.EasyMP4Tags.RegisterFreeformKey(normalize_tag_name(Gst.TAG_TRACK_PEAK), normalize_tag_name(Gst.TAG_TRACK_PEAK))
 mutagen.easymp4.EasyMP4Tags.RegisterFreeformKey(normalize_tag_name(Gst.TAG_REFERENCE_LEVEL), normalize_tag_name(Gst.TAG_REFERENCE_LEVEL))
 
+# temporary solution:
+mutagen.easyid3.EasyID3.RegisterTextKey("comment", "COMM::eng")
+
 def _strip(tags):
     """Pulls single list items out of lists."""
     return collections.defaultdict(lambda: '', ((t,v[0] if isinstance(v,list) and len(v)==1 else v) for t,v in tags.items()))
@@ -265,10 +268,11 @@ class Library(QObject):
         }
         if library_name is not None:
             tags['_library'] = (library_name,)
-        try:
-            tags['_length'] = (audiofile.info.length,)
-        except:
-            pass
+        for attr in ('length', 'bitrate', 'channels', 'sample_rate'):
+            try:
+                tags['_' + attr] = (getattr(audiofile.info, attr), )
+            except AttributeError:
+                pass
         if audiofile and audiofile.tags:
             # clean multiple empty tag values
             save = False

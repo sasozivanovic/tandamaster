@@ -908,6 +908,11 @@ class PlayTreeView(QTreeView):
         self.model().beginResetModel()
         self.model().columns = tuple(columns)
         self.model().endResetModel()
+        self.autoresize_columns()
+
+    def autoresize_columns(self):
+        for i in range(len(self.model().columns)):
+            self.resizeColumnToContents(i)
 
     def edit_tag(self):
         self.edit(self.currentIndex())
@@ -1345,6 +1350,11 @@ class TandaMasterWindow(QMainWindow):
             #MyIcon('icons/iconfinder/32pxmania/up.png'),
             self.tr('&Edit tags'), self, triggered = swcm(PlayTreeView, PlayTreeView.edit_tags), shortcut='ctrl+e')
 
+        self.action_edit_tags_mode = QAction(
+            MyIcon('icons/iconfinder/farm-fresh/edit.png'),
+            self.tr('Edit &tags mode'), self, toggled = self.edit_tags_mode)
+        self.action_edit_tags_mode.setCheckable(True)
+
         self.action_change_case = QAction(
             MyIcon('icons/iconfinder/retina/font_case.png'),
             self.tr('Change &case'), self, triggered = swcm(PlayTreeView, PlayTreeView.change_case), shortcut='shift+f3')
@@ -1378,6 +1388,7 @@ class TandaMasterWindow(QMainWindow):
         self.editmenu.addAction(self.action_save_tag)
         self.editmenu.addAction(self.action_revert_tag)
         self.editmenu.addAction(self.action_edit_tags)
+        self.editmenu.addAction(self.action_edit_tags_mode)
         self.editmenu.addSeparator()
         self.editmenu.addAction(self.action_group_into_tandas)
         
@@ -1388,25 +1399,33 @@ class TandaMasterWindow(QMainWindow):
         self.action_columns_minimal = QAction(
             app.tr('Columns: minimal'), 
             self,
-            triggered = swcm(PlayTreeView, PlayTreeView.set_columns, ('',) ))
+            triggered = swcm(PlayTreeView, PlayTreeView.set_columns, ('title',) ))
         
         self.action_columns_normal = QAction(
-            app.tr('Columns: normal'), 
+            app.tr('Columns: Alja'), 
             self,
             triggered = swcm(
                 PlayTreeView, PlayTreeView.set_columns,
                 ('title', 'artist', 'performer:vocals', 'date', 'genre', '_length')))
+        
+        self.action_columns_Dawn = QAction(
+            app.tr('Columns: Dawn'), 
+            self,
+            triggered = swcm(
+                PlayTreeView, PlayTreeView.set_columns,
+                ('title', '_length', 'genre', 'artist', 'comment', 'date',
+                 '_bitrate', 'album', 'tracknumber', 'albumartist')))
         
         self.action_columns_all = QAction(
             app.tr('Columns: all'), 
             self,
             triggered = swcm(PlayTreeView, PlayTreeView.set_columns, PlayTreeModel.columns))
 
-        self.action_edit_tags_mode = QAction(
-            MyIcon('icons/iconfinder/farm-fresh/edit.png'),
-            self.tr('Edit &tags mode'), self, toggled = self.edit_tags_mode)
-        self.action_edit_tags_mode.setCheckable(True)
-
+        self.action_autoresize = QAction(
+            app.tr('Resize columns to contents'),
+            self,
+            triggered = swcm(PlayTreeView, PlayTreeView.autoresize_columns))
+        
         self.action_expand_all = QAction(
             app.tr('&Expand all'),
             self,
@@ -1426,10 +1445,11 @@ class TandaMasterWindow(QMainWindow):
         )
 
         self.viewmenu.addAction(self.action_columns_minimal)
-        self.viewmenu.addAction(self.action_columns_normal)  
+        self.viewmenu.addAction(self.action_columns_normal)
+        self.viewmenu.addAction(self.action_columns_Dawn)
         self.viewmenu.addAction(self.action_columns_all)
         self.viewmenu.addSeparator()
-        self.viewmenu.addAction(self.action_edit_tags_mode)
+        self.viewmenu.addAction(self.action_autoresize)
         self.viewmenu.addSeparator()
         self.viewmenu.addAction(self.action_expand_all)
         self.viewmenu.addAction(self.action_collapse_all)

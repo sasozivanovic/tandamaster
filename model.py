@@ -922,7 +922,10 @@ class PlayTreeModel(QAbstractItemModel):
     # column "" provides browsing info (folder name, file name, ...)
     columns = ('title', 'artist', 'performer:vocals',
                #'quodlibet::recordingdate',
-               'date', 'genre', '_length', 'tm:song_start', 'tm:song_end')
+               'date', 'genre', '_length',
+               'album', 'albumartist', 'tracknumber', 'comment',
+               '_bitrate', '_channels', '_sample_rate',
+               'tm:song_start', 'tm:song_end')
     #columns = ('',)
 
     def tag_to_column(self, tag):
@@ -943,7 +946,9 @@ class PlayTreeModel(QAbstractItemModel):
         #'_Length': 'Length',
         'tm:song_start': 'Start of song',
         'tm:song_end': 'End of song',
+        'tracknumber': '#',
         '@name': '',
+        'albumartist': 'Album artist',
     })
 
     def index(self, row, column, parent):

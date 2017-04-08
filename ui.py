@@ -1574,6 +1574,7 @@ class TandaMasterWindow(QMainWindow):
         self.player.duration_changed.connect(self.update_song_info, type = Qt.QueuedConnection)
         self.player.next_changed.connect(self.update_next_song_info, type = Qt.QueuedConnection)
         self.player.current_changed.connect(lambda: self.lock_action_forward(), type = Qt.QueuedConnection)
+        self.player.current_changed.connect(lambda: self.lock_action_playpause(), type = Qt.QueuedConnection)
         self.player.state_changed.connect(self.on_player_state_changed, type = Qt.QueuedConnection)
         self.on_player_state_changed(TMPlayer.STOPPED)
         QApplication.clipboard().changed.connect(self.on_clipboard_data_changed)
@@ -1698,8 +1699,9 @@ class TandaMasterWindow(QMainWindow):
             self.action_lock.setIcon(MyIcon('icons/iconfinder/iconza/unlocked.png'))
             self.action_lock.setText(app.tr('Un&locked'))
         self.action_back.setEnabled(not locked)
-        self.action_play.setEnabled(not locked)
-        self.action_pause.setEnabled(not locked)
+        #self.action_play.setEnabled(not locked)
+        #self.action_pause.setEnabled(not locked)
+        self.lock_action_playpause(locked)
         self.action_stop.setEnabled(not locked)
         self.stopafter_spinbox.setEnabled(not locked)
         self.play_orders_combo.setEnabled(not locked)
@@ -1710,6 +1712,12 @@ class TandaMasterWindow(QMainWindow):
         if locked is None:
             locked = self.action_lock.isChecked()
         self.action_forward.setEnabled(not locked or (self.player.current and self.player.current.item.function() == 'cortina'))
+
+    def lock_action_playpause(self, locked = None):
+        if locked is None:
+            locked = self.action_lock.isChecked()
+        self.action_play.setEnabled(not locked or (self.player.current and self.player.current.item.function() == 'cortina'))
+        self.action_pause.setEnabled(not locked or (self.player.current and self.player.current.item.function() == 'cortina'))
 
     # todo: update duration on play
     def mark_start_end(self):

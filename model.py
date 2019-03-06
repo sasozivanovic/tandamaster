@@ -1198,7 +1198,7 @@ class PlayTreeMimeData(QMimeData):
         elif mimeType == 'text/uri-list':
             return self.urls()
         else:
-            return super().retrieveData(self, mimeType, preferredType)
+            return super().retrieveData(mimeType, preferredType)
 
     def filenames(self):
         if self._filenames is None:

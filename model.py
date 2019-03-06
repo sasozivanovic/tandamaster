@@ -723,8 +723,8 @@ class PlayTreeBrowse(PlayTreeItem):
                 else:
                     browse_by_tags.append(by.get('tag'))
         # transitory:
-        if not browse_by_tags or browse_by_tags[-1] != 'title':
-            browse_by_tags.append('title')
+        #if not browse_by_tags or browse_by_tags[-1] != 'title':
+        #    browse_by_tags.append('title')
         return cls(library_name = element.get('library'), fixed_tags = fixed_tags, browse_by_tags = browse_by_tags, Id = element.get('id'), parent = parent)
 
     def to_xml(self):

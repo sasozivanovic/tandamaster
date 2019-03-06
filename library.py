@@ -192,7 +192,7 @@ class Library(QObject):
         # ascii = lowercase ascii approximation of the value, for searching
         self.connection.execute(
             'CREATE TABLE IF NOT EXISTS tags'
-            '(song_id INTEGER, source TEXT, tag TEXT, value TEXT, ascii TEXT)'
+            '(song_id INTEGER, source TEXT, tag TEXT, value NUMERIC, ascii NUMERIC)'
         )
         self.connection.execute(
             'CREATE INDEX IF NOT EXISTS tags_gettag ON tags'
@@ -456,9 +456,12 @@ class Library(QObject):
             #    "tags_browse_{}.tag=?".format(i) for i in range(len(browse_by_tags))
             #)
         )))
+        #group = ("GROUP BY " + ", ".join(
+        #    "tags_browse_" + str(i) + '.value' for i in range(len(browse_by_tags)))
+        #   ) if tags_only and browse_by_tags else ""
         group = ("GROUP BY " + ", ".join(
             "tags_browse_" + str(i) + '.value' for i in range(len(browse_by_tags)))
-           ) if tags_only and browse_by_tags else ""
+           ) if browse_by_tags else ""
         statement = 'SELECT {}{},{} FROM (SELECT DISTINCT files.song_id FROM files {} {}{}) AS songs {} {}'.format(
             what,
             'NULL' if tags_only else 'songs.song_id',

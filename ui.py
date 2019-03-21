@@ -2053,6 +2053,7 @@ class LaTeXSongInfo(QRunnable):
             for author, title, year, singer, genre in self.items:
                 if singer.lower() == 'instrumental':
                     singer = ''
+                year = str(year)
                 if '-' in year:
                     year = year[0:year.find('-')]
                 print(r"""\napis{%
@@ -2172,13 +2173,31 @@ class Report(QWidget):
         if not playtreeview:
             return
         layout = QVBoxLayout()
+
+        option = QWidget()
+        option_layout = QHBoxLayout()
         self.output_types = QButtonGroup(self)
         for output_type in ('text', 'LaTeX'):
             radio_button = QRadioButton(output_type)
-            layout.addWidget(radio_button)
+            option_layout.addWidget(radio_button)
             self.output_types.addButton(radio_button)
         self.output_types.buttons()[0].setChecked(True)
         self.output_types.buttonToggled.connect(self.update_report)
+        option.setLayout(option_layout)
+        layout.addWidget(option)
+
+        option = QWidget()
+        option_layout = QHBoxLayout()
+        self.languages = QButtonGroup(self)
+        for language in ('Slovene', 'English'):
+            radio_button = QRadioButton(language)
+            option_layout.addWidget(radio_button)
+            self.languages.addButton(radio_button)
+        self.languages.buttons()[0].setChecked(True)
+        self.languages.buttonToggled.connect(self.update_report)
+        option.setLayout(option_layout)
+        layout.addWidget(option)
+
         self.result_box = QPlainTextEdit()
         layout.addWidget(self.result_box)
         self.setLayout(layout)
@@ -2192,10 +2211,11 @@ class Report(QWidget):
     def update_report(self):
         self.result_box.setPlainText(self.create_report(
             self.selection_model.selectedRows(),
-            self.output_types.checkedButton().text()
+            self.output_types.checkedButton().text(),
+            self.languages.checkedButton().text()
         ))
 
-    def create_report(self, selected_indexes, output_type):
+    def create_report(self, selected_indexes, output_type, language):
         if not selected_indexes:
             return ''
         report = ''
@@ -2205,7 +2225,7 @@ class Report(QWidget):
             if isinstance(item, PlayTreeFile):
                 artist = item.get_tag("artist", only_first = True, default = '')
                 title = item.get_tag("title", only_first = True, default = '')
-                year = item.get_tag("date", only_first = True, default = '')
+                year = str(item.get_tag("date", only_first = True, default = ''))
                 if year.find('-') != -1:
                     year = year[0:year.find('-')]
                 singer = item.get_tag("performer:vocals", only_first = True, default = '')
@@ -2214,7 +2234,9 @@ class Report(QWidget):
                 report += "{}{}: {} ({}{})\n".format(
                     '\item ' if output_type == 'LaTeX' else '',
                     artist, title, year,
-                    ', singer: {}'.format(singer) if singer else ''
+                    ', {}: {}'.format(
+                        'poje' if language == 'Slovene' else 'singer',
+                        singer) if singer else ''
                 )
         return report
 

@@ -54,7 +54,7 @@ def exception_hook(exctype, value, tb):
     sys.__excepthook__(exctype, value, tb)
     loginfo = ''.join(traceback.format_exception(exctype, value, tb))
     logger.error(loginfo)
-    app.info.emit(f"{exctype.__name__}: {value}")
+    app.error.emit(f"{exctype.__name__}: {value}")
     #embed()
     
 sys.excepthook = exception_hook

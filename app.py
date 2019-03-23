@@ -7,6 +7,7 @@ from PyQt5.Qt import QApplication, pyqtSignal, QStandardPaths, QTimer, Qt, QThre
 
 class TandaMasterApplication(QApplication):
     info = pyqtSignal(str)
+    error = pyqtSignal(str)
     def quit_glib_event_loop(self):
         glib_event_loop.quit()
     

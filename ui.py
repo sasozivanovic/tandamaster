@@ -1561,6 +1561,7 @@ class TandaMasterWindow(QMainWindow):
 
         self.setStatusBar(QStatusBar())
         app.info.connect(self.status_bar_message)
+        app.error.connect(self.status_bar_error_message)
         self.fadeout_gap_pb = TMGapAndFadeoutProgressBar(self.player)
 
         self.song_info = QLabel()
@@ -1820,16 +1821,23 @@ class TandaMasterWindow(QMainWindow):
     
     _status_bar_duration = ''
     _status_bar_remaining = ''
-    def update_status_bar(self, duration = None, remaining = None):
+    def update_status_bar(self, duration = None, remaining = None, remaining_color = None):
         if duration is not None:
             self._status_bar_duration = duration
         if remaining is not None:
             self._status_bar_remaining = remaining
         msg = " | ".join([m for m in (self._status_bar_duration, self._status_bar_remaining) if m])
+        if remaining_color:
+            self.window().statusBar().setStyleSheet(f"color:{remaining_color}")
+        else:
+            self.window().statusBar().setStyleSheet("")
         self.window().statusBar().showMessage(msg)
 
     def status_bar_message(self, msg):
         self.update_status_bar(remaining = msg)
+
+    def status_bar_error_message(self, msg):
+        self.update_status_bar(remaining = msg, remaining_color = "red")
         
     def edit_tags_mode(self, checked):
         for ptv in self.window().findChildren(PlayTreeView):

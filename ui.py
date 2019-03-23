@@ -1744,34 +1744,7 @@ class TandaMasterWindow(QMainWindow):
                 [float(position[1])/Gst.SECOND])
         
     def adhoc(self):
-        if self.profiler:
-            self.profiler.print_stats(sort = 'tottime')
-            self.profiler.enable()
-        else:
-            self.profiler = cProfile.Profile()
-            self.profiler.enable()
-            print("profiler enabled", self.profiler)
-        return
-        ptv = app.focusWidget()
-        if not isinstance(ptv, PlayTreeView): return
-        current_index = ptv.currentIndex()
-        model = ptv.model()
-        current_item = model.item(current_index)
-        filename = current_item.filename
-        path = os.path.dirname(filename)
-        config = [line.strip() for line in open('/home/alja/.audacity-data/audacity.cfg')]
-        in_export = False
-        for n, line in enumerate(config):
-            if line == '[Export]':
-                in_export = True
-            elif in_export and line.startswith('Path='):
-                config[n] = 'Path=' + path
-                break
-        with open('/home/alja/.audacity-data/audacity.cfg', 'w') as f:
-            for line in config:
-                print(line, file = f)
-        import subprocess
-        subprocess.Popen(['/usr/bin/audacity', filename])
+        print(blabla)
 
     def run_on_selected_rows(self, qrunnable):
         ptv = app.focusWidget()

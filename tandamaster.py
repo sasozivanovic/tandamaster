@@ -37,6 +37,11 @@ def show_hide_tmwindow():
 
 app.system_tray_icon.activated.connect(show_hide_tmwindow)
 
+def exception_hook(exctype, value, traceback):
+    sys.__excepthook__(exctype, value, traceback)
+    app.info.emit(f"{exctype.__name__}: {value}")
+sys.excepthook = exception_hook
 
 #import cProfile; cProfile.run('app.exec()', sort="tottime")
 app.exec()
+sys.exit()

@@ -37,10 +37,29 @@ def show_hide_tmwindow():
 
 app.system_tray_icon.activated.connect(show_hide_tmwindow)
 
-def exception_hook(exctype, value, traceback):
-    sys.__excepthook__(exctype, value, traceback)
+
+import logging
+from systemd.journal import JournalHandler
+logger = logging.getLogger(__name__)
+journald_handler = JournalHandler()
+journald_handler.setFormatter(logging.Formatter(
+    '[%(levelname)s] %(message)s'
+))
+logger.addHandler(journald_handler)
+logger.setLevel(logging.WARNING)
+
+import traceback
+def exception_hook(exctype, value, tb):
+    #from IPython import embed
+    sys.__excepthook__(exctype, value, tb)
+    loginfo = ''.join(traceback.format_exception(exctype, value, tb))
+    logger.error(loginfo)
     app.info.emit(f"{exctype.__name__}: {value}")
+    #embed()
+    
 sys.excepthook = exception_hook
+
+
 
 #import cProfile; cProfile.run('app.exec()', sort="tottime")
 app.exec()

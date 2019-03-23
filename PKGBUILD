@@ -17,6 +17,7 @@ depends=(
   'gstreamer'
   'gst-plugins-good'
   'libmp3splt'
+  'python-systemd'
 )
 makedepends=()
 checkdepends=()

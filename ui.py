@@ -577,10 +577,17 @@ class PlayTreeView(QTreeView):
                 remaining = 'Milonga ends at ' + (datetime.datetime.now() + datetime.timedelta(seconds = duration_after_current)).strftime('%H:%M')
             
         self.window().update_status_bar(duration = msg, remaining = remaining)
-        
+
+    def check_availability(self):
+        if self.currentIndex().isValid():
+            current_item = self.model().item(self.currentIndex())
+            if current_item.isPlayable:
+                current_item.unavailable = not os.path.isfile(current_item.filename)
+    
     def on_currentIndex_changed(self):
         self.window().action_paste.setEnabled(self.can_paste())
         self.window().action_insert.setEnabled(self.can_insert())
+        self.check_availability()
 
     def other(self):
         for w in self.window().findChildren(PlayTreeView):

@@ -1,5 +1,4 @@
 from mutagen import *
-from mutagen._compat import izip
 
 def File(filename, options=None, easy=False):
     """Guess the type of the file and try to open it.
@@ -67,7 +66,7 @@ def File(filename, options=None, easy=False):
         results = [(Kind.score(filename, fileobj, header), Kind.__name__)
                    for Kind in options]
 
-    results = list(izip(results, options))
+    results = list(zip(results, options))
     results.sort()
     (score, name), Kind = results[-1]
     if score > 0:

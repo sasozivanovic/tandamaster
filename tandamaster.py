@@ -39,9 +39,9 @@ app.system_tray_icon.activated.connect(show_hide_tmwindow)
 
 
 import logging
-from systemd.journal import JournalHandler
+from systemd.journal import JournaldLogHandler
 logger = logging.getLogger(__name__)
-journald_handler = JournalHandler()
+journald_handler = JournaldLogHandler()
 journald_handler.setFormatter(logging.Formatter(
     '[%(levelname)s] %(message)s'
 ))

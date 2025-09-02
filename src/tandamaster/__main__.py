@@ -26,7 +26,7 @@ from .ui import TandaMasterWindow
 tm = TandaMasterWindow()
 tm.show()
 
-app.system_tray_icon = QSystemTrayIcon(MyIcon('icons/iconarchive/icons8/tandamaster-Sports-Dancing-icon.png'))
+app.system_tray_icon = QSystemTrayIcon(MyIcon('iconarchive/icons8/tandamaster-Sports-Dancing-icon.png'))
 app.system_tray_icon.show()
 
 def show_hide_tmwindow():

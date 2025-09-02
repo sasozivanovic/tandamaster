@@ -12,3 +12,9 @@ tandamaster.log
 pkg
 build
 dist
+libmp3splt
+libmp3splt-0.9.2-win32
+libsplt*
+dawn
+gst_plugins
+windows-dist

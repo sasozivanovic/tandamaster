@@ -1,0 +1,47 @@
+# This is a TOML file, see https://toml.io
+
+# Library folders will be searched for files with the following suffixes:
+musicfile_extensions = [".mp3", ".wav", ".ogg", ".m4a", ".mp3", ".flac", ".aif", ".aiff"]
+
+# Don't lose your tandas! Save the entire playlist automatically every couple
+# of minutes.
+autosave_interval = 10 # minutes
+
+# In the "Milonga" mode, a pause (gap) is inserted between the songs. The
+# lengths of the gaps after a song in a tanda and after a cortina are
+# controlled independently. The default gap duration means after a song in a
+# tanda.
+# Note that the gaps work best if you process the songs using "Tools ->
+# Calculate start and end of songs in playtree".
+gap_duration = { cortina = 2, default = 3 } # seconds
+
+# Controls the duration of the fadeout. (Same logic for cortinas/non-cortinas
+# as for the gap duration above.)
+fadeout_duration = { cortina = 5, default = 1 } # seconds
+
+# How often the song position is updated while playing (in the (blue?) bar at
+# the bottom).
+timer_precision = 100 # ms
+
+# When you click the 'Previous' button:
+# - go to the previous song if less than the given duration was played;
+# - else, restart the song.
+min_time_for_previous_restarts_song = 3 # seconds
+
+# Do I need to press enter to get the search results?
+# Note that instant search might be a bit slow.
+ui_search_wait_for_enter = true
+
+# Where do you keep your music? TandaMaster supports any number of "libraries"
+# (below, "tango" and (other) "music"), and each library consists of any number
+# of folders.  Even on Windows, separate directory names by "/", not "\"!
+[libraries]
+tango = [
+      '~/tango',
+      #'~/maybe/more/folders',
+      #'C:/Users/John/Music/iTunes/iTunes Media/Music',
+]
+music = [
+      '~/music',
+      #'~/maybe/more/folders',
+]

@@ -54,14 +54,45 @@ except FileExistsError:
     pass
 
 
+import tomllib, pydantic, collections
+from gi.repository import Gst
 
-class Config:
-    pass
-config = Config()
+class Config(pydantic.BaseModel):
+    
+    libraries: dict[str, list[str]]
+    musicfile_extensions: list[str]
+    autosave_interval: int
+    gap_duration: dict[str, float]
+    fadeout_duration: dict[str, float]
+    timer_precision: int
+    min_time_for_previous_restarts_song: float
+    ui_search_wait_for_enter: bool
 
+    def __init__(self, **kwargs):
+        
+        super().__init__(**kwargs)
+
+        # Expand user.
+        for folders in self.libraries.values():
+            for i, folder in enumerate(folders):
+                folders[i] = os.path.expanduser(folder)
+
+        # 1. Convert to nanoseconds for Gstreamer
+        # 2. Convert into a defaultdict
+        for attr in ('gap_duration', 'fadeout_duration'):
+            d = getattr(self, attr)
+            default = d.pop('default')
+            setattr(self, attr, collections.defaultdict(
+                lambda: int(default * Gst.SECOND), {
+                    k: int(v * Gst.SECOND)
+                    for k,v in d.items()
+                }))
+                
+        # Convert to nanoseconds for Gstreamer
+        self.min_time_for_previous_restarts_song = int(
+            self.min_time_for_previous_restarts_song * Gst.SECOND)
+
+        
 from util import locate_file
-exec(open(locate_file(QStandardPaths.AppConfigLocation, 'config.py')).read())
-
-for folders in config.library_folders.values():
-    for i, folder in enumerate(folders):
-        folders[i] = os.path.expanduser(folder)
+with open(locate_file(QStandardPaths.AppConfigLocation, 'config.toml'), 'rb') as f:
+    config = Config(**tomllib.load(f))

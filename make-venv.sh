@@ -6,3 +6,4 @@ pip install PyGObject
 pip install Unidecode
 pip install mutagen
 pip install systemd-python
+pip install pydantic

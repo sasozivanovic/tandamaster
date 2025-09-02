@@ -34,7 +34,7 @@ class TMPlayer(QObject):
         self._timer = QTimer()
         self._timer.setTimerType(Qt.CoarseTimer)
         self._timer.timeout.connect(self.on_timer)
-        self._timer.setInterval(config._TMPlayer_timer_precision)
+        self._timer.setInterval(config.timer_precision)
 
         self._pending_ops = collections.defaultdict(lambda:[])
         self._fadeout_start = None
@@ -162,7 +162,7 @@ class TMPlayer(QObject):
     _signal_uri_change = pyqtSignal(int)
     def play_previous(self):
         position = self.position
-        if not position or position - self.current.song_begin < config.previous_restarts_song__min_time:
+        if not position or position - self.current.song_begin < config.min_time_for_previous_restarts_song:
             self.next = self.play_order.previous(self.current.model, self.current.item)
             self.state = self.PLAYING_FADEOUT
         else:

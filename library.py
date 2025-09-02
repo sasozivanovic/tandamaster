@@ -256,7 +256,7 @@ class Library(QObject):
             audiofile = None
         filedir = fileinfo.absolutePath()
         if library_name is not None:
-            for d in config.library_folders[library_name]:
+            for d in config.libraries[library_name]:
                 if filedir.startswith(d):
                     filedir = filedir[len(d):].lstrip('/')
                     break
@@ -560,7 +560,7 @@ class UpdateLibraryThread(TMThread):
     finished = pyqtSignal()
     def refresh_all_libraries(self):
         self.queue = []
-        for library_name, folders in config.library_folders.items():
+        for library_name, folders in config.libraries.items():
             for folder in folders:
                 self.queue.append((library_name, folder))
         self.dir_iterator = None

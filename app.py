@@ -67,6 +67,7 @@ class Config(pydantic.BaseModel):
     timer_precision: int
     min_time_for_previous_restarts_song: float
     ui_search_wait_for_enter: bool
+    song_pdf: str
 
     def __init__(self, **kwargs):
         
@@ -76,6 +77,7 @@ class Config(pydantic.BaseModel):
         for folders in self.libraries.values():
             for i, folder in enumerate(folders):
                 folders[i] = os.path.expanduser(folder)
+        self.song_pdf = os.path.expanduser(self.song_pdf)
 
         # 1. Convert to nanoseconds for Gstreamer
         # 2. Convert into a defaultdict

@@ -672,7 +672,7 @@ class PlayTreeFolder(PlayTreeItem):
                 PlayTreeFolder(filename=fullfn, parent = self) for fn,fullfn in folders
             ]
             for fn,fullfn in files:
-                if os.path.splitext(fn)[1] in Library.musicfile_extensions:
+                if os.path.splitext(fn)[1] in config.musicfile_extensions:
                     self.children[None].append(
                         PlayTreeFile(filename=fullfn, parent = self))
         if model and self.unpopulated(model):

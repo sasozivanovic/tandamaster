@@ -14,6 +14,7 @@ from commands import *
 from replay_gain import TMReplayGain
 from gi.repository import GObject, Gst, GLib
 import os, os.path, subprocess, platform
+from pathlib import Path
 
 import collections, weakref, binascii, datetime
 
@@ -2023,7 +2024,8 @@ class LaTeXSongInfo(QRunnable):
              item.get_tag('genre', only_first = True, default = ''),             
          ) for item in self.items]
     def run(self):
-        with open('naslov.tex', 'w') as f:
+        pdf = Path(config.song_pdf)
+        with open(pdf.with_suffix('.tex'), 'w') as f:
             print(r"""\documentclass[tikz]{standalone}
 \usepackage{fontspec}
 \def\mypaperwidth{297mm}
@@ -2055,8 +2057,9 @@ class LaTeXSongInfo(QRunnable):
 """) if genre.lower() in ('vals', 'milonga') else '') + """}""", file = f)
             print(r"""\end{document}""", file=f)
         import subprocess
-        subprocess.call(['xelatex', '-interaction', 'nonstopmode', 'naslov'])
-        subprocess.call(['xdg-open', 'naslov.pdf'])
+        subprocess.call(['xelatex', '-interaction', 'nonstopmode', pdf.stem],
+                        cwd = pdf.parent)
+        subprocess.call(['xdg-open', pdf], cwd = pdf.parent)
 
 
 # icon sets:

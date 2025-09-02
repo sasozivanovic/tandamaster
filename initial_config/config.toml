@@ -32,6 +32,9 @@ min_time_for_previous_restarts_song = 3 # seconds
 # Note that instant search might be a bit slow.
 ui_search_wait_for_enter = true
 
+# Write the PDF from "Tools -> Make PDF for songs" here:
+song_pdf = "~/Downloads/songs.pdf"
+
 # Where do you keep your music? TandaMaster supports any number of "libraries"
 # (below, "tango" and (other) "music"), and each library consists of any number
 # of folders.  Even on Windows, separate directory names by "/", not "\"!

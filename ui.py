@@ -1,6 +1,7 @@
-#from PyQt5.QtCore import pyqtRemoveInputHook; from IPython import embed; pyqtRemoveInputHook()
+from PyQt5.QtCore import pyqtRemoveInputHook; from IPython import embed; pyqtRemoveInputHook()
 import cProfile
 
+import PyQt5 as qt
 from PyQt5.Qt import *   # todo: import only what you need
 
 from player import TMPlayer, PlayOrder, PlaybackConfig
@@ -998,12 +999,12 @@ class TMItemDelegate(QStyledItemDelegate):
         editor.addAction(QAction(self, shortcut='up', triggered = lambda: self.closeEditor.emit(editor, self.EditPreviousRow)))
         editor.addAction(QAction(self, shortcut='down', triggered = lambda: self.closeEditor.emit(editor, self.EditNextRow)))
         tag = index.model().columns[index.column()]
-        if tag:
+        if tag and isinstance(editor, qt.QtWidgets.QLineEdit):
             completer = QCompleter()
             completer.setCompletionMode(QCompleter.PopupCompletion)
             completer.setCaseSensitivity(False)
             completer.setModel(QStringListModel(
-                [v for v,sid,n in library().query_tags_iter((('_library', 'tango'),), '', [tag])])) # todo: 'tango' -> whatever lib
+                [str(v) for v,sid,n in library().query_tags_iter((('_library', 'tango'),), '', [tag])])) # todo: 'tango' -> whatever lib
             editor.setCompleter(completer)
         return editor
 
@@ -1088,13 +1089,14 @@ class TMPositionProgressBar(TMProgressBar):
         song_begin = self.player.current.song_begin
         song_end = self.player.current.song_end
         # calculate manually: setting scale to use ms produces numbers that are too large?
-        song_begin = self.width() * song_begin / Gst.MSECOND / self.maximum() if song_begin else None
-        song_end = self.width() * song_end / Gst.MSECOND / self.maximum() if song_end else None
+        song_begin =int(self.width() * song_begin / Gst.MSECOND / self.maximum()) if song_begin else None
+        song_end = int(self.width() * song_end / Gst.MSECOND / self.maximum()) if song_end else None
         painter.setPen(QColor(Qt.red))
         if song_begin:
             painter.drawLine(song_begin, 0, song_begin, self.height())
         if song_end:
             painter.drawLine(song_end, 0, song_end, self.height())
+        del painter
             
 
 class TandaMasterWindow(QMainWindow):
@@ -2220,7 +2222,7 @@ class Report(QWidget):
                 if singer.lower() == 'instrumental':
                     singer = ''
                 report += "{}{}: {} ({}{})\n".format(
-                    '\item ' if output_type == 'LaTeX' else '',
+                    r'\item ' if output_type == 'LaTeX' else '',
                     artist, title, year,
                     ', {}: {}'.format(
                         'poje' if language == 'Slovene' else 'singer',

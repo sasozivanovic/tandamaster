@@ -3,7 +3,9 @@ __all__ = ['app', 'config']
 import sys, os, platform
 
 
-from PyQt5.Qt import QApplication, pyqtSignal, QStandardPaths, QTimer, Qt, QThread
+from PyQt5.QtWidgets import QApplication
+from PyQt5.QtCore import pyqtSignal
+from PyQt5.Qt import QStandardPaths, QTimer, Qt, QThread
 
 class TandaMasterApplication(QApplication):
     info = pyqtSignal(str)

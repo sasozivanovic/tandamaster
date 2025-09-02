@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python
 
 #import pyximport; pyximport.install(pyimport = True)
 
@@ -39,9 +39,9 @@ app.system_tray_icon.activated.connect(show_hide_tmwindow)
 
 
 import logging
-from systemd.journal import JournaldLogHandler
+from systemd.journal import JournalHandler
 logger = logging.getLogger(__name__)
-journald_handler = JournaldLogHandler()
+journald_handler = JournalHandler()
 journald_handler.setFormatter(logging.Formatter(
     '[%(levelname)s] %(message)s'
 ))

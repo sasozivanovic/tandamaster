@@ -58,6 +58,7 @@ class Mp3SpltWorker(QObject):
         self.vorbisenc = Gst.ElementFactory.make("vorbisenc", None)
         self.oggmux = Gst.ElementFactory.make("oggmux", None)
         self.filesink = Gst.ElementFactory.make("filesink", None)
+        #self.temp_filename = tempfile.mktemp(suffix = '.ogg', prefix = 'tandamaster_mp3splt_convert_to_ogg_')
         self.converter.add(self.uridecodebin)
         self.converter.add(self.audioconvert)
         self.converter.add(self.vorbisenc)
@@ -155,6 +156,7 @@ class Mp3SpltWorker(QObject):
             self.process_again()
             
     def process_again(self):
+        temp_filename = self.temp_filename # because self.process_next.emit() executes self.process before reaching the finally clause
         try:
             self.start, self.end = self.trim(self.temp_filename)
         except RuntimeError as er:
@@ -163,7 +165,10 @@ class Mp3SpltWorker(QObject):
         else:
             self.save_start_end()
         finally:
-            os.remove(self.temp_filename)
+            try:
+                os.remove(temp_filename)
+            except FileNotFoundError:
+                pass
 
     def trim(self, filename):
         assert isinstance(filename, str)

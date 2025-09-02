@@ -280,7 +280,7 @@ class PlayTreeList(PlayTreeItem):
                         return
                 return data if not first else None
         elif tag == '@name' and role == Qt.DecorationRole:
-            return MyIcon('icons/iconfinder/silk/list.png')
+            return MyIcon('iconfinder/silk/list.png')
 
     def populate(self, model, force = False, recursive = False, filter_expr = None):
         filter_expr = filter_expr if filter_expr or not model else model.filter_expr
@@ -572,9 +572,9 @@ class PlayTreeFile(PlayTreeItem):
             #return tmSongIcon
             #return MyIcon('crazyeye_dance.png')
             if self.function() == 'cortina':
-                return MyIcon('icons/iconfinder/farm-fresh/curtain.png')
+                return MyIcon('iconfinder/farm-fresh/curtain.png')
             else:
-                return MyIcon('icons/happy-dance.gif')
+                return MyIcon('happy-dance.gif')
         elif role == Qt. BackgroundRole and library().dirty(self.song_id, tag):
             return QBrush(QColor(Qt.yellow))
         elif role == Qt.ToolTipRole and library().dirty(self.song_id, tag):
@@ -653,7 +653,7 @@ class PlayTreeFolder(PlayTreeItem):
             if role == Qt.DisplayRole:
                 return str(self)
             elif role == Qt.DecorationRole:
-                return MyIcon('icons/iconfinder/ionicons/folder.png')
+                return MyIcon('iconfinder/ionicons/folder.png')
 
     def populate(self, model, force = False, recursive = False, filter_expr = None):
         filter_expr = filter_expr if filter_expr or not model else model.filter_expr
@@ -788,10 +788,10 @@ class PlayTreeBrowse(PlayTreeItem):
             return super().column_to_tag(model, column)
             
     icons = {
-        '__browse': 'icons/library.png',
-        '__search': 'icons/iconfinder/octicons/search.png',
-        'artist': 'icons/personal.png', 
-        'album': 'icons/image_album.png'
+        '__browse': 'library.png',
+        '__search': 'iconfinder/octicons/search.png',
+        'artist': 'personal.png', 
+        'album': 'image_album.png'
     }
     def data(self, model, tag, role):
         if tag in (self.tag, '@name'):

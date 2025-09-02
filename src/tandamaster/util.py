@@ -38,9 +38,21 @@ class SongInfoFormatter(PartialFormatter):
         tags.update(kwargs)
         return super().format(format_string, *args, **tags)
             
-from PyQt5.Qt import QIcon
-import sys
-icon_prefix = (sys._MEIPASS + '/') if getattr(sys, 'frozen', False) else ''
+from PyQt5.Qt import QIcon, QStandardPaths
+import sys, os.path
+from pathlib import Path
+
+if getattr(sys, 'frozen', False):
+    # Was this for the Windows distribution?
+    icon_prefix = sys._MEIPASS
+elif (icon_prefix := Path(__file__).parent / '../../icons').exists():
+    # development location
+    icon_prefix = str(icon_prefix.resolve())
+else:
+    icon_prefix = QStandardPaths.locate(QStandardPaths.AppDataLocation, 'icons',
+                                        options = QStandardPaths.LocateDirectory)
+assert icon_prefix, "Cannot find icons!"
+icon_prefix += '/'
 def MyIcon(filename):
     return QIcon(icon_prefix + filename)
 

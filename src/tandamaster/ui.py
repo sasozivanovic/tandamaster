@@ -80,7 +80,7 @@ class TabbedPlayTreesWidget(QTabWidget, TMWidget):
         self.setTabsClosable(True)
         self.setUsesScrollButtons(True)
         action_addtab = QAction(
-            MyIcon('icons/iconfinder/miniiconsetpart1/add.png'),
+            MyIcon('iconfinder/miniiconsetpart1/add.png'),
             app.tr('Add tab'), self,
             triggered = self.add_tab
         )
@@ -1106,7 +1106,7 @@ class TandaMasterWindow(QMainWindow):
         super().__init__(parent)
         self.profiler = None
         self.setWindowTitle('TandaMaster')        
-        self.setWindowIcon(MyIcon('icons/iconarchive/icons8/tandamaster-Sports-Dancing-icon.png'))
+        self.setWindowIcon(MyIcon('iconarchive/icons8/tandamaster-Sports-Dancing-icon.png'))
 
         self.player = TMPlayer()
         #self.player2 = TMPlayer() # pre-listening
@@ -1179,16 +1179,16 @@ class TandaMasterWindow(QMainWindow):
         self.action_back = QAction(
             #self.style().standardIcon(QStyle.SP_MediaSkipBackward), 
             #MyIcon('Tango', 'actions', 'media-skip-backward'),
-            MyIcon('icons/button_rewind_green.png'),
-            #MyIcon('icons/iconfinder/32pxmania/previous.png'),
+            MyIcon('button_rewind_green.png'),
+            #MyIcon('iconfinder/32pxmania/previous.png'),
             self.tr('P&revious'), self, triggered = self.player.play_previous)
         self.playbackmenu.addAction(self.action_back)
         
         self.action_play = QAction(
             #self.style().standardIcon(QStyle.SP_MediaPlay), 
             #MyIcon('Tango', 'actions', 'media-playback-start'),
-            MyIcon('icons/button_play_green.png'),
-            #MyIcon('icons/iconfinder/32pxmania/play.png'),
+            MyIcon('button_play_green.png'),
+            #MyIcon('iconfinder/32pxmania/play.png'),
             self.tr('&Play'), 
             self,
             shortcut = QKeySequence('space'),
@@ -1198,8 +1198,8 @@ class TandaMasterWindow(QMainWindow):
         action_play_this = QAction(
             #self.style().standardIcon(QStyle.SP_MediaPlay), 
             #MyIcon('Tango', 'actions', 'media-playback-start'),
-            MyIcon('icons/button_play_green.png'),
-            #MyIcon('icons/iconfinder/32pxmania/play.png'),
+            MyIcon('button_play_green.png'),
+            #MyIcon('iconfinder/32pxmania/play.png'),
             self.tr('Play this'), 
             self,
             shortcut = QKeySequence('ctrl+space'),
@@ -1209,8 +1209,8 @@ class TandaMasterWindow(QMainWindow):
         self.action_pause =  QAction(
             #self.style().standardIcon(QStyle.SP_MediaPause), 
             #MyIcon('Tango', 'actions', 'media-playback-pause'),
-            MyIcon('icons/button_pause_green.png'),
-            #MyIcon('icons/iconfinder/32pxmania/pause.png'),
+            MyIcon('button_pause_green.png'),
+            #MyIcon('iconfinder/32pxmania/pause.png'),
             self.tr('&Pause'), self, 
             shortcut = QKeySequence('space'),
             triggered = self.player.pause)
@@ -1219,16 +1219,16 @@ class TandaMasterWindow(QMainWindow):
         self.action_stop = QAction(
             #self.style().standardIcon(QStyle.SP_MediaStop), 
             #MyIcon('Tango', 'actions', 'media-playback-stop'),
-            MyIcon('icons/button_stop_green.png'),
-            #MyIcon('icons/iconfinder/32pxmania/stop.png'),
+            MyIcon('button_stop_green.png'),
+            #MyIcon('iconfinder/32pxmania/stop.png'),
             self.tr('&Stop'), self, triggered = self.player.stop)
         self.playbackmenu.addAction(self.action_stop)
         
         self.action_forward = QAction(
             #self.style().standardIcon(QStyle.SP_MediaSkipForward), 
             #MyIcon('Tango', 'actions', 'media-skip-forward'),
-            MyIcon('icons/button_fastforward_green.png'),
-            #MyIcon('icons/iconfinder/32pxmania/next.png'),
+            MyIcon('button_fastforward_green.png'),
+            #MyIcon('iconfinder/32pxmania/next.png'),
             self.tr('&Next'), self, triggered = self.player.play_next,
             shortcut = QKeySequence('ctrl+n'),
         )
@@ -1238,7 +1238,7 @@ class TandaMasterWindow(QMainWindow):
         
         # todo: disablaj lock kadar je state STOPPED, na koncu seznama pa avtomatsko odkleni
         self.action_lock = QAction(
-            MyIcon('icons/iconfinder/iconza/unlocked.png'),
+            MyIcon('iconfinder/iconza/unlocked.png'),
             self.tr('Un&locked'), self, toggled = self.lock)
         self.action_lock.setCheckable(True)
         self.playbackmenu.addAction(self.action_lock)
@@ -1257,122 +1257,122 @@ class TandaMasterWindow(QMainWindow):
         
         self.action_cut = QAction(
             #MyIcon('Tango', 'actions', 'edit-cut'),
-            #MyIcon('icons/tango/edit-cut'),
-            MyIcon('icons/iconfinder/farm-fresh/cut.png'),
+            #MyIcon('tango/edit-cut'),
+            MyIcon('iconfinder/farm-fresh/cut.png'),
             self.tr('Cu&t'), self, triggered = swcm(PlayTreeView, PlayTreeView.cut),
             shortcut = QKeySequence(QKeySequence.Cut))
         
         self.action_copy = QAction(
-            #MyIcon('icons/tango/edit-copy'),
+            #MyIcon('tango/edit-copy'),
             #MyIcon('Tango', 'actions', 'edit-copy'),
-            MyIcon('icons/iconfinder/farm-fresh/copy.png'),
+            MyIcon('iconfinder/farm-fresh/copy.png'),
             self.tr('&Copy'), self, triggered = swcm(PlayTreeView, PlayTreeView.copy),
             shortcut = QKeySequence(QKeySequence.Copy))
         
         self.action_paste = QAction(
             #MyIcon('Tango', 'actions', 'edit-paste'),
-            #MyIcon('icons/tango/edit-paste'),
-            MyIcon('icons/iconfinder/farm-fresh/paste.png'),
+            #MyIcon('tango/edit-paste'),
+            MyIcon('iconfinder/farm-fresh/paste.png'),
             self.tr('&Paste'), self, triggered = swcm(PlayTreeView, PlayTreeView.paste),
             shortcut = QKeySequence(QKeySequence.Paste))
         
         self.action_insert = QAction(
-            MyIcon('icons/iconfinder/32pxmania/insert.png'),
+            MyIcon('iconfinder/32pxmania/insert.png'),
             self.tr('&Insert'), self, triggered = swcm(PlayTreeView, PlayTreeView.insert),
             shortcut = QKeySequence('insert'))
         
         self.action_delete = QAction(
-            MyIcon('icons/iconfinder/32pxmania/delete.png'),
+            MyIcon('iconfinder/32pxmania/delete.png'),
             self.tr('&Delete'), self, triggered = swcm(PlayTreeView, PlayTreeView.delete),
             shortcut = QKeySequence(QKeySequence.Delete))
         
         self.action_group = QAction(
-            MyIcon('icons/iconfinder/farm-fresh/group.png'),
+            MyIcon('iconfinder/farm-fresh/group.png'),
             self.tr('&Group'), self, triggered = swcm(PlayTreeView, PlayTreeView.group),
             shortcut = QKeySequence('Ctrl+g'))
         
         self.action_group_into_tandas = QAction(
-            MyIcon('icons/iconfinder/farm-fresh/group.png'),
+            MyIcon('iconfinder/farm-fresh/group.png'),
             self.tr('Group into tandas'), self, triggered = swcm(PlayTreeView, PlayTreeView.group_into_tandas),
             shortcut = QKeySequence('Ctrl+Shift+g'))
         
         self.action_ungroup = QAction(
-            MyIcon('icons/iconfinder/farm-fresh/ungroup.png'),
+            MyIcon('iconfinder/farm-fresh/ungroup.png'),
             self.tr('&Ungroup'), self, triggered = swcm(PlayTreeView, PlayTreeView.ungroup),
             shortcut = QKeySequence('Ctrl+u'))
         
         self.action_move_up = QAction(
-            #MyIcon('icons/iconfinder/32pxmania/up.png'),
-            MyIcon('icons/iconfinder/momentum_glossy/arrow-up.png'),
+            #MyIcon('iconfinder/32pxmania/up.png'),
+            MyIcon('iconfinder/momentum_glossy/arrow-up.png'),
             self.tr('Move &up'), self,
             triggered = swcm(PlayTreeView, PlayTreeView.move_up),
             shortcut = QKeySequence('alt+up'))
         
         self.action_move_down = QAction(
-            #MyIcon('icons/iconfinder/32pxmania/down.png'),
-            MyIcon('icons/iconfinder/momentum_glossy/arrow-down.png'),
+            #MyIcon('iconfinder/32pxmania/down.png'),
+            MyIcon('iconfinder/momentum_glossy/arrow-down.png'),
             self.tr('Move &down'), self, triggered = swcm(PlayTreeView, PlayTreeView.move_down),
             shortcut = QKeySequence('alt+down'))
         
         self.action_move_up_left = QAction(
-            MyIcon('icons/iconfinder/momentum_glossy/arrow-up-left.png'),
+            MyIcon('iconfinder/momentum_glossy/arrow-up-left.png'),
             self.tr('Move up &out of parent'), self, triggered = swcm(PlayTreeView, PlayTreeView.move_up_left))
         
         self.action_move_down_right = QAction(
-            MyIcon('icons/iconfinder/momentum_glossy/arrow-down-right.png'),
+            MyIcon('iconfinder/momentum_glossy/arrow-down-right.png'),
             self.tr('Move into &next sibling'), self, triggered = swcm(PlayTreeView, PlayTreeView.move_down_right))
         
         self.action_move_down_left = QAction(
-            MyIcon('icons/iconfinder/momentum_glossy/arrow-down-left.png'),
+            MyIcon('iconfinder/momentum_glossy/arrow-down-left.png'),
             self.tr('Move down &out of parent'), self,
             triggered = swcm(PlayTreeView, PlayTreeView.move_down_left),
             shortcut = QKeySequence('alt+left'))
         
         self.action_move_up_right = QAction(
-            MyIcon('icons/iconfinder/momentum_glossy/arrow-up-right.png'),
+            MyIcon('iconfinder/momentum_glossy/arrow-up-right.png'),
             self.tr('Move into &previous sibling'), self,
             triggered = swcm(PlayTreeView, PlayTreeView.move_up_right),
             shortcut = QKeySequence('alt+right'))
 
         self.action_move_home = QAction(
-            MyIcon('icons/iconfinder/momentum_glossy/move_top.png'),
+            MyIcon('iconfinder/momentum_glossy/move_top.png'),
             self.tr('Move to &top'), self, triggered = swcm(PlayTreeView, PlayTreeView.move_home),
             shortcut = QKeySequence('alt+home'))
         
         self.action_move_end = QAction(
-            MyIcon('icons/iconfinder/momentum_glossy/move_bottom.png'),
+            MyIcon('iconfinder/momentum_glossy/move_bottom.png'),
             self.tr('Move to &bottom'), self, triggered = swcm(PlayTreeView, PlayTreeView.move_end),
             shortcut = QKeySequence('alt+end'))
 
         self.action_edit_tag = QAction(
-            #MyIcon('icons/iconfinder/32pxmania/up.png'),
+            #MyIcon('iconfinder/32pxmania/up.png'),
             self.tr('&Edit tag'), self, triggered = swcm(PlayTreeView, PlayTreeView.edit_tag))
         
         self.action_save_tag = QAction(
-            #MyIcon('icons/iconfinder/32pxmania/up.png'),
+            #MyIcon('iconfinder/32pxmania/up.png'),
             self.tr('&Save tag'), self, triggered = swcm(PlayTreeView, PlayTreeView.save_tag))
         
         self.action_revert_tag = QAction(
-            #MyIcon('icons/iconfinder/32pxmania/up.png'),
+            #MyIcon('iconfinder/32pxmania/up.png'),
             self.tr('&Revert tag'), self, triggered = swcm(PlayTreeView, PlayTreeView.revert_tag))
 
         self.action_edit_tags = QAction(
-            #MyIcon('icons/iconfinder/32pxmania/up.png'),
+            #MyIcon('iconfinder/32pxmania/up.png'),
             self.tr('&Edit tags'), self, triggered = swcm(PlayTreeView, PlayTreeView.edit_tags), shortcut='ctrl+e')
 
         self.action_edit_tags_mode = QAction(
-            MyIcon('icons/iconfinder/farm-fresh/edit.png'),
+            MyIcon('iconfinder/farm-fresh/edit.png'),
             self.tr('Edit &tags mode'), self, toggled = self.edit_tags_mode)
         self.action_edit_tags_mode.setCheckable(True)
 
         self.action_change_case = QAction(
-            MyIcon('icons/iconfinder/retina/font_case.png'),
+            MyIcon('iconfinder/retina/font_case.png'),
             self.tr('Change &case'), self, triggered = swcm(PlayTreeView, PlayTreeView.change_case), shortcut='shift+f3')
         
         action_undo = undo_stack.createUndoAction(self)
         action_redo = undo_stack.createRedoAction(self)
-        action_undo.setIcon(MyIcon('icons/iconfinder/32pxmania/undo.png'))
-        action_redo.setIcon(MyIcon('icons/iconfinder/32pxmania/redo.png'))
+        action_undo.setIcon(MyIcon('iconfinder/32pxmania/undo.png'))
+        action_redo.setIcon(MyIcon('iconfinder/32pxmania/redo.png'))
         action_undo.setShortcut(QKeySequence(QKeySequence.Undo))
         action_redo.setShortcut(QKeySequence(QKeySequence.Redo))
         
@@ -1703,11 +1703,11 @@ class TandaMasterWindow(QMainWindow):
 
     def lock(self, locked):
         if locked:
-            self.action_lock.setIcon(MyIcon('icons/iconfinder/iconza/locked.png'))
+            self.action_lock.setIcon(MyIcon('iconfinder/iconza/locked.png'))
             self.action_lock.setText(app.tr('&Locked'))
             self.action_play.setEnabled(locked)
         else:
-            self.action_lock.setIcon(MyIcon('icons/iconfinder/iconza/unlocked.png'))
+            self.action_lock.setIcon(MyIcon('iconfinder/iconza/unlocked.png'))
             self.action_lock.setText(app.tr('Un&locked'))
         self.action_back.setEnabled(not locked)
         #self.action_play.setEnabled(not locked)

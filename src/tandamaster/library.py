@@ -2,15 +2,17 @@
 from PyQt5.Qt import *   # todo: import only what you need
 
 import mutagen.easyid3, mutagen.easymp4
-import my_mutagen as mutagen
+import mutagen
+from .mutagen_guess import File as MutagenFile
+
 import sqlite3
 #import threading
 import os, os.path, sys
 from warnings import warn
 import functools, itertools, collections
 from fnmatch import fnmatch
-from app import *
-from util import *
+from .app import *
+from .util import *
 from gi.repository import Gst
 
 def id3_performer_get(id3, key):
@@ -250,8 +252,9 @@ class Library(QObject):
             )
             song_id = cursor.lastrowid
         try:
-            audiofile = mutagen.File(filename, easy = True)
-        except:
+            audiofile = MutagenFile(filename, easy = True)
+        except BaseException as err:
+            print(err)
             warn("Cannot read {}. Probably not an audio file".format(filename), RuntimeWarning)
             audiofile = None
         filedir = fileinfo.absolutePath()
@@ -390,7 +393,7 @@ class Library(QObject):
             if fileinfo.lastModified().toTime_t() <= mtime and fileinfo.size() == filesize:
                 try:
                     print("Saving tags to", filename)
-                    audiofile = mutagen.File(filename, easy = True)
+                    audiofile = MutagenFile(filename, easy = True)
                     for t in list(audiofile.keys()):
                         del audiofile[t]
                     new_tags = self.tags_by_song_id(song_id, sources = (from_source, update_source), internal = False)

@@ -1,0 +1,3 @@
+#!/usr/bin/bash
+
+PYTHONPATH=${VIRTUAL_ENV%/venv}/src exec python -m tandamaster $@

@@ -9,10 +9,10 @@ import sys, filecmp, os, datetime, copy, collections
 import xml.etree.ElementTree as etree
 from PyQt5.Qt import *   # todo: import only what you need
 
-from util import *
-from library import *
-from app import *
-from commands import *
+from .util import *
+from .library import *
+from .app import *
+from .commands import *
 
 import bidict, shlex
 import functools
@@ -1164,7 +1164,7 @@ class PlayTreeModel(QAbstractItemModel):
                     return True
                 
             
-from app import app
+from .app import app
 def save_playtree():
     playtree.save(playtree_xml_filename)
 #app.aboutToQuit.connect(save_playtree)

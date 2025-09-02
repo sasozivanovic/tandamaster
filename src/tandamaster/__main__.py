@@ -18,11 +18,11 @@ if sys.stdout.encoding != 'UTF-8' and sys.stdout.errors != 'replace':
 
 from PyQt5.Qt import *   # todo: import only what you need
 
-from app import *
-from util import *
+from .app import *
+from .util import *
 #app.aboutToQuit.connect(ptm.save)
 
-from ui import TandaMasterWindow
+from .ui import TandaMasterWindow
 tm = TandaMasterWindow()
 tm.show()
 

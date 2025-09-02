@@ -5,9 +5,9 @@ Gst.init(None)
 
 import collections
 
-from model import PlayTreeModel, PlayTreeItem, PlayTreeFile
-from util import *
-from app import *
+from .model import PlayTreeModel, PlayTreeItem, PlayTreeFile
+from .util import *
+from .app import *
 
 #from IPython import embed
 #import traceback

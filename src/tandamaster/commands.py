@@ -1,10 +1,10 @@
 #from PyQt5.QtCore import pyqtRemoveInputHook; from IPython import embed; pyqtRemoveInputHook()
 
 from PyQt5.Qt import *   # todo: import only what you need
-from app import *
+from .app import *
 undo_stack = QUndoStack(app)
-from library import library
-from util import *
+from .library import library
+from .util import *
 
 import collections
 

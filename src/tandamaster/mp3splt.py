@@ -1,9 +1,9 @@
 import ctypes
 import sys, os.path
 from PyQt5.Qt import QObject, QThread, QVariant, pyqtSignal, QUrl, QTimer, Qt
-from library import library
-from app import *
-from util import *
+from .library import library
+from .app import *
+from .util import *
 import tempfile
 
 import gi
@@ -43,13 +43,12 @@ class Mp3SpltWorker(QObject):
         gi.require_version('Gst', '1.0')
         GObject.threads_init()
         Gst.init(None)
-        
-        import mp3splt_h
-        self.mp3splt_h = mp3splt_h
-        self.mp3splt = mp3splt_h._libs["mp3splt"]
-        self.mp3splt.mp3splt_new_state.restype = ctypes.POINTER(self.mp3splt_h.splt_state)
-        self.mp3splt.mp3splt_get_splitpoints.restype = ctypes.POINTER(self.mp3splt_h.splt_points)
-        self.mp3splt.mp3splt_points_next.restype = ctypes.POINTER(self.mp3splt_h.splt_point)
+
+        from .mp3splt_h import _libs, splt_state, splt_points, splt_point
+        self.mp3splt = _libs["mp3splt"]
+        self.mp3splt.mp3splt_new_state.restype = ctypes.POINTER(splt_state)
+        self.mp3splt.mp3splt_get_splitpoints.restype = ctypes.POINTER(splt_points)
+        self.mp3splt.mp3splt_points_next.restype = ctypes.POINTER(splt_point)
         self.mp3splt.mp3splt_point_get_value.restype = ctypes.c_long
 
         self.converter = Gst.Pipeline()

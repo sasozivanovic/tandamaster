@@ -1,17 +1,17 @@
-from PyQt5.QtCore import pyqtRemoveInputHook; from IPython import embed; pyqtRemoveInputHook()
-import cProfile
+#from PyQt5.QtCore import pyqtRemoveInputHook; from IPython import embed; pyqtRemoveInputHook()
+#import cProfile
 
 import PyQt5 as qt
 from PyQt5.Qt import *   # todo: import only what you need
 
-from player import TMPlayer, PlayOrder, PlaybackConfig
-from model import *
-from library import Library
-from util import *
-from app import *
-from commands import *
+from .player import TMPlayer, PlayOrder, PlaybackConfig
+from .model import *
+from .library import Library
+from .util import *
+from .app import *
+from .commands import *
 
-from replay_gain import TMReplayGain
+from .replay_gain import TMReplayGain
 from gi.repository import GObject, Gst, GLib
 import os, os.path, subprocess, platform
 from pathlib import Path
@@ -1876,10 +1876,10 @@ class TandaMasterWindow(QMainWindow):
         return ptv if isinstance(ptv, PlayTreeView) else None
 
     def trim(self, ptv):
-        import mp3splt
+        from .mp3splt import Mp3Splt
         model = ptv.model()
         model.root_item.populate(model, recursive = True)
-        mp3splt.Mp3Splt().trim.emit([
+        Mp3Splt().trim.emit([
             item for item
             in model.root_item.iter(
                 model,

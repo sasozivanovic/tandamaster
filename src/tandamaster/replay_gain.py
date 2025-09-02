@@ -1,11 +1,11 @@
 #from IPython import embed; from PyQt5.QtCore import pyqtRemoveInputHook
 from PyQt5.Qt import *   # todo: import only what you need
 from gi.repository import GObject, Gst
-import my_mutagen as mutagen
+from .mutagen_guess import File as MutagenFile
 
-from app import *
-from util import *
-from library import *
+from .app import *
+from .util import *
+from .library import *
 
 class TMReplayGain(QObject):
     def __init__(self, model):
@@ -67,7 +67,7 @@ class TMReplayGainWorker(QObject):
             song_info_formatter = SongInfoFormatter(self.item)
             try:
                 if not force:
-                    audiofile = mutagen.File(self.item.filename, easy = True)
+                    audiofile = MutagenFile(self.item.filename, easy = True)
                     ok = bool(audiofile)
                     if ok:
                         for tag in (Gst.TAG_TRACK_GAIN, Gst.TAG_TRACK_PEAK, Gst.TAG_REFERENCE_LEVEL):
@@ -96,7 +96,7 @@ class TMReplayGainWorker(QObject):
 
     def store_rg_info(self, taglist):
         try:
-            audiofile = mutagen.File(self.item.filename, easy = True)
+            audiofile = MutagenFile(self.item.filename, easy = True)
             for tag, value in taglist:
                 audiofile[normalize_tag_name(tag)] = [str(value)]
             audiofile.save()

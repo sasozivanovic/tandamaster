@@ -47,7 +47,7 @@ def File(filename, options=None, easy=False):
         from mutagen.monkeysaudio import MonkeysAudio
         from mutagen.optimfrog import OptimFROG
         if easy:
-            from mutagen_easyaiff import EasyAIFF as MyAIFF
+            from .mutagen_easyaiff import EasyAIFF as MyAIFF
         else:
             from mutagen.aiff import AIFF as MyAIFF
         from mutagen.aac import AAC

@@ -95,6 +95,6 @@ class Config(pydantic.BaseModel):
             self.min_time_for_previous_restarts_song * Gst.SECOND)
 
         
-from util import locate_file
+from .util import locate_file
 with open(locate_file(QStandardPaths.AppConfigLocation, 'config.toml'), 'rb') as f:
     config = Config(**tomllib.load(f))

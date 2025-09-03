@@ -1,0 +1,3 @@
+#!/usr/bin/bash
+
+ctypesgen -lmp3splt /usr/include/libmp3splt/mp3splt.h -o src/tandamaster/mp3splt_h.py

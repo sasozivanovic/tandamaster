@@ -47,6 +47,7 @@ include-package-data = true
 where = ["src"]
 
 [tool.setuptools_scm]
+local_scheme = "no-local-version"
 
 [project.gui-scripts]
 tandamaster = "tandamaster.tandamaster:main"

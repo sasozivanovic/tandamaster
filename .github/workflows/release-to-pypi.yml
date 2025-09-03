@@ -32,10 +32,7 @@ jobs:
         with:
           run-id: ${{ github.event.workflow_run.id }}
         
-      - run:  |
-              ls
-              mkdir dist
-              mv tandamaster* dist
+      - run:  ls
       
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1

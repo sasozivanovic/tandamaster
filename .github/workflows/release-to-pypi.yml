@@ -17,7 +17,6 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: pypi-package
           path: dist/*
           
   pypi-publish:
@@ -31,7 +30,6 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: pypi-package
           path: dist
           run-id: ${{ github.event.workflow_run.id }}
         

@@ -28,13 +28,15 @@ jobs:
       # IMPORTANT: this permission is mandatory for Trusted Publishing
       id-token: write
     steps:
-      - run:  mkdir dist
-      
       - uses: actions/download-artifact@v5
         with:
-          path: dist
           run-id: ${{ github.event.workflow_run.id }}
         
+      - run:  |
+              ls
+              mkdir dist
+              mv tandamaster* dist
+      
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:

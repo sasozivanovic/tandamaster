@@ -1,6 +1,6 @@
 TandaMaster is a music player dedicated to playing tango music at milongas.
 
-TandaMaster does not have a playlists.  It has play*trees*, which makes it easy
+TandaMaster does not have playlists.  It has play*trees*, which makes it easy
 to create and manipulate tandas.
 
 It comes with a configurable gap between songs in a tanda.  The gap is precise,

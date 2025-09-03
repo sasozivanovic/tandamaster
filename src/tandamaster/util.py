@@ -155,7 +155,9 @@ from PyQt5.Qt import QStandardPaths
 def locate_file(location_type, basename):
     filename = QStandardPaths.locate(location_type, basename)
     if not filename:
-        print(os.path.join('initial_config', basename),
+        initial_file = os.path.join(
+            os.path.dirname(__file__), 'initial_config', basename)
+        print('Copying', initial_file, 'to',
             QStandardPaths.writableLocation(location_type))
         dirname = QStandardPaths.writableLocation(location_type)
         try:
@@ -163,7 +165,7 @@ def locate_file(location_type, basename):
         except FileExistsError:
             pass
         shutil.copy(
-            os.path.join('initial_config', basename),
+            initial_file,
             QStandardPaths.writableLocation(location_type))
         filename = QStandardPaths.locate(location_type, basename)
     assert filename
